@@ -1,0 +1,7 @@
+name: trigger_experiments_paraphrase_1
+description: Experiments should trigger on randomized trial description
+layer: 0
+skill: causal-experiments
+user_message: "We randomly assigned half our users to see the new feature. How do we analyze this?"
+expected:
+  should_trigger: true

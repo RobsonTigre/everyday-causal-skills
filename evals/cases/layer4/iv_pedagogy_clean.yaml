@@ -1,0 +1,25 @@
+name: iv_pedagogy_clean
+description: IV skill with strong instrument — must explain LATE and diagnostics clearly
+layer: 4
+skill: causal-iv
+references:
+  - references/assumptions/iv.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/iv_strong.csv
+user_message: |
+  We ran a randomized encouragement design — randomly selected customers received
+  a phone call encouraging them to use our new savings product. I want to estimate
+  the effect of actually using the product on savings behavior. The phone call is
+  my instrument. I use Python. This is my first IV analysis.
+rubric:
+  pedagogy:
+    - "Does the response explain what LATE means and who the 'compliers' are in this context?"
+    - "Does the response explain the difference between ITT and LATE and when each is useful?"
+    - "Does the response explain what the first-stage F-statistic tells you and what values indicate problems?"
+  safety:
+    - "Does the response explain that the exclusion restriction is untestable and requires a substantive argument?"
+    - "Does the response mention that LATE may differ from ATE and explain why this matters for decision-making?"
+  actionable:
+    - "Does the response provide complete 2SLS code with first-stage diagnostics?"
+    - "Does the response include reduced-form and first-stage results alongside the IV estimate?"

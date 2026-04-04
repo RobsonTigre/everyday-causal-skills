@@ -1,0 +1,7 @@
+name: no_trigger_data_cleaning
+description: No causal skill should trigger on data wrangling
+layer: 0
+skill: causal-planner
+user_message: "Help me clean this CSV file and handle missing values"
+expected:
+  should_trigger: false

@@ -1,0 +1,7 @@
+name: trigger_did_paraphrase_1
+description: DiD should trigger on policy evaluation with treatment/control
+layer: 0
+skill: causal-did
+user_message: "Some stores got a new layout and others didn't. I want to compare outcomes before and after the change."
+expected:
+  should_trigger: true

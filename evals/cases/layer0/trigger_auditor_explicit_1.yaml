@@ -1,0 +1,7 @@
+name: trigger_auditor_explicit_1
+description: Auditor should trigger on "audit"
+layer: 0
+skill: causal-auditor
+user_message: "Can you audit my DiD analysis for threats to validity?"
+expected:
+  should_trigger: true

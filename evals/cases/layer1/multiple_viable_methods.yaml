@@ -1,0 +1,19 @@
+name: multiple_viable_methods
+description: Scenario where both DiD and RDD are viable — planner should discuss trade-offs
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  A state introduced a minimum wage increase that applies to all businesses with
+  50+ employees. I have panel data on 500 businesses observed monthly for 3 years,
+  including their employee count. The policy started 18 months ago. I want to estimate
+  the effect on total payroll. I use R.
+expected:
+  rubric:
+    - "Does the response recommend difference-in-differences (DiD) as a primary or viable method?"
+    - "Does the response also discuss regression discontinuity (RDD) as a viable alternative, using the 50-employee threshold?"
+    - "Does the response discuss the trade-offs between DiD and RDD for this scenario?"
+  must_not_recommend: [synthetic control, iv]

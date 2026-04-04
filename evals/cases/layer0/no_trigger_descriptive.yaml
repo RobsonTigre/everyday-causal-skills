@@ -1,0 +1,7 @@
+name: no_trigger_descriptive
+description: No causal skill should trigger on descriptive stats
+layer: 0
+skill: causal-planner
+user_message: "Give me summary statistics for this dataset"
+expected:
+  should_trigger: false

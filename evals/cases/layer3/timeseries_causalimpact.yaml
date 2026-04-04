@@ -1,0 +1,20 @@
+name: timeseries_causalimpact
+description: ITS/CausalImpact with known level shift — code must run and estimate correctly
+layer: 3
+skill: causal-timeseries
+references:
+  - references/assumptions/timeseries.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/timeseries_causalimpact_l3.csv
+language: python
+user_message: |
+  I have monthly outcome data for 60 periods. An intervention began at period 41.
+  The pre-period appears stable with a mild upward trend. Implement an interrupted
+  time series analysis to estimate the average causal effect. The data is loaded as df.
+  Use Python. Use a simple segmented regression approach (no specialized packages needed).
+  In your code, print the main treatment effect estimate as ESTIMATE:<value> (e.g., print(f'ESTIMATE:{effect}')).
+expected:
+  true_effect: 3.0
+  tolerance: 1.5
+  must_include: [pre_treatment, confidence_interval]

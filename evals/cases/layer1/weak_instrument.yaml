@@ -1,0 +1,20 @@
+name: weak_instrument
+description: Non-compliance with encouragement design — should recommend IV
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We sent reminder emails to half of our customers encouraging them to use our new
+  savings feature. Not everyone who got the email actually used it, but the email
+  was randomly assigned. We want to know the effect of actually using the savings
+  feature on total deposits. About 30% of emailed customers used it vs 5% of
+  non-emailed. I use R.
+expected:
+  rubric:
+    - "Does the response recommend instrumental variables (IV) or a related approach (2SLS, Wald estimator, LATE)?"
+    - "Does the response identify the randomized email as the instrument for actual feature usage?"
+    - "Does the response discuss the distinction between intent-to-treat (ITT) and the local average treatment effect (LATE/complier average)?"
+  must_not_recommend: [rdd, synthetic control]

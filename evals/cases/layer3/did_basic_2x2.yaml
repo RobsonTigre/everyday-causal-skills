@@ -1,0 +1,19 @@
+name: did_basic_2x2
+description: Basic 2x2 DiD with known ATT — code must run and estimate correctly
+layer: 3
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_basic_2x2.csv
+language: python
+user_message: |
+  I have panel data for 50 stores over 12 months. Stores 1-25 received a new
+  display at month 6. Implement a basic DiD to estimate the effect on sales.
+  The data is loaded as df. Use Python.
+  In your code, print the main treatment effect estimate as ESTIMATE:<value> (e.g., print(f'ESTIMATE:{att}')).
+expected:
+  true_effect: 5.0
+  tolerance: 1.0
+  must_include: [parallel_trends, confidence_interval, clustered_standard_errors]

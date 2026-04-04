@@ -1,0 +1,17 @@
+name: experiments_noncompliance
+description: RCT with differential non-compliance — must flag compliance issues
+layer: 2
+skill: causal-experiments
+references:
+  - references/assumptions/experiments.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/experiments_noncompliance.csv
+user_message: |
+  I ran an RCT with 2000 participants. Half were assigned to treatment, half to control.
+  But not everyone complied — some assigned to treatment didn't take it, and a few in
+  the control group got the treatment anyway. I want to estimate the treatment effect.
+  I use Python.
+expected:
+  must_flag: [compliance]
+  severity: serious

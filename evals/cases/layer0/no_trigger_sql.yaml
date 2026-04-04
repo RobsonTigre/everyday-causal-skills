@@ -1,0 +1,7 @@
+name: no_trigger_sql
+description: No causal skill should trigger on SQL
+layer: 0
+skill: causal-planner
+user_message: "Write a SQL query to join these two tables"
+expected:
+  should_trigger: false

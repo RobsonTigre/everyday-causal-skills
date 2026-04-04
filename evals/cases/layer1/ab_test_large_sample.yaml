@@ -1,0 +1,18 @@
+name: ab_test_large_sample
+description: Clean A/B test with large sample — should recommend experiments
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I run an e-commerce platform. Last month we ran an A/B test on our checkout page.
+  We randomly assigned 50,000 users to the new flow and 50,000 to the old flow.
+  We want to know if the new flow increased conversion rate. I use Python.
+expected:
+  rubric:
+    - "Does the response correctly identify this as a randomized experiment / A/B test?"
+    - "Does the response recommend an appropriate analysis method (e.g., difference in means, z-test, t-test, regression, or CUPED)?"
+    - "Does the response avoid recommending observational causal methods (IV, RDD, synthetic control, matching) as the primary approach?"
+  must_not_recommend: [iv, rdd, synthetic control, matching]

@@ -1,0 +1,7 @@
+name: trigger_experiments_paraphrase_2
+description: Experiments should trigger on sample size question
+layer: 0
+skill: causal-experiments
+user_message: "How many users do we need in each group to detect a 5% lift in conversion?"
+expected:
+  should_trigger: true

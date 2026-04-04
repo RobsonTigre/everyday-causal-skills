@@ -1,0 +1,7 @@
+name: trigger_auditor_explicit_2
+description: Auditor should trigger on "what could go wrong"
+layer: 0
+skill: causal-auditor
+user_message: "I've completed my matching analysis. What could go wrong with it?"
+expected:
+  should_trigger: true

@@ -1,0 +1,32 @@
+name: audit_iv_exclusion
+description: Auditor receives an IV analysis with a questionable exclusion restriction
+layer: 2
+skill: causal-auditor
+references:
+  - references/assumptions/iv.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  Please audit the following causal analysis:
+
+  ## Analysis Summary
+  We estimated the effect of college education on annual earnings using instrumental
+  variables. The instrument is distance from the student's home to the nearest college.
+
+  ## Method
+  Two-stage least squares (2SLS):
+  - First stage: education_years ~ distance_to_college + controls
+  - Second stage: earnings ~ education_years_hat + controls
+  - Controls: parent_education, family_income, urban/rural
+
+  ## Results
+  - First-stage F-statistic: 28.4 (strong instrument)
+  - Estimated LATE: $4,200 per year of education (SE: $1,100, p = 0.0002)
+  - Sargan test not applicable (single instrument)
+
+  ## Interpretation
+  Distance to college is a valid instrument because it affects whether students
+  attend college but should not directly affect their future earnings.
+expected:
+  must_flag: [exclusion]
+  severity: serious

@@ -1,0 +1,7 @@
+name: trigger_timeseries_explicit_2
+description: Timeseries should trigger on "interrupted time series"
+layer: 0
+skill: causal-timeseries
+user_message: "Can you help me run an interrupted time series analysis?"
+expected:
+  should_trigger: true

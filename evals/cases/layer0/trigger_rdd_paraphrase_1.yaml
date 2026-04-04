@@ -1,0 +1,7 @@
+name: trigger_rdd_paraphrase_1
+description: RDD should trigger on score-based assignment
+layer: 0
+skill: causal-rdd
+user_message: "Students above a test score threshold get into the program. Can I use this to estimate the program's effect?"
+expected:
+  should_trigger: true

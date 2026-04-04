@@ -1,0 +1,20 @@
+name: matching_ate
+description: Propensity score weighting with known ATE — code must run and estimate correctly
+layer: 3
+skill: causal-matching
+references:
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/matching_ate_l3.csv
+language: python
+user_message: |
+  I have observational data on 500 individuals. Treatment was assigned based on age,
+  income, and education level. I want to estimate the ATE using inverse probability
+  weighting (IPW). Covariates are: age, income, education. The data is loaded as df.
+  Use Python.
+  In your code, print the main treatment effect estimate as ESTIMATE:<value> (e.g., print(f'ESTIMATE:{ate}')).
+expected:
+  true_effect: 3.0
+  tolerance: 2.0
+  must_include: [propensity_score]

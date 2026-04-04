@@ -1,0 +1,7 @@
+name: trigger_timeseries_paraphrase_1
+description: Timeseries should trigger on single-unit pre/post
+layer: 0
+skill: causal-timeseries
+user_message: "I have monthly sales data for one store. A new policy started in June. Did it change sales?"
+expected:
+  should_trigger: true

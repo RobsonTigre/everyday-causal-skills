@@ -1,0 +1,24 @@
+name: did_pedagogy_clean
+description: DiD skill with clean data — must explain assumptions clearly and produce usable code
+layer: 4
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_clean.csv
+user_message: |
+  I have panel data for 100 stores over 24 months. Half got a new checkout system
+  at month 12. I want to estimate the effect on sales using DiD. I use R.
+  This is my first time running a DiD analysis.
+rubric:
+  pedagogy:
+    - "Does the response explain what parallel trends means in plain language, not just say 'check parallel trends'?"
+    - "Does the response explain what the DiD estimate captures (the ATT) and what it does NOT capture?"
+    - "Does the response walk through what each part of the regression specification means?"
+  safety:
+    - "Does the response mention that even with good pre-trends, DiD assumes future trends would have continued — and this is untestable?"
+    - "Does the response warn about standard error clustering and why it matters for inference?"
+  actionable:
+    - "Does the response provide complete, runnable code (not pseudocode or fragments)?"
+    - "Does the response include diagnostic code (event study plot, pre-trends test) alongside the main estimate?"

@@ -1,0 +1,7 @@
+name: trigger_did_explicit_2
+description: DiD should trigger on "staggered rollout"
+layer: 0
+skill: causal-did
+user_message: "We rolled out a new feature to different regions at different times. Can you help with a staggered rollout analysis?"
+expected:
+  should_trigger: true

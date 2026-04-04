@@ -1,0 +1,23 @@
+name: exercise_did_quality
+description: Exercise skill generates a DiD practice scenario — must be realistic and pedagogical
+layer: 4
+skill: causal-exercises
+references:
+  - references/dgp-library.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I'm a data scientist learning causal inference. Can you create a
+  difference-in-differences practice exercise for me? I work in Python and
+  want a scenario I might encounter in a real business setting.
+rubric:
+  pedagogy:
+    - "Does the scenario describe a realistic business situation (not a textbook example with artificial setup)?"
+    - "Does the exercise explain what the student should look for (parallel trends, treatment effect) without giving the answer?"
+    - "Are the hints progressive — guiding the student's thinking rather than revealing the solution?"
+  safety:
+    - "Does the exercise include at least one realistic complication the student must address (not a pure textbook case)?"
+    - "Does the exercise make clear what assumptions the student should verify before estimating?"
+  actionable:
+    - "Does the exercise provide the data (or code to generate it) so the student can start immediately?"
+    - "Does the exercise clearly state what the deliverable is (estimate, plot, interpretation)?"

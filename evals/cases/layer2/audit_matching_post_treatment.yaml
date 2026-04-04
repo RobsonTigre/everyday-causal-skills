@@ -1,0 +1,32 @@
+name: audit_matching_post_treatment
+description: Auditor receives a matching analysis that controls for a post-treatment mediator
+layer: 2
+skill: causal-auditor
+references:
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  Please audit the following causal analysis:
+
+  ## Analysis Summary
+  We estimated the effect of a job training program on annual earnings using
+  propensity score matching.
+
+  ## Method
+  - Propensity score model: treatment ~ age + education + prior_earnings + employment_status_6mo + industry
+  - Matching: 1:1 nearest neighbor with caliper = 0.2
+  - Outcome: annual earnings 12 months after program
+
+  ## Note on covariates
+  employment_status_6mo is measured 6 months after the training program started.
+  We included it to improve balance since employment status is strongly predictive
+  of earnings.
+
+  ## Results
+  - ATT: $2,800 (SE: $600, p < 0.001)
+  - Balance achieved on all covariates (max SMD = 0.04)
+  - Good overlap in propensity score distributions
+expected:
+  must_flag: [post_treatment]
+  severity: fatal

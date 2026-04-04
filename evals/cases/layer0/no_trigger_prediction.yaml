@@ -1,0 +1,7 @@
+name: no_trigger_prediction
+description: No causal skill should trigger on pure prediction
+layer: 0
+skill: causal-planner
+user_message: "Build me a random forest to predict customer churn"
+expected:
+  should_trigger: false

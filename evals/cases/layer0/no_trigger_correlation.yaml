@@ -1,0 +1,7 @@
+name: no_trigger_correlation
+description: No causal skill should trigger on correlation analysis
+layer: 0
+skill: causal-planner
+user_message: "What's the correlation between temperature and ice cream sales?"
+expected:
+  should_trigger: false

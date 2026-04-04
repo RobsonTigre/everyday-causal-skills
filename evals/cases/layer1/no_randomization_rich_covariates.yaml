@@ -1,0 +1,20 @@
+name: no_randomization_rich_covariates
+description: Observational study with good covariates — should recommend matching/PSW
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We want to estimate the effect of a job training program on earnings. Participants
+  self-selected into the program. We have rich demographic data (age, education,
+  prior earnings, industry, location) for both participants and non-participants.
+  No randomization was done. About 2,000 participated and we have 8,000 comparison
+  individuals. I use Python.
+expected:
+  rubric:
+    - "Does the response recommend matching, propensity score weighting, or a doubly-robust method as the primary approach?"
+    - "Does the response acknowledge that self-selection is the key identification challenge and discuss the assumption of selection on observables?"
+    - "Does the response flag the risk of unobserved confounders that matching cannot address?"
+  must_not_recommend: [iv, rdd, synthetic control]

@@ -1,0 +1,19 @@
+name: iv_strong_instrument
+description: IV with strong instrument and known LATE
+layer: 3
+skill: causal-iv
+references:
+  - references/assumptions/iv.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/iv_strong_l3.csv
+language: python
+user_message: |
+  I have data on 2000 individuals. Draft lottery (draft_number > 50) was used as
+  an instrument for military service (served) to estimate the effect on earnings.
+  Implement 2SLS. The data is loaded as df. Use Python.
+  In your code, print the main causal estimate (LATE) as ESTIMATE:<value> (e.g., print(f'ESTIMATE:{late}')).
+expected:
+  true_effect: -5000.0
+  tolerance: 2000.0
+  must_include: [first_stage, confidence_interval]

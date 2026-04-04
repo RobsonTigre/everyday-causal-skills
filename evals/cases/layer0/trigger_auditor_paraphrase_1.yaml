@@ -1,0 +1,7 @@
+name: trigger_auditor_paraphrase_1
+description: Auditor should trigger on validity concern
+layer: 0
+skill: causal-auditor
+user_message: "I'm not sure my results are valid. Can you stress-test the assumptions?"
+expected:
+  should_trigger: true

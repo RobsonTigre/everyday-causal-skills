@@ -1,0 +1,7 @@
+name: trigger_timeseries_explicit_1
+description: Timeseries should trigger on "CausalImpact"
+layer: 0
+skill: causal-timeseries
+user_message: "I want to use CausalImpact to estimate the effect of our marketing campaign"
+expected:
+  should_trigger: true

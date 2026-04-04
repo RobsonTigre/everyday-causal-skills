@@ -1,0 +1,7 @@
+name: trigger_sc_paraphrase_2
+description: SC should trigger on donor pool mention
+layer: 0
+skill: causal-sc
+user_message: "I have one treated country and 30 untreated countries with similar economic indicators. How do I build the comparison?"
+expected:
+  should_trigger: true

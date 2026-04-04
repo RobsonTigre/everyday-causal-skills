@@ -1,0 +1,7 @@
+name: trigger_iv_paraphrase_2
+description: IV should trigger on non-compliance scenario
+layer: 0
+skill: causal-iv
+user_message: "People assigned to treatment didn't always take it. How do I get the causal effect for compliers?"
+expected:
+  should_trigger: true

@@ -1,0 +1,25 @@
+name: iv_pedagogy_messy
+description: IV with borderline instrument strength — skill must navigate honestly
+layer: 4
+skill: causal-iv
+references:
+  - references/assumptions/iv.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/iv_weak.csv
+user_message: |
+  I'm trying to estimate the effect of private tutoring on test scores. My instrument
+  is whether a tutoring center opened within 1km of the student's home in the past year.
+  I have data on 3000 students. The first-stage relationship looks "okay but not amazing."
+  I use R.
+rubric:
+  pedagogy:
+    - "Does the response explain weak instrument bias and why it makes 2SLS unreliable?"
+    - "Does the response explain what the Stock-Yogo critical values mean and how to interpret them?"
+    - "Does the response explain that weak IV bias is toward OLS, not toward zero?"
+  safety:
+    - "Does the response honestly assess whether this instrument is strong enough to proceed?"
+    - "Does the response suggest alternatives if the instrument is too weak (reduced form, bounds, different instrument)?"
+  actionable:
+    - "Does the response provide code that reports the diagnostics needed to make the strength judgment?"
+    - "Does the response include Anderson-Rubin confidence intervals or other weak-instrument-robust methods?"

@@ -1,0 +1,7 @@
+name: no_trigger_time_series_forecast
+description: No causal skill should trigger on pure forecasting (not causal)
+layer: 0
+skill: causal-planner
+user_message: "Forecast next month's revenue using ARIMA"
+expected:
+  should_trigger: false

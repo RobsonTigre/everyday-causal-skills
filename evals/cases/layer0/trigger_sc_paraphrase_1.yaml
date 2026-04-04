@@ -1,0 +1,7 @@
+name: trigger_sc_paraphrase_1
+description: SC should trigger on single-case comparative study
+layer: 0
+skill: causal-sc
+user_message: "Only California passed the law. I want to construct a weighted combination of other states to serve as a counterfactual."
+expected:
+  should_trigger: true

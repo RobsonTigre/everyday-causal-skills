@@ -1,0 +1,22 @@
+name: exercise_dgp_iv
+description: Exercise skill generates an IV scenario — DGP code must run and declare true effect
+layer: 3
+skill: causal-exercises
+references:
+  - references/dgp-library.md
+  - references/method-registry.md
+  - references/lessons.md
+language: python
+user_message: |
+  Generate an instrumental variables practice exercise for me. I want to practice
+  with Python. Please include:
+  1. A realistic scenario with a clear instrument
+  2. Python code to generate the data (the DGP) with endogeneity and a valid instrument
+  3. The true LATE so I can check my work later
+
+  In your DGP code, after generating the data, print the true effect as ESTIMATE:<value>
+  (e.g., print(f'ESTIMATE:{true_late}')). Also save the data as a CSV.
+expected:
+  true_effect: null
+  tolerance: null
+  must_include: [instrument, endogenous, first_stage]

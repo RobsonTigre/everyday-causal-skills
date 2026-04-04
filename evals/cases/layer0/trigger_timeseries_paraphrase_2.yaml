@@ -1,0 +1,7 @@
+name: trigger_timeseries_paraphrase_2
+description: Timeseries should trigger on Bayesian structural time series
+layer: 0
+skill: causal-timeseries
+user_message: "I want to model the counterfactual using a Bayesian structural time series approach"
+expected:
+  should_trigger: true

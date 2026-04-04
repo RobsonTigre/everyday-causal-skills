@@ -1,0 +1,26 @@
+name: planner_pedagogy_ambiguous
+description: Ambiguous scenario — planner must navigate uncertainty and explain trade-offs
+layer: 4
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  A ride-sharing company changed its surge pricing algorithm in one city. They have
+  data on rides, prices, and driver supply for 50 cities over 18 months. The change
+  happened 6 months ago. They also have a "driver score" threshold — drivers above
+  score 80 were eligible to opt into the new algorithm early. About 30% of eligible
+  drivers opted in. I use Python. What's the best way to estimate the effect on
+  driver earnings?
+rubric:
+  pedagogy:
+    - "Does the response identify that multiple causal strategies are possible here (DiD across cities, RDD on driver score, IV on opt-in)?"
+    - "Does the response explain the strengths and limitations of each viable approach?"
+    - "Does the response help the user understand which assumptions are hardest to defend for each option?"
+  safety:
+    - "Does the response flag that opt-in is endogenous and naive opt-in vs non-opt-in comparison is biased?"
+    - "Does the response avoid recommending a single method without acknowledging the complexity?"
+  actionable:
+    - "Does the response recommend a primary approach with clear reasoning for why it's preferred?"
+    - "Does the response suggest what data the user should examine first before committing to a method?"

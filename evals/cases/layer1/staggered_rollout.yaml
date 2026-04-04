@@ -1,0 +1,19 @@
+name: staggered_rollout
+description: Policy rollout across regions over time — should recommend staggered DiD
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We're a retail chain with 500 stores. We rolled out a new return policy in waves:
+  100 stores in January, 150 in March, and 250 in June. We have weekly sales data
+  for all stores going back 2 years. We want to know if the new policy affected sales.
+  I use R.
+expected:
+  rubric:
+    - "Does the response recommend difference-in-differences (DiD) or a staggered DiD approach?"
+    - "Does the response acknowledge the staggered rollout timing and its implications for estimation (e.g., heterogeneous treatment effects across cohorts, TWFE limitations)?"
+    - "Does the response avoid recommending IV, RDD, or matching as the primary method?"
+  must_not_recommend: [iv, rdd, matching]

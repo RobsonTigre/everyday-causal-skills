@@ -1,0 +1,16 @@
+name: iv_weak_instrument
+description: IV dataset with weak instrument — first-stage F < 5
+layer: 2
+skill: causal-iv
+references:
+  - references/assumptions/iv.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/iv_weak.csv
+user_message: |
+  I have data on 1000 individuals. I'm using distance to college as an instrument
+  for education to estimate the effect on earnings. I use Python.
+expected:
+  must_flag: [relevance, weak_instrument]
+  severity: fatal
+  must_not_miss: [relevance]

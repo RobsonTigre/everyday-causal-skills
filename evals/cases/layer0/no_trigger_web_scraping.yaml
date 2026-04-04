@@ -1,0 +1,7 @@
+name: no_trigger_web_scraping
+description: No causal skill should trigger on web scraping
+layer: 0
+skill: causal-planner
+user_message: "Help me scrape product prices from this website"
+expected:
+  should_trigger: false

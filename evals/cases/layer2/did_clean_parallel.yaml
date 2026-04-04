@@ -1,0 +1,14 @@
+name: did_clean_parallel
+description: DiD with clean parallel trends — no violations
+layer: 2
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_clean.csv
+user_message: |
+  I have panel data for 100 stores over 24 months. Half the stores got a new
+  inventory system at month 12. Pre-treatment trends look parallel. I use Python.
+expected:
+  must_flag: []

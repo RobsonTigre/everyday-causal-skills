@@ -1,0 +1,7 @@
+name: trigger_planner_paraphrase_2
+description: Planner should trigger on method selection question
+layer: 0
+skill: causal-planner
+user_message: "We changed our pricing last quarter and want to know if it affected churn. How should we approach this?"
+expected:
+  should_trigger: true

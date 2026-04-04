@@ -1,0 +1,7 @@
+name: trigger_matching_paraphrase_1
+description: Matching should trigger on observational study concern
+layer: 0
+skill: causal-matching
+user_message: "Treatment wasn't random but I have lots of demographic and clinical covariates. How can I adjust for confounding?"
+expected:
+  should_trigger: true

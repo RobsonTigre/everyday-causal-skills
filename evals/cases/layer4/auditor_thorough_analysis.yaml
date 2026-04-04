@@ -1,0 +1,35 @@
+name: auditor_thorough_analysis
+description: Auditor reviews a well-executed analysis — should confirm without phantom threats
+layer: 4
+skill: causal-auditor
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  Please audit this DiD analysis:
+
+  ## Setup
+  200 stores, 52 weeks of data. 100 stores adopted a new POS system at week 26.
+  Assignment was based on IT infrastructure readiness (decided 6 months before rollout).
+
+  ## Checks performed
+  - Event study plot shows flat pre-trends (all pre-period coefficients within CI of zero)
+  - Formal parallel trends test: joint F-test p = 0.72
+  - Composition stable: no store closures, no entry/exit
+  - Used Callaway-Sant'Anna estimator (all stores treated simultaneously, but being careful)
+  - Clustered SEs at store level
+  - Robustness: results hold with different pre-period windows
+
+  ## Results
+  ATT: 12.3% increase in weekly sales (SE: 3.1%, p < 0.001)
+rubric:
+  pedagogy:
+    - "Does the response acknowledge the strengths of the analysis before raising concerns?"
+    - "Does the response explain what each check accomplishes (not just list them as sufficient)?"
+  safety:
+    - "Does the response avoid manufacturing threats that aren't supported by the analysis description?"
+    - "If it raises concerns, are they proportionate and clearly distinguished from the verified assumptions?"
+  actionable:
+    - "Does the response suggest specific next steps if any (even for a strong analysis — e.g., sensitivity analysis, external validity)?"
+    - "Does the response provide a clear verdict (strong/weak/conditional) the user can act on?"

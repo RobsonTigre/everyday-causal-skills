@@ -1,0 +1,16 @@
+name: sc_poor_prefit
+description: Synthetic control where pre-treatment fit is poor
+layer: 2
+skill: causal-sc
+references:
+  - references/assumptions/sc.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/sc_poor_prefit.csv
+user_message: |
+  State A implemented a policy at period 20. I have 10 donor states and 40 time
+  periods. I want to estimate the effect using synthetic control. I use R.
+expected:
+  must_flag: [pre_treatment_fit, convex_hull]
+  severity: serious
+  must_not_miss: [pre_treatment_fit]

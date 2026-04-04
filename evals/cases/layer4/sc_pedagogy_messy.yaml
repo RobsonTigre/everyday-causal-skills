@@ -1,0 +1,24 @@
+name: sc_pedagogy_messy
+description: SC with poor pre-fit — skill must explain the problem and suggest alternatives
+layer: 4
+skill: causal-sc
+references:
+  - references/assumptions/sc.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/sc_poor_prefit.csv
+user_message: |
+  One country implemented a carbon tax and I want to compare it to 15 other countries.
+  I have annual GDP growth data for 20 years (10 pre, 10 post). The treated country
+  had unusually volatile growth pre-treatment — different from all donors. I use Python.
+rubric:
+  pedagogy:
+    - "Does the response explain what poor pre-treatment fit means for the validity of the counterfactual?"
+    - "Does the response explain the convex hull problem — the treated unit may not be expressible as a weighted average of donors?"
+    - "Does the response explain augmented/penalized SC as an alternative and when it helps?"
+  safety:
+    - "Does the response honestly state that poor pre-fit means the SC estimate may be unreliable?"
+    - "Does the response avoid just proceeding with the analysis despite poor fit?"
+  actionable:
+    - "Does the response provide code that checks pre-treatment fit before presenting the estimate?"
+    - "Does the response suggest concrete remedies (augmented SC, different donor pool, different outcome variable)?"

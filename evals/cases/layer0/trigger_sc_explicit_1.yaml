@@ -1,0 +1,7 @@
+name: trigger_sc_explicit_1
+description: SC should trigger on "synthetic control"
+layer: 0
+skill: causal-sc
+user_message: "I need to build a synthetic control to evaluate the effect of the policy on California"
+expected:
+  should_trigger: true

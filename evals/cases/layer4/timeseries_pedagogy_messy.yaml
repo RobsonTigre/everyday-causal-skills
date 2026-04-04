@@ -1,0 +1,25 @@
+name: timeseries_pedagogy_messy
+description: Timeseries with structural break in pre-period — skill must flag and navigate
+layer: 4
+skill: causal-timeseries
+references:
+  - references/assumptions/timeseries.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/timeseries_structural_break.csv
+user_message: |
+  A new regulation took effect at month 37 out of 60 months of data. I want to
+  estimate its effect using ITS. Looking at the data, there seems to be an unusual
+  shift around month 15-20 in the pre-period — we changed our data collection
+  methodology at that time. I use R.
+rubric:
+  pedagogy:
+    - "Does the response explain WHY a pre-period structural break invalidates the counterfactual projection?"
+    - "Does the response explain what tests can detect structural breaks (Chow, CUSUM) and how to interpret them?"
+    - "Does the response explain the options: truncate pre-period, model the break, or acknowledge the limitation?"
+  safety:
+    - "Does the response clearly state that proceeding without addressing the break produces unreliable estimates?"
+    - "Does the response avoid presenting the break as a minor nuisance that can be ignored?"
+  actionable:
+    - "Does the response provide code to test for and visualize the structural break?"
+    - "Does the response suggest a concrete path forward (e.g., use only post-break pre-period, add a level shift dummy)?"

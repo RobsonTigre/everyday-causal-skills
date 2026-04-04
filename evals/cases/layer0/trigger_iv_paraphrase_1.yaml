@@ -1,0 +1,7 @@
+name: trigger_iv_paraphrase_1
+description: IV should trigger on endogeneity concern
+layer: 0
+skill: causal-iv
+user_message: "I think my treatment variable is endogenous. I have a variable that predicts treatment but shouldn't directly affect the outcome."
+expected:
+  should_trigger: true

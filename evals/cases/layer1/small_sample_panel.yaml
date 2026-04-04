@@ -1,0 +1,18 @@
+name: small_sample_panel
+description: 30 stores, 52 weeks, single treatment date — should recommend DiD
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We have 30 stores. 15 stores adopted a new display layout at week 26. We have
+  weekly revenue data for all 52 weeks. We want to know if the new layout increased
+  revenue. I use R.
+expected:
+  rubric:
+    - "Does the response recommend difference-in-differences (DiD) as the primary method?"
+    - "Does the response identify the parallel trends assumption as critical for this design?"
+    - "Does the response avoid recommending IV, RDD, or matching as the primary method?"
+  must_not_recommend: [iv, rdd, matching]

@@ -1,0 +1,18 @@
+name: sharp_cutoff
+description: Scholarship at GPA threshold — should recommend RDD
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  Our university gives a merit scholarship to a all students with a GPA of 3.5 or above.
+  We want to know if receiving the scholarship affects graduation rates. We have data
+  on 10,000 students with their GPAs and graduation outcomes. I use Python.
+expected:
+  rubric:
+    - "Does the response recommend regression discontinuity design (RDD) as the primary method?"
+    - "Does the response identify the GPA cutoff of 3.5 as the key feature enabling causal identification?"
+    - "Does the response discuss checking for manipulation at the cutoff (e.g., bunching, McCrary test)?"
+  must_not_recommend: [did, synthetic control, matching]

@@ -1,0 +1,7 @@
+name: trigger_auditor_paraphrase_2
+description: Auditor should trigger on review request
+layer: 0
+skill: causal-auditor
+user_message: "Here's my completed analysis. Review it and tell me where it might be wrong."
+expected:
+  should_trigger: true

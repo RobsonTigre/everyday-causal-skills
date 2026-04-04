@@ -1,0 +1,20 @@
+name: post_treatment_conditioning
+description: Planner must detect post-treatment conditioning trap — analyzing only email openers biases the estimate
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We sent a marketing email to 100,000 customers offering a 10% discount on their
+  next purchase. We want to measure the effect of the email on purchase amount.
+  We're thinking of looking at customers who opened the email vs those who didn't.
+  I use Python.
+expected:
+  rubric:
+    - "Does the response identify that comparing email openers vs non-openers is a post-treatment conditioning problem (conditioning on a variable caused by treatment)?"
+    - "Does the response explain WHY this comparison is biased — e.g., openers are systematically different, selection bias, or endogeneity?"
+    - "Does the response recommend a valid alternative approach such as intent-to-treat (ITT) analysis, comparing all email recipients vs a holdout/control group, or instrumental variables?"
+    - "Does the response warn the user against proceeding with the naive opener vs non-opener comparison?"
+  must_not_recommend: []

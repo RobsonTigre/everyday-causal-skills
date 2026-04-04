@@ -1,0 +1,7 @@
+name: trigger_rdd_explicit_1
+description: RDD should trigger on "regression discontinuity"
+layer: 0
+skill: causal-rdd
+user_message: "I want to use a regression discontinuity design to evaluate the scholarship program"
+expected:
+  should_trigger: true

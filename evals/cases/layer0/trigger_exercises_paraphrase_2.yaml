@@ -1,0 +1,7 @@
+name: trigger_exercises_paraphrase_2
+description: Exercises should trigger on skill testing
+layer: 0
+skill: causal-exercises
+user_message: "Generate a fake dataset with a known treatment effect so I can practice identifying the right method"
+expected:
+  should_trigger: true

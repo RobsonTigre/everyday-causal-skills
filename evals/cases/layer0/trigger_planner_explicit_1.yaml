@@ -1,0 +1,7 @@
+name: trigger_planner_explicit_1
+description: Planner should trigger on "what method should I use"
+layer: 0
+skill: causal-planner
+user_message: "I have data on a policy intervention. What method should I use to estimate the causal effect?"
+expected:
+  should_trigger: true

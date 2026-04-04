@@ -1,0 +1,7 @@
+name: trigger_planner_paraphrase_1
+description: Planner should trigger on vague causal question
+layer: 0
+skill: causal-planner
+user_message: "I have data on sales before and after a policy change. Did the policy work?"
+expected:
+  should_trigger: true

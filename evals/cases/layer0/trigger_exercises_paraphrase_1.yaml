@@ -1,0 +1,7 @@
+name: trigger_exercises_paraphrase_1
+description: Exercises should trigger on learning request
+layer: 0
+skill: causal-exercises
+user_message: "I'm studying for a causal inference exam. Give me some problems to work through."
+expected:
+  should_trigger: true

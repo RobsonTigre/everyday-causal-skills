@@ -1,0 +1,26 @@
+name: workflow_planner_to_did
+description: Planner recommends DiD, then DiD skill receives the plan and builds on it
+layer: 5
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/assumptions/did.md
+  - references/lessons.md
+steps:
+  - skill: causal-planner
+    scenario: |
+      We have 500 retail stores across the country. Starting in January, we rolled
+      out a new inventory management system to 200 stores. The remaining 300 stores
+      will get it next year. We have weekly sales data for all stores going back
+      18 months. We want to know if the new system improved sales. I use R.
+  - skill: causal-did
+    input_from: step_1
+    scenario: |
+      Please proceed with the analysis based on the plan above. Walk me through
+      the assumptions and generate the code.
+rubric:
+  - "Does the DiD skill acknowledge and reference the plan from the planner (not start from scratch)?"
+  - "Does the DiD skill correctly extract the design elements from the plan (500 stores, 200 treated, weekly data)?"
+  - "Does the DiD skill avoid re-asking questions that the planner already answered?"
+  - "Is the DiD skill's approach consistent with what the planner recommended?"
+  - "Does the combined output form a coherent narrative — plan followed by execution?"

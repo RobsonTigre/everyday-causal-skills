@@ -1,0 +1,7 @@
+name: no_trigger_visualization
+description: No causal skill should trigger on plotting
+layer: 0
+skill: causal-planner
+user_message: "Make me a bar chart of sales by region"
+expected:
+  should_trigger: false

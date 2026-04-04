@@ -1,0 +1,36 @@
+name: auditor_subtle_flaw
+description: Analysis controls for a post-treatment variable — auditor must catch the subtle bias
+layer: 4
+skill: causal-auditor
+references:
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  Please audit this matching analysis:
+
+  ## Setup
+  Estimating the effect of a mentoring program on employee promotion rates.
+  Matched mentored employees to non-mentored employees using propensity scores.
+
+  ## Covariates in propensity model
+  age, tenure, department, education_level, performance_rating_q3
+
+  ## Note
+  performance_rating_q3 is the most recent quarterly rating, measured one quarter
+  after the mentoring program started. We included it because it's a strong
+  predictor of promotion.
+
+  ## Results
+  ATT: 15 percentage point increase in promotion rate (p < 0.01)
+  Balance: all SMDs < 0.05 after matching
+rubric:
+  pedagogy:
+    - "Does the response explain WHY controlling for performance_rating_q3 is problematic, using clear causal reasoning (e.g., mediator, post-treatment, collider)?"
+    - "Does the response explain the direction of bias this introduces (and why it matters for the estimate)?"
+  safety:
+    - "Does the response clearly communicate that this flaw undermines the entire analysis, not just adds noise?"
+    - "Does the response explain this in a way that helps the user learn to avoid the mistake in future analyses?"
+  actionable:
+    - "Does the response suggest a concrete fix (remove post-treatment variable, use pre-treatment ratings instead)?"
+    - "Does the response indicate whether the results can be partially salvaged or need complete re-analysis?"

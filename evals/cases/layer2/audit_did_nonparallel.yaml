@@ -1,0 +1,30 @@
+name: audit_did_nonparallel
+description: Auditor receives a DiD analysis with non-parallel pre-trends — must flag the violation
+layer: 2
+skill: causal-auditor
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_nonparallel.csv
+user_message: |
+  Please audit the following causal analysis:
+
+  ## Analysis Summary
+  We used difference-in-differences to estimate the effect of a new inventory system
+  on store sales. 100 stores were observed over 24 months, with 50 treated at month 12.
+
+  ## Method
+  Two-way fixed effects regression: sales ~ treated*post + store_FE + time_FE
+
+  ## Results
+  - Estimated ATT: 3.2 (SE: 1.1, p = 0.004)
+  - Pre-treatment trends were not formally tested
+  - Standard errors clustered at the store level
+
+  ## Data
+  The dataset is attached. I use R.
+expected:
+  must_flag: [parallel_trends]
+  severity: fatal
+  must_not_miss: [parallel_trends]

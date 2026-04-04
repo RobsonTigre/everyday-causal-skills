@@ -1,0 +1,24 @@
+name: timeseries_pedagogy_clean
+description: Timeseries skill with stable pre-period — must explain counterfactual logic
+layer: 4
+skill: causal-timeseries
+references:
+  - references/assumptions/timeseries.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/timeseries_clean.csv
+user_message: |
+  Our company launched a major marketing campaign 6 months ago. I have monthly revenue
+  data for the past 4 years (48 months total). There's no control group — just our
+  company's time series. I want to estimate the campaign's effect. I use Python.
+rubric:
+  pedagogy:
+    - "Does the response explain the core idea — modeling what WOULD have happened without the intervention using pre-period patterns?"
+    - "Does the response explain what stationarity means and why it matters for the counterfactual?"
+    - "Does the response explain the difference between CausalImpact (Bayesian) and segmented regression approaches?"
+  safety:
+    - "Does the response warn about the fundamental limitation — without a control series, any concurrent event is a confounder?"
+    - "Does the response explain that a longer pre-period improves the counterfactual but doesn't eliminate confounding?"
+  actionable:
+    - "Does the response provide complete code with pre-period model diagnostics?"
+    - "Does the response include a visualization of actual vs counterfactual with uncertainty bands?"

@@ -1,0 +1,14 @@
+name: iv_strong_instrument
+description: IV with strong instrument F > 50 — no violations
+layer: 2
+skill: causal-iv
+references:
+  - references/assumptions/iv.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/iv_strong.csv
+user_message: |
+  I have data on 1000 individuals. I'm using lottery-assigned draft number as an
+  instrument for military service to estimate effect on earnings. Here's the data. I use R.
+expected:
+  must_flag: []

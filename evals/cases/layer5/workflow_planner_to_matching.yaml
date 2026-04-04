@@ -1,0 +1,26 @@
+name: workflow_planner_to_matching
+description: Planner recommends matching with caveats, matching skill inherits them
+layer: 5
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/assumptions/matching.md
+  - references/lessons.md
+steps:
+  - skill: causal-planner
+    scenario: |
+      We have data on 10,000 customers. Some opted into a premium service, others
+      didn't. We want to know if the premium service increases purchase frequency.
+      We have rich demographic and behavioral data but no randomization. No panel
+      structure — just a cross-section. I use Python.
+  - skill: causal-matching
+    input_from: step_1
+    scenario: |
+      Please proceed with the matching analysis based on the plan above. Walk me
+      through the assumptions and generate the code.
+rubric:
+  - "Does the matching skill acknowledge the planner's caveats about selection-on-observables being the weakest strategy?"
+  - "Does the matching skill address the self-selection concern (voluntary opt-in) raised implicitly by the scenario?"
+  - "Does the matching skill avoid re-asking about data structure, outcome, or population — already specified in the plan?"
+  - "Does the matching skill recommend sensitivity analysis, consistent with the planner's warning about unobserved confounding?"
+  - "Is the transition from plan to execution smooth and coherent?"

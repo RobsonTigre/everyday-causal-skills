@@ -1,0 +1,18 @@
+name: single_treated_unit
+description: One state changed policy, many control states — should recommend synthetic control
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  California implemented a new minimum wage law in 2020. We want to estimate its
+  effect on employment. We have quarterly employment data for all 50 states from
+  2010 to 2023. Only California changed the law at that time. I use R.
+expected:
+  rubric:
+    - "Does the response recommend synthetic control as the primary method?"
+    - "Does the response identify the single-treated-unit structure (one state treated, many controls) as the key feature making synthetic control appropriate?"
+    - "Does the response discuss the importance of pre-treatment fit between California and the synthetic control?"
+  must_not_recommend: [iv, rdd, matching]

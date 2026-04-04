@@ -1,0 +1,33 @@
+name: workflow_exercise_alignment
+description: Exercise generates a DiD scenario, then DiD skill analyzes it — methods should align
+layer: 5
+references:
+  - references/dgp-library.md
+  - references/method-registry.md
+  - references/assumptions/did.md
+  - references/lessons.md
+steps:
+  - skill: causal-exercises
+    scenario: |
+      Generate a difference-in-differences practice exercise for me. I use Python.
+      Include a realistic business scenario, Python code to generate the data,
+      and tell me the true treatment effect. Save the generated data as exercise_data.csv.
+    references:
+      - references/dgp-library.md
+      - references/method-registry.md
+      - references/lessons.md
+  - skill: causal-did
+    input_from: step_1
+    scenario: |
+      I just completed the exercise above. Now please help me analyze this DiD
+      scenario properly. Walk me through the assumptions and implementation using
+      the data described in the exercise.
+    references:
+      - references/assumptions/did.md
+      - references/method-registry.md
+      - references/lessons.md
+rubric:
+  - "Does the DiD skill's approach align with the exercise's scenario (correct treatment timing, correct unit structure)?"
+  - "Does the DiD skill reference elements from the exercise scenario (not treat it as a generic DiD problem)?"
+  - "Would the DiD skill's code, if applied to the exercise's data, plausibly recover the true effect?"
+  - "Does the combined output create a coherent learning experience — exercise defines the problem, method skill solves it?"

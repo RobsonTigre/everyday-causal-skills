@@ -1,0 +1,17 @@
+name: rdd_manipulation
+description: RDD dataset with bunching at the cutoff
+layer: 2
+skill: causal-rdd
+references:
+  - references/assumptions/rdd.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/rdd_bunching.csv
+user_message: |
+  Students get a scholarship if their test score is >= 70. I have data on 2000
+  students. I want to estimate the effect of the scholarship on GPA using RDD.
+  I use R.
+expected:
+  must_flag: [manipulation, no_manipulation]
+  severity: fatal
+  must_not_miss: [manipulation]

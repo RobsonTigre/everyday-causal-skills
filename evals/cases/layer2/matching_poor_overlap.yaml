@@ -1,0 +1,16 @@
+name: matching_poor_overlap
+description: Matching dataset with poor propensity score overlap
+layer: 2
+skill: causal-matching
+references:
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/matching_poor_overlap.csv
+user_message: |
+  I want to estimate the effect of a training program on productivity. Participants
+  self-selected. I have covariates (age, tenure, department). I use Python.
+expected:
+  must_flag: [overlap]
+  severity: fatal
+  must_not_miss: [overlap]

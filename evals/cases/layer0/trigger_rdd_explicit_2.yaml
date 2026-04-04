@@ -1,0 +1,7 @@
+name: trigger_rdd_explicit_2
+description: RDD should trigger on "cutoff" in causal context
+layer: 0
+skill: causal-rdd
+user_message: "Students scoring above 80 get the treatment. I want to exploit this cutoff for causal inference."
+expected:
+  should_trigger: true

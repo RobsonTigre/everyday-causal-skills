@@ -1,0 +1,23 @@
+name: planner_pedagogy_clear
+description: Planner explains method choice clearly and produces actionable plan
+layer: 4
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We launched a loyalty program in 10 of our 200 retail stores 6 months ago.
+  We have weekly sales data for all stores going back 2 years. We want to know
+  if the loyalty program increased sales. I use R.
+rubric:
+  pedagogy:
+    - "Does the response explain WHY the recommended method fits this specific scenario, not just name it?"
+    - "Does the response explain what assumptions the user will need to verify and why each matters?"
+    - "If multiple methods could apply, does the response explain the trade-offs between them?"
+  safety:
+    - "Does the response warn about potential pitfalls specific to this setup (e.g., spillover between stores, selection of the 10 stores)?"
+    - "Does the response avoid overpromising the reliability of the estimate?"
+  actionable:
+    - "Does the response produce a structured plan or clear next steps the user can follow?"
+    - "Does the response specify which skill to use next and what data preparation is needed?"

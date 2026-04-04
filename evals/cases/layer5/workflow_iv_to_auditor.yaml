@@ -1,0 +1,32 @@
+name: workflow_iv_to_auditor
+description: IV analysis with borderline F-stat fed to auditor — auditor should push harder
+layer: 5
+references:
+  - references/assumptions/iv.md
+  - references/method-registry.md
+  - references/lessons.md
+steps:
+  - skill: causal-iv
+    scenario: |
+      I'm estimating the effect of private tutoring on test scores using distance
+      to the nearest tutoring center as an instrument. I have data on 3000 students.
+      I use R. Please walk me through the analysis.
+    references:
+      - references/assumptions/iv.md
+      - references/method-registry.md
+      - references/lessons.md
+  - skill: causal-auditor
+    input_from: step_1
+    scenario: |
+      Please audit this IV analysis. I'm particularly concerned about whether
+      the instrument is strong enough and whether the exclusion restriction holds.
+    references:
+      - references/assumptions/iv.md
+      - references/method-registry.md
+      - references/lessons.md
+rubric:
+  - "Does the auditor scrutinize the exclusion restriction more deeply than the IV skill did?"
+  - "Does the auditor assess instrument strength independently (not just accept the IV skill's judgment)?"
+  - "Does the auditor raise threats the IV skill might have glossed over (e.g., distance correlates with urban/rural, SES)?"
+  - "Does the auditor provide a clear overall assessment of the analysis's credibility?"
+  - "Does the combined IV + audit workflow give the practitioner a more complete and honest picture than either alone?"

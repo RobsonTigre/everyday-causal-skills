@@ -1,0 +1,7 @@
+name: no_trigger_logistic_regression
+description: No causal skill should trigger on pure stats
+layer: 0
+skill: causal-planner
+user_message: "How do I run a logistic regression in Python?"
+expected:
+  should_trigger: false

@@ -1,0 +1,25 @@
+name: matching_pedagogy_clean
+description: Matching skill with good overlap — must explain CIA and balance diagnostics
+layer: 4
+skill: causal-matching
+references:
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/matching_good_overlap.csv
+user_message: |
+  I have observational data on 2000 patients. Half received a new drug, half got
+  standard care. I have rich baseline covariates: age, BMI, blood pressure, disease
+  severity score, comorbidity count. I want to estimate the treatment effect on
+  recovery time. I use R.
+rubric:
+  pedagogy:
+    - "Does the response explain that matching relies on conditional independence (no unmeasured confounders) and why this is a strong, untestable assumption?"
+    - "Does the response explain what balance means, how to check it (SMD, love plot), and what good balance looks like?"
+    - "Does the response explain the difference between ATT and ATE and which one matching estimates?"
+  safety:
+    - "Does the response explicitly warn that unobserved confounders can still bias the estimate?"
+    - "Does the response recommend sensitivity analysis (Rosenbaum bounds or similar) to assess robustness?"
+  actionable:
+    - "Does the response provide complete code with balance checking before and after matching?"
+    - "Does the response include multiple estimator options (PSM, IPW, doubly-robust) with guidance on choosing?"

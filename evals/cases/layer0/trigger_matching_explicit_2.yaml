@@ -1,0 +1,7 @@
+name: trigger_matching_explicit_2
+description: Matching should trigger on "selection bias" and "confounders"
+layer: 0
+skill: causal-matching
+user_message: "I'm worried about selection bias and confounders. Can we use matching?"
+expected:
+  should_trigger: true

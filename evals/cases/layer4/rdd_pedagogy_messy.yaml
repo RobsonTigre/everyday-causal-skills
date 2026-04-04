@@ -1,0 +1,25 @@
+name: rdd_pedagogy_messy
+description: RDD where manipulation is possible — skill must navigate the threat
+layer: 4
+skill: causal-rdd
+references:
+  - references/assumptions/rdd.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/rdd_bunching.csv
+user_message: |
+  A government subsidy is available to firms with fewer than 50 employees. I want
+  to estimate the effect of the subsidy on firm revenue. I have administrative data
+  on 10,000 firms. I suspect some firms might manipulate their employee count to
+  qualify. I use Python.
+rubric:
+  pedagogy:
+    - "Does the response explain WHY manipulation invalidates RDD (it breaks the comparable-near-cutoff assumption)?"
+    - "Does the response explain what a McCrary/density test looks for and how to interpret it?"
+    - "Does the response explain the donut-hole approach and when it is and isn't a valid remedy?"
+  safety:
+    - "Does the response take the manipulation concern seriously rather than dismissing it?"
+    - "Does the response communicate that if manipulation is severe, RDD may not be salvageable?"
+  actionable:
+    - "Does the response provide code for the density test before the main RDD estimation?"
+    - "Does the response provide conditional guidance: 'if test passes, proceed with X; if not, consider Y'?"

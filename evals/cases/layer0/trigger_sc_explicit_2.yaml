@@ -1,0 +1,7 @@
+name: trigger_sc_explicit_2
+description: SC should trigger on "single treated unit"
+layer: 0
+skill: causal-sc
+user_message: "Only one state received the treatment. Can we construct a counterfactual from the other states?"
+expected:
+  should_trigger: true

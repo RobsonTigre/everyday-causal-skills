@@ -1,0 +1,7 @@
+name: no_trigger_deep_learning
+description: No causal skill should trigger on deep learning
+layer: 0
+skill: causal-planner
+user_message: "Train a neural network to classify images of cats and dogs"
+expected:
+  should_trigger: false

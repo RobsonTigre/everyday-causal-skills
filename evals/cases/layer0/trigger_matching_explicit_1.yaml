@@ -1,0 +1,7 @@
+name: trigger_matching_explicit_1
+description: Matching should trigger on "propensity score"
+layer: 0
+skill: causal-matching
+user_message: "I want to use propensity score matching to control for confounders in my observational study"
+expected:
+  should_trigger: true

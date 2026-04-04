@@ -1,0 +1,18 @@
+name: experiments_simple
+description: Simple A/B test with known ATE
+layer: 3
+skill: causal-experiments
+references:
+  - references/assumptions/experiments.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/experiments_simple.csv
+language: python
+user_message: |
+  We ran an A/B test with 5000 users in each group. Estimate the effect of the
+  new checkout flow on conversion rate. The data is loaded as df. Use Python.
+  In your code, print the main treatment effect estimate as ESTIMATE:<value> (e.g., print(f'ESTIMATE:{ate}')).
+expected:
+  true_effect: 0.03
+  tolerance: 0.015
+  must_include: [confidence_interval, balance_check]

@@ -1,0 +1,7 @@
+name: trigger_exercises_explicit_2
+description: Exercises should trigger on "simulate"
+layer: 0
+skill: causal-exercises
+user_message: "Can you simulate some data so I can test my causal inference skills?"
+expected:
+  should_trigger: true

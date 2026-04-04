@@ -1,0 +1,24 @@
+name: experiments_pedagogy_messy
+description: Experiment with non-compliance — skill must explain ITT vs CACE distinction
+layer: 4
+skill: causal-experiments
+references:
+  - references/assumptions/experiments.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/experiments_noncompliance.csv
+user_message: |
+  We randomly assigned 1000 patients to receive a new drug and 1000 to placebo.
+  However, 15% of patients assigned to the drug refused to take it, and 5% of
+  placebo patients obtained the drug elsewhere. I want the treatment effect. I use R.
+rubric:
+  pedagogy:
+    - "Does the response explain the difference between ITT and CACE/LATE and when each is appropriate?"
+    - "Does the response explain why per-protocol analysis (comparing those who actually took the drug) is biased?"
+    - "Does the response explain that non-compliance means randomization is preserved at the assignment level but broken at the treatment level?"
+  safety:
+    - "Does the response flag two-sided non-compliance as more problematic than one-sided?"
+    - "Does the response warn that CACE requires the exclusion restriction and monotonicity assumptions?"
+  actionable:
+    - "Does the response provide code for both ITT and CACE/IV estimation?"
+    - "Does the response report both estimates side by side with interpretation of the difference?"

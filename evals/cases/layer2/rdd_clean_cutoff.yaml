@@ -1,0 +1,14 @@
+name: rdd_clean_cutoff
+description: RDD with smooth density at cutoff — no manipulation
+layer: 2
+skill: causal-rdd
+references:
+  - references/assumptions/rdd.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/rdd_clean.csv
+user_message: |
+  Students get a scholarship if their test score is >= 70. I have data on 2000
+  students. The score distribution looks smooth around the cutoff. I use Python.
+expected:
+  must_flag: []

@@ -1,0 +1,15 @@
+name: timeseries_structural_break
+description: Time series with structural break in pre-period — should flag model misspecification
+layer: 2
+skill: causal-timeseries
+references:
+  - references/assumptions/timeseries.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/timeseries_structural_break.csv
+user_message: |
+  I have monthly outcome data for 60 months. A policy intervention began at month 37.
+  I want to estimate the effect using interrupted time series. I use Python.
+expected:
+  must_flag: [structural_break]
+  severity: fatal

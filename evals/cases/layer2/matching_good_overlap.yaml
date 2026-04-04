@@ -1,0 +1,16 @@
+name: matching_good_overlap
+description: Matching dataset with good covariate overlap — clean case
+layer: 2
+skill: causal-matching
+references:
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/matching_good_overlap.csv
+user_message: |
+  I have observational data on 1000 individuals with treatment assigned based on
+  covariates x1 and x2. I want to estimate the ATE using propensity score matching.
+  I use Python.
+expected:
+  must_flag: []
+  severity: ""

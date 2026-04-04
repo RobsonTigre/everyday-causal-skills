@@ -1,0 +1,7 @@
+name: trigger_experiments_explicit_1
+description: Experiments should trigger on "A/B test"
+layer: 0
+skill: causal-experiments
+user_message: "We're running an A/B test on our checkout page. Help me analyze the results."
+expected:
+  should_trigger: true

@@ -1,0 +1,7 @@
+name: trigger_iv_explicit_1
+description: IV should trigger on "instrumental variables"
+layer: 0
+skill: causal-iv
+user_message: "I want to use instrumental variables to deal with endogeneity in my model"
+expected:
+  should_trigger: true

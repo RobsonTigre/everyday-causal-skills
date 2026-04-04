@@ -1,0 +1,24 @@
+name: did_pedagogy_messy
+description: DiD with staggered treatment and potential issues — skill must navigate complexity
+layer: 4
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We rolled out a new training program across 500 stores in three waves: 100 stores
+  in January, 200 in March, and 200 in June. We have weekly sales data for 2 years.
+  Some stores in the later waves might have heard about the program and started
+  informal training on their own. I want the overall effect. I use Python.
+rubric:
+  pedagogy:
+    - "Does the response explain WHY standard TWFE is problematic with staggered treatment and recommend a modern estimator?"
+    - "Does the response explain anticipation effects and why informal early adoption matters for the analysis?"
+    - "Does the response make clear what estimand is being targeted (ATT, group-time ATTs, aggregate)?"
+  safety:
+    - "Does the response flag anticipation/contamination as a threat to the no-anticipation assumption?"
+    - "Does the response avoid dismissing the staggered timing issue as minor?"
+  actionable:
+    - "Does the response provide code using a modern staggered DiD estimator (Callaway-Sant'Anna, Sun-Abraham, or equivalent)?"
+    - "Does the response suggest how to test for anticipation effects in the data?"

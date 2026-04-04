@@ -1,0 +1,23 @@
+name: sc_pedagogy_clean
+description: SC skill with good pre-fit — must explain the method's logic clearly
+layer: 4
+skill: causal-sc
+references:
+  - references/assumptions/sc.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  California banned smoking in restaurants in 1998. I want to estimate the effect
+  on restaurant employment. I have quarterly data for all 50 states from 1990 to 2005.
+  I use R. I've heard of synthetic control but never used it.
+rubric:
+  pedagogy:
+    - "Does the response explain the core idea — creating a weighted combination of untreated units that tracks the treated unit pre-treatment?"
+    - "Does the response explain why good pre-treatment fit matters and what RMSPE means?"
+    - "Does the response explain how to interpret donor weights (and why concentration in few donors can be a concern)?"
+  safety:
+    - "Does the response explain that SC results depend on the donor pool choice and this is a researcher decision?"
+    - "Does the response explain inference in SC (placebo tests, not standard p-values) and why it's different?"
+  actionable:
+    - "Does the response provide complete code with the Synth package that the user can run?"
+    - "Does the response include placebo test code for inference?"

@@ -1,0 +1,7 @@
+name: trigger_exercises_explicit_1
+description: Exercises should trigger on "practice"
+layer: 0
+skill: causal-exercises
+user_message: "I want to practice causal inference with some exercises"
+expected:
+  should_trigger: true

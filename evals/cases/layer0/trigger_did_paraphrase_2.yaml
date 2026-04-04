@@ -1,0 +1,7 @@
+name: trigger_did_paraphrase_2
+description: DiD should trigger on event study mention
+layer: 0
+skill: causal-did
+user_message: "I need to check for pre-trends and plot the dynamic treatment effects over time"
+expected:
+  should_trigger: true

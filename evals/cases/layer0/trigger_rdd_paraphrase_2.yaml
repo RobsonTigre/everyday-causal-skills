@@ -1,0 +1,7 @@
+name: trigger_rdd_paraphrase_2
+description: RDD should trigger on age-based eligibility
+layer: 0
+skill: causal-rdd
+user_message: "The benefit kicks in at age 65. I want to compare outcomes just above and below that age."
+expected:
+  should_trigger: true

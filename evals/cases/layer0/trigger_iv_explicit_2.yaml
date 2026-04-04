@@ -1,0 +1,7 @@
+name: trigger_iv_explicit_2
+description: IV should trigger on "2SLS"
+layer: 0
+skill: causal-iv
+user_message: "Can you help me set up a 2SLS regression?"
+expected:
+  should_trigger: true

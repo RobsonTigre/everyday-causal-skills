@@ -1,0 +1,7 @@
+name: trigger_matching_paraphrase_2
+description: Matching should trigger on IPW/doubly-robust mention
+layer: 0
+skill: causal-matching
+user_message: "I want to reweight my sample so treated and control groups look similar on observables"
+expected:
+  should_trigger: true

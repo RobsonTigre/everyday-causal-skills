@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Eval framework (internal)
+evals/propose_lessons.py
+evals/config.yaml
+evals/data/
+
+# Internal dev notes
+references/lessons.md
+references/lessons-archive.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Auth / secrets
+.env
+.env.*
+*.token
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+credentials.*
+secrets.*
+.claude/settings.local.json
+
+# Claude-mem context (internal dev logs)
+**/CLAUDE.md
+
+# Worktrees
+.worktrees/
+
+# Manual test outputs
+tests/
+
+# Generated docs (plans, exercises, analysis output)
+docs/
+identificacao-problemas-causais.md

@@ -1,0 +1,25 @@
+name: matching_pedagogy_messy
+description: Matching with poor overlap — skill must handle practically
+layer: 4
+skill: causal-matching
+references:
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/matching_poor_overlap.csv
+user_message: |
+  I'm comparing outcomes for employees who voluntarily enrolled in a wellness program
+  vs those who didn't. The enrollees tend to be younger, healthier, and higher income.
+  The propensity score distributions barely overlap. I have 5000 employees total.
+  I use Python.
+rubric:
+  pedagogy:
+    - "Does the response explain what poor overlap means for causal inference (extrapolation, model dependence)?"
+    - "Does the response explain trimming/truncation and the bias-variance trade-off it creates?"
+    - "Does the response explain that voluntary enrollment creates strong selection bias that covariates may not fully capture?"
+  safety:
+    - "Does the response honestly assess whether matching can produce reliable estimates given the overlap issue?"
+    - "Does the response discuss the fundamental problem — voluntary enrollment is driven by unobservable motivation?"
+  actionable:
+    - "Does the response provide code that visualizes the overlap problem before attempting to estimate?"
+    - "Does the response suggest practical alternatives if matching is not viable (bounds, sensitivity analysis, IV if instrument available)?"

@@ -1,0 +1,7 @@
+name: trigger_did_explicit_1
+description: DiD should trigger on "difference-in-differences"
+layer: 0
+skill: causal-did
+user_message: "I need to run a difference-in-differences analysis on my panel data"
+expected:
+  should_trigger: true

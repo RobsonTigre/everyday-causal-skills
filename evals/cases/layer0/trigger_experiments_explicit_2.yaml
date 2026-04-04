@@ -1,0 +1,7 @@
+name: trigger_experiments_explicit_2
+description: Experiments should trigger on "power analysis"
+layer: 0
+skill: causal-experiments
+user_message: "I need a power analysis before we launch the experiment"
+expected:
+  should_trigger: true

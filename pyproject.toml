@@ -1,0 +1,15 @@
+[project]
+name = "everyday-causal-skills-evals"
+version = "0.3.2"
+description = "Eval framework for everyday-causal-skills plugin"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.8",
+]

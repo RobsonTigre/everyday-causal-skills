@@ -1,0 +1,7 @@
+name: trigger_planner_explicit_2
+description: Planner should trigger on "does X cause Y"
+layer: 0
+skill: causal-planner
+user_message: "Does offering free shipping cause higher customer retention?"
+expected:
+  should_trigger: true
