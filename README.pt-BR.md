@@ -60,6 +60,8 @@ Salvaguardas em cada etapa:
 
 ## Instalação
 
+Escolha sua plataforma abaixo e clique para expandir as instruções.
+
 <details>
 <summary><h3>Claude Code</h3></summary>
 

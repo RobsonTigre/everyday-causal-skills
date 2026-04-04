@@ -60,6 +60,8 @@ Built-in guardrails at every stage:
 
 ## Installation
 
+Pick your platform of choice below and click to expand the instructions.
+
 <details>
 <summary><h3>Claude Code</h3></summary>
 
