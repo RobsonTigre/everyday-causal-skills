@@ -10,15 +10,7 @@
 
 A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin for causal inference. Describe a problem in plain language and it helps you choose a method, check assumptions, write the analysis in R or Python, and stress-test the results. Made for practitioners who want a structured workflow and learners building intuition alongside [the book](https://www.everydaycausal.com/).
 
-**Who this is for:**
-
-- Anyone who needs to measure whether something actually worked — a campaign, a policy, a product change — and wants more than correlations
-- **Marketing and growth teams** — measure the incremental impact of campaigns, channels, or promotions instead of relying on last-click attribution. Answer "how much revenue did this actually drive?" with a defensible number
-- **Product managers and analysts** — measure the real impact of feature rollouts, pricing changes, or onboarding flows, even when you can't run a clean A/B test or when rollouts happen in stages
-- **Data scientists and analysts** — get a structured workflow that walks you from problem framing to method selection to robustness checks, instead of stitching together scripts and second-guessing assumptions
-- **Revenue and operations teams** — answer "did this process change actually reduce costs?" or "did the new pricing tier increase lifetime value?" with estimates you can defend to leadership
-- **Economists and policy researchers** — run rigorous impact evaluations with built-in diagnostics, assumption checks, and the guardrails you wish your grad students had
-- **Students and self-taught practitioners** — learn by doing with simulated data, guided assumption checks, and feedback on your reasoning
+**Who this is for:** Anyone who needs to measure whether something actually worked, such as Marketing and growth teams; Product managers and BI analysts; Data scientists; Revenue and operations teams; Policy researchers; Students and self-taught practitioners.
 
 ## Quick start
 

@@ -10,15 +10,7 @@
 
 Plugin para o [Claude Code](https://docs.anthropic.com/en/docs/claude-code) voltado para inferência causal. Descreva um problema em linguagem natural e ele ajuda você a escolher o método, verificar premissas, escrever a análise em R ou Python e validar os resultados. Para profissionais que querem um workflow estruturado e para quem está aprendendo junto com [o livro](https://www.everydaycausal.com/).
 
-**Para quem é:**
-
-- Qualquer pessoa que precise medir se algo realmente funcionou — uma campanha, uma política, uma mudança de produto — e queira mais do que correlações
-- **Marketing e growth** — meça o impacto incremental de campanhas, canais ou promoções em vez de depender de atribuição last-click. Responda "quanto de receita isso realmente gerou?" com um número defensável
-- **Product managers e analistas** — meça o impacto real de rollouts de features, mudanças de preço ou fluxos de onboarding, mesmo quando não é possível rodar um teste A/B limpo ou quando os rollouts acontecem em etapas
-- **Cientistas e analistas de dados** — tenha um workflow estruturado que guia você do enquadramento do problema à seleção do método e aos testes de robustez, em vez de juntar scripts avulsos e questionar suas próprias premissas
-- **Revenue e operações** — responda "essa mudança de processo realmente reduziu custos?" ou "o novo tier de preço aumentou o lifetime value?" com estimativas que você pode defender para a liderança
-- **Economistas e pesquisadores** — rode avaliações de impacto rigorosas com diagnósticos integrados, verificação de premissas e as salvaguardas que você queria que seus orientandos tivessem
-- **Estudantes e autodidatas** — aprenda na prática com dados simulados, verificação guiada de premissas e feedback sobre seu raciocínio
+**Para quem é:** Qualquer pessoa que precise medir se algo realmente funcionou, como times de Marketing e growth; Product managers e analistas de BI; Cientistas de dados; Times de revenue e operações; Pesquisadores de políticas públicas; Estudantes e autodidatas.
 
 ## Início rápido
 
