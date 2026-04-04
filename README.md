@@ -60,7 +60,12 @@ Built-in guardrails at every stage:
 
 ## Installation
 
+<details>
+<summary>
+
 ### Claude Code
+
+</summary>
 
 Run these commands in the Claude Code prompt:
 
@@ -84,7 +89,14 @@ To update:
 
 To auto-update on startup: `/plugin` → **Marketplaces** tab → toggle **auto-update**.
 
+</details>
+
+<details>
+<summary>
+
 ### Gemini CLI
+
+</summary>
 
 ```bash
 gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
@@ -96,31 +108,61 @@ To update:
 gemini extensions update everyday-causal-skills
 ```
 
+</details>
+
+<details>
+<summary>
+
 ### GitHub Copilot CLI
+
+</summary>
 
 ```bash
 copilot plugin install RobsonTigre/everyday-causal-skills
 ```
 
+</details>
+
+<details>
+<summary>
+
 ### Codex CLI
+
+</summary>
 
 ```bash
 git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plugins/everyday-causal-skills
 ```
 
+</details>
+
+<details>
+<summary>
+
 ### Cursor
+
+</summary>
 
 ```bash
 git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/plugins/everyday-causal-skills
 ```
 
+</details>
+
+<details>
+<summary>
+
 ### Manual installation
+
+</summary>
 
 If your agent supports the SKILL.md standard but isn't listed above, clone the repo and point your agent at the `skills/` directory:
 
 ```bash
 git clone https://github.com/RobsonTigre/everyday-causal-skills.git
 ```
+
+</details>
 
 ---
 
