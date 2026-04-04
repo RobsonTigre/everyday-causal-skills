@@ -6,28 +6,40 @@
   <img src="repo-cover.png" alt="everyday-causal-skills" width="60%" />
 </p>
 
-> Use para pensar em problemas causais, planejar sua análise e implementá-la — conceitualmente ou em R e Python.
+> Use para pensar em problemas causais, planejar sua análise e implementá-la: conceitualmente ou em R e Python.
 
-Plugin para o [Claude Code](https://docs.anthropic.com/en/docs/claude-code) voltado para inferência causal. Descreva um problema em linguagem natural e ele te guia na escolha do método, verificação de premissas, escrita da análise em R ou Python e stress-test dos resultados. Feito para profissionais que querem um workflow estruturado e para quem está aprendendo junto com [o livro](https://www.everydaycausal.com/).
+Plugin para o [Claude Code](https://docs.anthropic.com/en/docs/claude-code) voltado para inferência causal. Descreva um problema em linguagem natural e ele ajuda você a escolher o método, verificar premissas, escrever a análise em R ou Python e validar os resultados. Para profissionais que querem um workflow estruturado e para quem está aprendendo junto com [o livro](https://www.everydaycausal.com/).
+
+**Para quem é:**
+
+- Qualquer pessoa que precise medir se algo realmente funcionou — uma campanha, uma política, uma mudança de produto — e queira mais do que correlações
+- **Marketing e growth** — meça o impacto incremental de campanhas, canais ou promoções em vez de depender de atribuição last-click. Responda "quanto de receita isso realmente gerou?" com um número defensável
+- **Product managers e analistas** — meça o impacto real de rollouts de features, mudanças de preço ou fluxos de onboarding, mesmo quando não é possível rodar um teste A/B limpo ou quando os rollouts acontecem em etapas
+- **Cientistas e analistas de dados** — tenha um workflow estruturado que guia você do enquadramento do problema à seleção do método e aos testes de robustez, em vez de juntar scripts avulsos e questionar suas próprias premissas
+- **Revenue e operações** — responda "essa mudança de processo realmente reduziu custos?" ou "o novo tier de preço aumentou o lifetime value?" com estimativas que você pode defender para a liderança
+- **Economistas e pesquisadores** — rode avaliações de impacto rigorosas com diagnósticos integrados, verificação de premissas e as salvaguardas que você queria que seus orientandos tivessem
+- **Estudantes e autodidatas** — aprenda na prática com dados simulados, verificação guiada de premissas e feedback sobre seu raciocínio
 
 ## Início rápido
 
-1. `/causal-planner` — Descreva seu problema em linguagem natural. O plugin identifica a questão causal e recomenda um método.
-2. `/causal-did` (ou o método que se encaixar) — Percorra premissas, gere código de análise e rode verificações de robustez.
-3. `/causal-auditor` — Faça stress-test da análise finalizada contra ameaças à validade.
+O plugin funciona em cinco etapas, desde refinar a pergunta que você quer responder até escrever o relatório. Você pode começar por qualquer uma.
 
-## Como funciona na prática
+```
+Descreva seu problema
+→ Receba uma recomendação de método
+→ Verifique premissas e estruture a análise
+→ Valide os resultados
+→ Escreva o relatório executivo
+```
 
-Em um exemplo: uma empresa de varejo lançou um programa de fidelidade em 12 lojas e quer saber se as compras recorrentes aumentaram. Você digita `/causal-planner`, responde algumas perguntas sobre tratamento, resultado e estrutura dos dados, e o plugin recomenda diferenças em diferenças.
-
-Você roda `/causal-did`. O plugin te guia por cinco etapas: confirmar o setup, testar tendências paralelas pré-tratamento, gerar código de estimação em R ou Python, rodar testes placebo e de robustez, e resumir o resultado com ressalvas. Se as tendências pré-tratamento divergirem, ele sinaliza o problema e sugere alternativas antes de seguir em frente.
+Digamos que uma empresa de varejo lançou um programa de fidelidade em 12 lojas e quer saber se as compras recorrentes realmente aumentaram. Você roda `/causal-planner`, responde algumas perguntas sobre tratamento, resultado e estrutura dos dados, e o plugin escolhe diferenças em diferenças. Depois, `/causal-did` assume: verifica se as tendências pré-tratamento se sustentam, escreve o código de estimação em R ou Python e roda testes placebo e de robustez. Se algo não se sustentar no caminho, ele avisa antes de você perder tempo com código que não vai se defender. Com os resultados em mãos, `/causal-auditor` cutuca a análise inteira para que você não precise esperar um revisor fazer isso.
 
 ## Skills
 
 | Skill | Finalidade |
 |---|---|
 | `/causal-planner` | Descreva uma questão causal em linguagem natural e receba uma recomendação de método com plano de análise |
-| `/causal-experiments` | Desenhe e analise RCTs e testes A/B — análise de poder, verificação de aleatorização, diagnóstico de balanceamento |
+| `/causal-experiments` | Desenhe e analise RCTs e testes A/B (análise de poder, verificação de aleatorização, diagnóstico de balanceamento) |
 | `/causal-did` | Diferenças em diferenças com suporte para adoção escalonada, TWFE e estudos de evento |
 | `/causal-iv` | Estimação por variáveis instrumentais com 2SLS, diagnóstico de instrumentos fracos e verificação de exclusão |
 | `/causal-rdd` | Regressão descontínua sharp e fuzzy com seleção de bandwidth e testes de manipulação |
@@ -43,9 +55,9 @@ Cada skill de método segue cinco etapas: setup, premissas, implementação, rob
 
 Salvaguardas em cada etapa:
 
-- **Verification gate** — O plugin não interpreta resultados até ter visto o output real do seu código, não apenas o código em si
-- **Severity flags** — Problemas fatais (como premissas violadas) bloqueiam o progresso; problemas sérios são sinalizados como ressalvas; atalhos de racionalização são apontados
-- **Integração de métodos** — Cada skill sabe o que vem antes, o que vem depois e o que sugerir quando as premissas falham
+- **Verification gate.** O plugin não interpreta resultados até ter visto o output real do seu código, não apenas o código em si.
+- **Severity flags.** Problemas fatais (como premissas violadas) bloqueiam o progresso; problemas sérios são sinalizados como ressalvas; atalhos de racionalização são apontados.
+- **Integração de métodos.** Cada skill sabe o que vem antes, o que vem depois e o que sugerir quando as premissas falham.
 
 ## Instalação
 
@@ -62,7 +74,7 @@ Execute estes três comandos no prompt do Claude Code:
 /reload-plugins
 ```
 
-Verifique com `/causal-planner` — se perguntar sobre seu problema causal, está tudo pronto.
+Verifique com `/causal-planner`. Se perguntar sobre seu problema causal, está tudo pronto.
 
 Para atualizar:
 
@@ -77,22 +89,22 @@ Para atualizar automaticamente ao iniciar: `/plugin` → aba **Marketplaces** �
 
 Este plugin ajuda você a pensar em problemas causais passo a passo, mas não substitui o seu julgamento. IAs podem cometer erros, especialmente ao interpretar premissas específicas do contexto. Para o raciocínio por trás de cada método, consulte o livro.
 
-- [Everyday Causal Inference: How to Estimate, Test, and Explain Impacts with R and Python](https://www.everydaycausal.com/) — [Robson Tigre](https://www.robsontigre.com/)
+- [Everyday Causal Inference: How to Estimate, Test, and Explain Impacts with R and Python](https://www.everydaycausal.com/), por [Robson Tigre](https://www.robsontigre.com/)
 
 Plugins complementares recomendados:
 
-- [superpowers](https://github.com/obra/superpowers) — Ajuda a IA a pensar antes de agir, planejando e raciocinando sobre problemas em vez de pular direto para código ou respostas
-- [claude-mem](https://github.com/thedotmack/claude-mem) — Captura informações relevantes entre sessões e as recupera quando necessário, dando à IA uma memória de trabalho
+- [superpowers](https://github.com/obra/superpowers): ajuda a IA a pensar antes de agir, planejando e raciocinando sobre problemas em vez de pular direto para código ou respostas
+- [claude-mem](https://github.com/thedotmack/claude-mem): captura informações relevantes entre sessões e as recupera quando necessário, dando à IA uma memória de trabalho
 
 ## Roadmap
 
-- [ ] **`/causal-dag`** — Construção e crítica de DAGs, raciocínio sobre estratégias de identificação
-- [ ] **`/causal-ml`** — Causal forests, X-learner, DML, efeitos heterogêneos de tratamento
-- [ ] **`/causal-sensitivity`** — E-values, limites de Rosenbaum, viés de variável omitida (Cinelli & Hazlett)
-- [ ] **`/causal-mediation`** — Efeitos diretos/indiretos, mediação natural e controlada
-- [ ] **`/causal-discovery`** — Descoberta de estrutura causal a partir de dados (PC, FCI, score-based)
-- [ ] **`/causal-trivia`** — Exercícios conceituais e trivia de inferência causal
-- [ ] **`/causal-news`** — Resumos de artigos recentes de inferência causal
-- [ ] **`/causal-report`** — Relatórios prontos para publicação com tabelas, figuras e resumos de métodos
-- [ ] **Fundamentar skills em artigos seminais** — Vincular cada skill aos seus artigos seminais com resultados-chave e premissas
-- [ ] **Otimização de tokens** — Comprimir arquivos SKILL.md para reduzir custo de tokens sem perder precisão
+- [ ] **`/causal-dag`**: construção e crítica de DAGs, raciocínio sobre estratégias de identificação
+- [ ] **`/causal-ml`**: Causal forests, X-learner, DML, efeitos heterogêneos de tratamento
+- [ ] **`/causal-sensitivity`**: E-values, limites de Rosenbaum, viés de variável omitida (Cinelli & Hazlett)
+- [ ] **`/causal-mediation`**: efeitos diretos/indiretos, mediação natural e controlada
+- [ ] **`/causal-discovery`**: descoberta de estrutura causal a partir de dados (PC, FCI, score-based)
+- [ ] **`/causal-trivia`**: exercícios conceituais e trivia de inferência causal
+- [ ] **`/causal-news`**: resumos de artigos recentes de inferência causal
+- [ ] **`/causal-report`**: relatórios prontos para publicação com tabelas, figuras e resumos de métodos
+- [ ] **Fundamentar skills em artigos seminais**: vincular cada skill aos seus artigos seminais com resultados-chave e premissas
+- [ ] **Otimização de tokens**: comprimir arquivos SKILL.md para reduzir custo de tokens sem perder precisão

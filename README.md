@@ -6,28 +6,40 @@
   <img src="repo-cover.png" alt="everyday-causal-skills" width="60%" />
 </p>
 
-> Use it to think through causal problems, plan your analysis, and implement it — conceptually or in R and Python.
+> Use it to think through causal problems, plan your analysis, and implement it: conceptually or in R and Python.
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin for causal inference. Describe a problem in plain language and it walks you through choosing a method, checking assumptions, writing the analysis in R or Python, and stress-testing the results. Built for practitioners who want a structured workflow and learners building intuition alongside [the book](https://www.everydaycausal.com/).
+A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin for causal inference. Describe a problem in plain language and it helps you choose a method, check assumptions, write the analysis in R or Python, and stress-test the results. Made for practitioners who want a structured workflow and learners building intuition alongside [the book](https://www.everydaycausal.com/).
+
+**Who this is for:**
+
+- Anyone who needs to measure whether something actually worked — a campaign, a policy, a product change — and wants more than correlations
+- **Marketing and growth teams** — measure the incremental impact of campaigns, channels, or promotions instead of relying on last-click attribution. Answer "how much revenue did this actually drive?" with a defensible number
+- **Product managers and analysts** — measure the real impact of feature rollouts, pricing changes, or onboarding flows, even when you can't run a clean A/B test or when rollouts happen in stages
+- **Data scientists and analysts** — get a structured workflow that walks you from problem framing to method selection to robustness checks, instead of stitching together scripts and second-guessing assumptions
+- **Revenue and operations teams** — answer "did this process change actually reduce costs?" or "did the new pricing tier increase lifetime value?" with estimates you can defend to leadership
+- **Economists and policy researchers** — run rigorous impact evaluations with built-in diagnostics, assumption checks, and the guardrails you wish your grad students had
+- **Students and self-taught practitioners** — learn by doing with simulated data, guided assumption checks, and feedback on your reasoning
 
 ## Quick start
 
-1. `/causal-planner` — Describe your problem in plain language. The plugin identifies the causal question and recommends a method.
-2. `/causal-did` (or whichever method fits) — Walk through assumptions, generate analysis code, and run robustness checks.
-3. `/causal-auditor` — Stress-test the finished analysis against threats to validity.
+The plugin works in five steps, from refining the question you want to answer, to writing the report. You are free to pick and start from any step you like.
 
-## What it looks like
+```
+Describe your problem
+→ Get a method recommendation
+→ Check assumptions and structure the analysis
+→ Stress-test the results
+→ Write the executive report
+```
 
-In one example: a retail company rolled out a loyalty program in 12 stores and wants to know if repeat purchases increased. You type `/causal-planner`, answer a few questions about treatment, outcome, and data structure, and it recommends difference-in-differences.
-
-You run `/causal-did`. The plugin walks you through five stages: confirming the setup, testing parallel pre-trends, generating estimation code in R or Python, running placebo and robustness checks, and summarizing the result with caveats. If pre-trends diverge, it flags the problem and suggests alternatives before you move on.
+Say a retail company rolled out a loyalty program in 12 stores and wants to know if repeat purchases actually increased. You run `/causal-planner`, answer a few questions about treatment, outcome, and data structure, and the plugin lands on difference-in-differences. Then `/causal-did` picks it up: it checks whether pre-trends hold, writes the estimation code in R or Python, and runs placebo and robustness checks. If something breaks along the way, it tells you before you waste time on code that won't hold up. Once you have results, `/causal-auditor` pokes holes in the analysis so you don't have to wait for a reviewer to do it.
 
 ## Skills
 
 | Skill | Purpose |
 |---|---|
 | `/causal-planner` | Describe a causal question in plain language and get a method recommendation with an analysis plan |
-| `/causal-experiments` | Design and analyze RCTs and A/B tests — power analysis, randomization checks, balance diagnostics |
+| `/causal-experiments` | Design and analyze RCTs and A/B tests (power analysis, randomization checks, balance diagnostics) |
 | `/causal-did` | Difference-in-differences with support for staggered adoption, TWFE, and event studies |
 | `/causal-iv` | Instrumental variables estimation with 2SLS, weak instrument diagnostics, and exclusion checks |
 | `/causal-rdd` | Sharp and fuzzy regression discontinuity with bandwidth selection and manipulation tests |
@@ -43,9 +55,9 @@ Every method skill follows five stages: setup, assumptions, implementation, robu
 
 Built-in guardrails at every stage:
 
-- **Verification gate** — The plugin won't interpret results until it has seen actual output from your code, not just the code itself
-- **Severity flags** — Fatal problems (like violated assumptions) block progress; serious ones get flagged as caveats; rationalization shortcuts are called out
-- **Method integration** — Each skill knows what comes before it, what comes after, and what to suggest when assumptions fail
+- **Verification gate.** The plugin won't interpret results until it has seen actual output from your code, not just the code itself.
+- **Severity flags.** Fatal problems (like violated assumptions) block progress; serious ones get flagged as caveats; rationalization shortcuts are called out.
+- **Method integration.** Each skill knows what comes before it, what comes after, and what to suggest when assumptions fail.
 
 ## Installation
 
@@ -62,7 +74,7 @@ Run these three commands in the Claude Code prompt:
 /reload-plugins
 ```
 
-Verify with `/causal-planner` — if it asks about your causal problem, you're set.
+Verify with `/causal-planner`. If it asks about your causal problem, you're set.
 
 To update:
 
@@ -77,22 +89,22 @@ To auto-update on startup: `/plugin` → **Marketplaces** tab → toggle **auto-
 
 This plugin helps you think through causal problems step by step, but it does not replace your judgment. AI can make mistakes, especially when interpreting context-specific assumptions. For the reasoning behind each method, consult the book.
 
-- [Everyday Causal Inference: How to Estimate, Test, and Explain Impacts with R and Python](https://www.everydaycausal.com/) — [Robson Tigre](https://www.robsontigre.com/)
+- [Everyday Causal Inference: How to Estimate, Test, and Explain Impacts with R and Python](https://www.everydaycausal.com/), by [Robson Tigre](https://www.robsontigre.com/)
 
 Recommended companion plugins:
 
-- [superpowers](https://github.com/obra/superpowers) — Helps the AI think before acting, so it plans and reasons through problems instead of jumping straight into code or answers
-- [claude-mem](https://github.com/thedotmack/claude-mem) — Captures relevant information across sessions and brings it back when needed, giving the AI a working memory
+- [superpowers](https://github.com/obra/superpowers): helps the AI think before acting, so it plans and reasons through problems instead of jumping straight into code or answers
+- [claude-mem](https://github.com/thedotmack/claude-mem): captures relevant information across sessions and brings it back when needed, giving the AI a working memory
 
 ## Roadmap
 
-- [ ] **`/causal-dag`** — DAG construction, critique, and identification-strategy reasoning
-- [ ] **`/causal-ml`** — Causal forests, X-learner, DML, heterogeneous treatment effects
-- [ ] **`/causal-sensitivity`** — E-values, Rosenbaum bounds, omitted variable bias (Cinelli & Hazlett)
-- [ ] **`/causal-mediation`** — Direct/indirect effects, natural and controlled mediation
-- [ ] **`/causal-discovery`** — Learn causal structure from data (PC, FCI, score-based)
-- [ ] **`/causal-trivia`** — Concept drills and causal inference trivia
-- [ ] **`/causal-news`** — Summaries of recent causal inference papers
-- [ ] **`/causal-report`** — Publication-ready reports with tables, figures, and method summaries
-- [ ] **Ground skills in seminal papers** — Link each skill to its foundational papers with key results and assumptions
-- [ ] **Token optimization** — Compress SKILL.md files to reduce token cost without losing precision
+- [ ] **`/causal-dag`**: DAG construction, critique, and identification-strategy reasoning
+- [ ] **`/causal-ml`**: Causal forests, X-learner, DML, heterogeneous treatment effects
+- [ ] **`/causal-sensitivity`**: E-values, Rosenbaum bounds, omitted variable bias (Cinelli & Hazlett)
+- [ ] **`/causal-mediation`**: direct/indirect effects, natural and controlled mediation
+- [ ] **`/causal-discovery`**: learn causal structure from data (PC, FCI, score-based)
+- [ ] **`/causal-trivia`**: concept drills and causal inference trivia
+- [ ] **`/causal-news`**: summaries of recent causal inference papers
+- [ ] **`/causal-report`**: publication-ready reports with tables, figures, and method summaries
+- [ ] **Ground skills in seminal papers**: link each skill to its foundational papers with key results and assumptions
+- [ ] **Token optimization**: compress SKILL.md files to reduce token cost without losing precision
