@@ -1,0 +1,22 @@
+{
+  "name": "everyday-causal-skills",
+  "metadata": {
+    "description": "Causal inference plugin: plan, implement, and stress-test causal analyses in R and Python."
+  },
+  "owner": {
+    "name": "Robson Tigre"
+  },
+  "plugins": [
+    {
+      "name": "everyday-causal-skills",
+      "description": "Causal inference plugin: plan, implement, and stress-test causal analyses in R and Python.",
+      "category": "learning",
+      "author": {
+        "name": "Robson Tigre"
+      },
+      "source": "./",
+      "homepage": "https://github.com/RobsonTigre/everyday-causal-skills",
+      "version": "0.1.0"
+    }
+  ]
+}
