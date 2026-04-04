@@ -1,8 +1,20 @@
 {
   "name": "everyday-causal-skills",
+  "displayName": "Everyday Causal Skills",
   "version": "0.1.0",
   "description": "Causal inference plugin: plan, implement, and stress-test causal analyses in R and Python.",
   "author": {
     "name": "Robson Tigre"
-  }
+  },
+  "license": "MIT",
+  "keywords": [
+    "causal-inference",
+    "econometrics",
+    "difference-in-differences",
+    "instrumental-variables",
+    "regression-discontinuity",
+    "synthetic-control",
+    "treatment-effects"
+  ],
+  "skills": "./skills/"
 }

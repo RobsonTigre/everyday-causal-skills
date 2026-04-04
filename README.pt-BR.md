@@ -105,17 +105,13 @@ copilot plugin install RobsonTigre/everyday-causal-skills
 ### Codex CLI
 
 ```bash
-codex /plugins
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plugins/everyday-causal-skills
 ```
-
-Busque por **everyday-causal-skills** e selecione **Install plugin**.
 
 ### Cursor
 
-Busque por **everyday-causal-skills** no [Cursor Marketplace](https://cursor.com/marketplace), ou no Agent chat:
-
-```
-/add-plugin everyday-causal-skills
+```bash
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/plugins/everyday-causal-skills
 ```
 
 ### Instalação manual
@@ -151,5 +147,6 @@ Este plugin ajuda você a pensar em problemas causais passo a passo, mas não su
 - [ ] **`/causal-trivia`**: exercícios conceituais e trivia de inferência causal
 - [ ] **`/causal-news`**: resumos de artigos recentes de inferência causal
 - [ ] **`/causal-report`**: relatórios prontos para publicação com tabelas, figuras e resumos de métodos
+- [ ] **`/causal-roi`**: avaliar o ROI de uma intervenção calculando o ROI causal (incremental), separando o impacto real do que teria acontecido de qualquer forma
 - [ ] **Fundamentar skills em artigos seminais**: vincular cada skill aos seus artigos seminais com resultados-chave e premissas
 - [ ] **Otimização de tokens**: comprimir arquivos SKILL.md para reduzir custo de tokens sem perder precisão

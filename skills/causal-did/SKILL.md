@@ -4,7 +4,7 @@ description: Implements difference-in-differences in R or Python with parallel t
 metadata:
   author: Robson Tigre
   version: 0.3.2
-compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
+  compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 
 # Causal DiD

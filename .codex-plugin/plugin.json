@@ -5,5 +5,16 @@
   "author": {
     "name": "Robson Tigre"
   },
+  "repository": "https://github.com/RobsonTigre/everyday-causal-skills",
+  "license": "MIT",
+  "keywords": [
+    "causal-inference",
+    "econometrics",
+    "difference-in-differences",
+    "instrumental-variables",
+    "regression-discontinuity",
+    "synthetic-control",
+    "treatment-effects"
+  ],
   "skills": "./skills/"
 }

@@ -1,6 +1,6 @@
 {
   "name": "everyday-causal-skills",
-  "description": "Your causal inference AI workflow: Plan, implement, and stress-test causal analyses.",
+  "description": "Causal inference plugin: plan, implement, and stress-test causal analyses in R and Python.",
   "version": "0.1.0",
   "author": {
     "name": "Robson Tigre"
