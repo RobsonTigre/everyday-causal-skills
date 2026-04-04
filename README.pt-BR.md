@@ -24,7 +24,12 @@ Descreva seu problema
 → Escreva o relatório executivo
 ```
 
-Digamos que uma empresa de varejo lançou um programa de fidelidade em 12 lojas e quer saber se as compras recorrentes realmente aumentaram. Você roda `/causal-planner`, responde algumas perguntas sobre tratamento, resultado e estrutura dos dados, e o plugin escolhe diferenças em diferenças. Depois, `/causal-did` assume: verifica se as tendências pré-tratamento se sustentam, escreve o código de estimação em R ou Python e roda testes placebo e de robustez. Se algo não se sustentar no caminho, ele avisa antes de você perder tempo com código que não vai se defender. Com os resultados em mãos, `/causal-auditor` cutuca a análise inteira para que você não precise esperar um revisor fazer isso.
+**Exemplo:**
+
+1. Digamos que uma empresa de varejo lançou um programa de fidelidade em 12 lojas e quer saber se as compras recorrentes realmente aumentaram. Você roda `/causal-planner`, responde algumas perguntas sobre tratamento, resultado e estrutura dos dados.
+2. O plugin recomenda usar diferenças em diferenças como ferramenta para medir o impacto do programa.
+3. Depois, `/causal-did` assume: verifica se as tendências pré-tratamento se sustentam, escreve o código de estimação em R ou Python e roda testes placebo e de robustez. Se algo não se sustentar no caminho, ele avisa antes de você perder tempo com código que não vai se defender.
+4. Com os resultados em mãos, `/causal-auditor` cutuca a análise inteira para que você não precise esperar um revisor fazer isso.
 
 ## Skills
 

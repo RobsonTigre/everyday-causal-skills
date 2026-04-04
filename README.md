@@ -24,7 +24,12 @@ Describe your problem
 → Write the executive report
 ```
 
-Say a retail company rolled out a loyalty program in 12 stores and wants to know if repeat purchases actually increased. You run `/causal-planner`, answer a few questions about treatment, outcome, and data structure, and the plugin lands on difference-in-differences. Then `/causal-did` picks it up: it checks whether pre-trends hold, writes the estimation code in R or Python, and runs placebo and robustness checks. If something breaks along the way, it tells you before you waste time on code that won't hold up. Once you have results, `/causal-auditor` pokes holes in the analysis so you don't have to wait for a reviewer to do it.
+**Example:**
+
+1. Say a retail company rolled out a loyalty program in 12 stores and wants to know if repeat purchases actually increased. You run `/causal-planner`, answer a few questions about treatment, outcome, and data structure.
+2. The plugin recommends you to use difference-in-differences as the tool to measure the impact of the program.
+3. Then `/causal-did` picks it up: it checks whether pre-trends hold, writes the estimation code in R or Python, and runs placebo and robustness checks. If something breaks along the way, it tells you before you waste time on code that won't hold up.
+4. Once you have results, `/causal-auditor` pokes holes in the analysis so you don't have to wait for a reviewer to do it.
 
 ## Skills
 
