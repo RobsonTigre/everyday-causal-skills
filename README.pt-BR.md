@@ -8,11 +8,13 @@
 
 > Use para pensar em problemas causais, planejar sua análise e implementá-la: conceitualmente ou em R e Python.
 
-Plugin para o [Claude Code](https://docs.anthropic.com/en/docs/claude-code) voltado para inferência causal. Descreva um problema em linguagem natural e ele ajuda você a escolher o método, verificar premissas, escrever a análise em R ou Python e validar os resultados. Para profissionais que querem um workflow estruturado e para quem está aprendendo junto com [o livro](https://www.everydaycausal.com/).
+Plugin de inferência causal para agentes de IA. Descreva um problema em linguagem natural e ele ajuda você a escolher o método, verificar premissas, escrever a análise em R ou Python e validar os resultados. Para profissionais que querem um workflow estruturado e para quem está aprendendo junto com [o livro](https://www.everydaycausal.com/).
+
+**Funciona com:** Claude Code · Gemini CLI · GitHub Copilot CLI · Codex CLI · Cursor
 
 **Para quem é:** Qualquer pessoa que precise medir se algo realmente funcionou, como times de Marketing e growth; Product managers e analistas de BI; Cientistas de dados; Times de revenue e operações; Pesquisadores de políticas públicas; Estudantes e autodidatas.
 
-## Início rápido
+## O que este plugin faz por você
 
 O plugin funciona em cinco etapas, desde refinar a pergunta que você quer responder até escrever o relatório. Você pode começar por qualquer uma.
 
@@ -20,7 +22,7 @@ O plugin funciona em cinco etapas, desde refinar a pergunta que você quer respo
 Descreva seu problema
 → Receba uma recomendação de método
 → Verifique premissas e estruture a análise
-→ Valide os resultados
+→ Teste a robustez dos resultados
 → Escreva o relatório executivo
 ```
 
@@ -28,8 +30,8 @@ Descreva seu problema
 
 1. Digamos que uma empresa de varejo lançou um programa de fidelidade em 12 lojas e quer saber se as compras recorrentes realmente aumentaram. Você roda `/causal-planner`, responde algumas perguntas sobre tratamento, resultado e estrutura dos dados.
 2. O plugin recomenda usar diferenças em diferenças como ferramenta para medir o impacto do programa.
-3. Depois, `/causal-did` assume: verifica se as tendências pré-tratamento se sustentam, escreve o código de estimação em R ou Python e roda testes placebo e de robustez. Se algo não se sustentar no caminho, ele avisa antes de você perder tempo com código que não vai se defender.
-4. Com os resultados em mãos, `/causal-auditor` cutuca a análise inteira para que você não precise esperar um revisor fazer isso.
+3. Depois, `/causal-did` assume: verifica se as tendências pré-tratamento se sustentam, escreve o código de estimação em R ou Python e roda testes placebo e de robustez. Se algo falhar no caminho, ele avisa antes de você perder tempo com código que não vai se sustentar.
+4. Com os resultados em mãos, `/causal-auditor` busca falhas na análise para que você não precise esperar um revisor fazer isso.
 
 ## Skills
 
@@ -54,11 +56,13 @@ Salvaguardas em cada etapa:
 
 - **Verification gate.** O plugin não interpreta resultados até ter visto o output real do seu código, não apenas o código em si.
 - **Severity flags.** Problemas fatais (como premissas violadas) bloqueiam o progresso; problemas sérios são sinalizados como ressalvas; atalhos de racionalização são apontados.
-- **Integração de métodos.** Cada skill sabe o que vem antes, o que vem depois e o que sugerir quando as premissas falham.
+- **Method integration.** Cada skill sabe o que vem antes, o que vem depois e o que sugerir quando as premissas falham.
 
 ## Instalação
 
-Execute estes três comandos no prompt do Claude Code:
+### Claude Code
+
+Execute estes comandos no prompt do Claude Code:
 
 ```bash
 # 1. Registrar o marketplace
@@ -71,8 +75,6 @@ Execute estes três comandos no prompt do Claude Code:
 /reload-plugins
 ```
 
-Verifique com `/causal-planner`. Se perguntar sobre seu problema causal, está tudo pronto.
-
 Para atualizar:
 
 ```bash
@@ -82,13 +84,59 @@ Para atualizar:
 
 Para atualizar automaticamente ao iniciar: `/plugin` → aba **Marketplaces** → ative **auto-update**.
 
+### Gemini CLI
+
+```bash
+gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
+```
+
+Para atualizar:
+
+```bash
+gemini extensions update everyday-causal-skills
+```
+
+### GitHub Copilot CLI
+
+```bash
+copilot plugin install RobsonTigre/everyday-causal-skills
+```
+
+### Codex CLI
+
+```bash
+codex /plugins
+```
+
+Busque por **everyday-causal-skills** e selecione **Install plugin**.
+
+### Cursor
+
+Busque por **everyday-causal-skills** no [Cursor Marketplace](https://cursor.com/marketplace), ou no Agent chat:
+
+```
+/add-plugin everyday-causal-skills
+```
+
+### Instalação manual
+
+Se seu agente suporta o padrão SKILL.md mas não está listado acima, clone o repositório e aponte seu agente para o diretório `skills/`:
+
+```bash
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git
+```
+
+---
+
+Verifique com `/causal-planner`. Se perguntar sobre seu problema causal, está tudo pronto.
+
 ## Recursos
 
 Este plugin ajuda você a pensar em problemas causais passo a passo, mas não substitui o seu julgamento. IAs podem cometer erros, especialmente ao interpretar premissas específicas do contexto. Para o raciocínio por trás de cada método, consulte o livro.
 
 - [Everyday Causal Inference: How to Estimate, Test, and Explain Impacts with R and Python](https://www.everydaycausal.com/), por [Robson Tigre](https://www.robsontigre.com/)
 
-Plugins complementares recomendados:
+### Recomendados para usuários do Claude Code
 
 - [superpowers](https://github.com/obra/superpowers): ajuda a IA a pensar antes de agir, planejando e raciocinando sobre problemas em vez de pular direto para código ou respostas
 - [claude-mem](https://github.com/thedotmack/claude-mem): captura informações relevantes entre sessões e as recupera quando necessário, dando à IA uma memória de trabalho

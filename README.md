@@ -8,11 +8,13 @@
 
 > Use it to think through causal problems, plan your analysis, and implement it: conceptually or in R and Python.
 
-A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) plugin for causal inference. Describe a problem in plain language and it helps you choose a method, check assumptions, write the analysis in R or Python, and stress-test the results. Made for practitioners who want a structured workflow and learners building intuition alongside [the book](https://www.everydaycausal.com/).
+A causal inference plugin for AI agents. Describe a problem in plain language and it helps you choose a method, check assumptions, write the analysis in R or Python, and stress-test the results. Made for practitioners who want a structured workflow and learners building intuition alongside [the book](https://www.everydaycausal.com/).
+
+**Works with:** Claude Code · Gemini CLI · GitHub Copilot CLI · Codex CLI · Cursor
 
 **Who this is for:** Anyone who needs to measure whether something actually worked, such as Marketing and growth teams; Product managers and BI analysts; Data scientists; Revenue and operations teams; Policy researchers; Students and self-taught practitioners.
 
-## Quick start
+## What you get from this plugin
 
 The plugin works in five steps, from refining the question you want to answer, to writing the report. You are free to pick and start from any step you like.
 
@@ -58,7 +60,9 @@ Built-in guardrails at every stage:
 
 ## Installation
 
-Run these three commands in the Claude Code prompt:
+### Claude Code
+
+Run these commands in the Claude Code prompt:
 
 ```bash
 # 1. Register the marketplace
@@ -71,8 +75,6 @@ Run these three commands in the Claude Code prompt:
 /reload-plugins
 ```
 
-Verify with `/causal-planner`. If it asks about your causal problem, you're set.
-
 To update:
 
 ```bash
@@ -82,13 +84,59 @@ To update:
 
 To auto-update on startup: `/plugin` → **Marketplaces** tab → toggle **auto-update**.
 
+### Gemini CLI
+
+```bash
+gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
+```
+
+To update:
+
+```bash
+gemini extensions update everyday-causal-skills
+```
+
+### GitHub Copilot CLI
+
+```bash
+copilot plugin install RobsonTigre/everyday-causal-skills
+```
+
+### Codex CLI
+
+```bash
+codex /plugins
+```
+
+Search for **everyday-causal-skills** and select **Install plugin**.
+
+### Cursor
+
+Search for **everyday-causal-skills** in the [Cursor Marketplace](https://cursor.com/marketplace), or in Agent chat:
+
+```
+/add-plugin everyday-causal-skills
+```
+
+### Manual installation
+
+If your agent supports the SKILL.md standard but isn't listed above, clone the repo and point your agent at the `skills/` directory:
+
+```bash
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git
+```
+
+---
+
+Verify with `/causal-planner`. If it asks about your causal problem, you're set.
+
 ## Resources
 
 This plugin helps you think through causal problems step by step, but it does not replace your judgment. AI can make mistakes, especially when interpreting context-specific assumptions. For the reasoning behind each method, consult the book.
 
 - [Everyday Causal Inference: How to Estimate, Test, and Explain Impacts with R and Python](https://www.everydaycausal.com/), by [Robson Tigre](https://www.robsontigre.com/)
 
-Recommended companion plugins:
+### Recommended for Claude Code users
 
 - [superpowers](https://github.com/obra/superpowers): helps the AI think before acting, so it plans and reasons through problems instead of jumping straight into code or answers
 - [claude-mem](https://github.com/thedotmack/claude-mem): captures relevant information across sessions and brings it back when needed, giving the AI a working memory
