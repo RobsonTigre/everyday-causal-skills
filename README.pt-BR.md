@@ -96,6 +96,8 @@ Para atualizar automaticamente ao iniciar: `/plugin` → aba **Marketplaces** �
 gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
 ```
 
+Quando solicitado, confirme o fallback para git clone e a revisão de segurança.
+
 Para atualizar:
 
 ```bash

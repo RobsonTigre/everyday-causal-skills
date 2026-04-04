@@ -96,6 +96,8 @@ To auto-update on startup: `/plugin` → **Marketplaces** tab → toggle **auto-
 gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
 ```
 
+When prompted, confirm the git clone fallback and the security review.
+
 To update:
 
 ```bash
