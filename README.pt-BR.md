@@ -61,11 +61,7 @@ Salvaguardas em cada etapa:
 ## Instalação
 
 <details>
-<summary>
-
-### Claude Code
-
-</summary>
+<summary><h3>Claude Code</h3></summary>
 
 Execute estes comandos no prompt do Claude Code:
 
@@ -92,11 +88,7 @@ Para atualizar automaticamente ao iniciar: `/plugin` → aba **Marketplaces** �
 </details>
 
 <details>
-<summary>
-
-### Gemini CLI
-
-</summary>
+<summary><h3>Gemini CLI</h3></summary>
 
 ```bash
 gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
@@ -111,11 +103,7 @@ gemini extensions update everyday-causal-skills
 </details>
 
 <details>
-<summary>
-
-### GitHub Copilot CLI
-
-</summary>
+<summary><h3>GitHub Copilot CLI</h3></summary>
 
 ```bash
 copilot plugin install RobsonTigre/everyday-causal-skills
@@ -124,11 +112,7 @@ copilot plugin install RobsonTigre/everyday-causal-skills
 </details>
 
 <details>
-<summary>
-
-### Codex CLI
-
-</summary>
+<summary><h3>Codex CLI</h3></summary>
 
 ```bash
 git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plugins/everyday-causal-skills
@@ -137,11 +121,7 @@ git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plu
 </details>
 
 <details>
-<summary>
-
-### Cursor
-
-</summary>
+<summary><h3>Cursor</h3></summary>
 
 ```bash
 git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/plugins/everyday-causal-skills
@@ -150,11 +130,7 @@ git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/pl
 </details>
 
 <details>
-<summary>
-
-### Instalação manual
-
-</summary>
+<summary><h3>Instalação manual</h3></summary>
 
 Se seu agente suporta o padrão SKILL.md mas não está listado acima, clone o repositório e aponte seu agente para o diretório `skills/`:
 
