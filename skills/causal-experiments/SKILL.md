@@ -303,6 +303,7 @@ Use the Write tool. Tell the user where files are saved.
 
 **After this skill**:
 - `/causal-auditor` -- Stress-test results for threats to validity (recommended)
+- `/causal-hte` -- Explore who benefits more or less from treatment (heterogeneous effects)
 - `/causal-exercises` -- Practice a similar analysis on simulated data (optional)
 
 **If assumptions fail**:

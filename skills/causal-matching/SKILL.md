@@ -45,7 +45,7 @@ You guide users through a complete matching / propensity score / doubly-robust a
 - Large sample, want efficiency → Inverse Probability Weighting (IPW/PSW)
 - Worried about model misspecification → Doubly-Robust (DR) estimation
 - Few categorical covariates → Coarsened Exact Matching (CEM)
-- Want heterogeneous effects → DR Learner or meta-learners (econml)
+- Want heterogeneous effects → Handoff to `/causal-hte` (Causal Forest + DML)
 
 **Always flag**: Matching relies on conditional independence (selection on observables). This is the WEAKEST identification strategy. If a stronger design is available (DiD, IV, RDD), use that instead.
 
@@ -316,6 +316,7 @@ Use the Write tool. Tell the user where files are saved.
 
 **After this skill**:
 - `/causal-auditor` -- Stress-test results for threats to validity (recommended)
+- `/causal-hte` -- Explore who benefits more or less from treatment (heterogeneous effects)
 - `/causal-exercises` -- Practice a similar analysis on simulated data (optional)
 
 **If assumptions fail**:
