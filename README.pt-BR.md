@@ -38,7 +38,7 @@ Depois, ele sinaliza decisões de design que você talvez não tenha pensado —
 
 > **Você:** Podemos aleatorizar por visitante usando um cookie. E os usuários que abandonam e voltam depois?
 
-Ele te guia por esses casos, escreve o código de análise em R ou Python e inclui as verificações necessárias: diagnósticos de balanceamento para garantir que os grupos são comparáveis e um plano de análise pré-registrado para evitar que você busque resultados depois do fato.
+Ele te guia por esses casos, escreve o código de análise em R ou Python e inclui as verificações necessárias: diagnósticos de balanceamento para garantir que os grupos são comparáveis e um plano de análise pré-registrado para evitar que você garimpe resultados depois.
 
 Quando o teste é lançado, a análise já está pronta. Quando os dados chegam, você roda o código e tem a resposta.
 
@@ -48,13 +48,13 @@ Uma empresa de varejo lançou um programa de fidelidade em 12 das suas 50 lojas 
 
 > **Você:** `/causal-planner` Lançamos um programa de fidelidade em 12 lojas há três meses. As outras 38 ainda não receberam. Quero saber se as compras recorrentes aumentaram por causa do programa.
 
-O plugin pergunta sobre a estrutura dos dados — há quanto tempo os registros existem, se as 12 lojas foram escolhidas de alguma forma específica e qual resultado você está acompanhando. Com base nas respostas, recomenda diferenças em diferenças e explica por quê: você tem grupos de tratamento e controle com dados antes e depois do lançamento.
+O plugin pergunta sobre a estrutura dos dados — há quanto tempo os registros existem, se você escolheu as 12 lojas ou se elas foram designadas de alguma outra forma, e qual resultado você está acompanhando. Com base nas respostas, recomenda diferenças em diferenças e explica por quê: você tem grupos de tratamento e controle com dados antes e depois do lançamento.
 
 > **Você:** `/causal-did` Tenho taxas semanais de compra recorrente para todas as 50 lojas nos últimos 18 meses.
 
 A skill verifica se as lojas tratadas e não tratadas seguiam tendências semelhantes antes do programa ser lançado — a premissa-chave que sustenta o método. Ela escreve o código de estimação em R ou Python, roda testes placebo e de robustez e sinaliza problemas antes de você perder tempo com resultados que não se sustentam.
 
-Com a estimativa em mãos, `/causal-auditor` testa a análise: algo além do programa poderia explicar a diferença? As 12 lojas foram escolhidas de um jeito que enviesaria o resultado? Você recebe uma lista de ameaças para endereçar antes de apresentar os achados.
+Com a estimativa em mãos, `/causal-auditor` submete a análise a um stress-test: algo além do programa poderia explicar a diferença? As 12 lojas foram escolhidas de um jeito que enviesaria o resultado? Você recebe uma lista de ameaças para endereçar antes de apresentar os achados.
 
 ## Skills
 

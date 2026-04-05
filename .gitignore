@@ -14,10 +14,10 @@ venv/
 # Eval framework (internal)
 evals/propose_lessons.py
 evals/config.yaml
-evals/data/
+evals/results/*.md
+!evals/results/HISTORY.md
 
 # Internal dev notes
-references/lessons.md
 references/lessons-archive.md
 
 # OS
@@ -40,7 +40,9 @@ Thumbs.db
 *.keystore
 credentials.*
 secrets.*
-.claude/settings.local.json
+
+# Claude Code local config
+.claude/
 
 # Claude-mem context (internal dev logs)
 **/CLAUDE.md
