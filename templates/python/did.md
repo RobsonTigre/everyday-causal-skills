@@ -116,7 +116,7 @@ print(cohort_df.to_string(index=False))
 ## Diagnostics — Pre-Trends Test
 
 ```python
-# Extract lead coefficients and test joint significance
+# Joint test: were treated and control groups already diverging before treatment?
 lead_cols = [c for c in dummy_cols if c.startswith("rel_") and not c.startswith("rel_p")]
 lead_coefs = result_es.params[lead_cols]
 lead_se = result_es.std_errors[lead_cols]
@@ -149,7 +149,7 @@ print(results_table.to_string())
 ## Visualization
 
 ```python
-# --- Event Study Plot ---
+# Pre-treatment coefficients should be near zero if parallel trends holds
 fig, ax = plt.subplots(figsize=(8, 5))
 
 # Collect coefficients for all leads/lags; add zero for reference period

@@ -98,7 +98,7 @@ pre_coefs <- coef(mod_es)[grepl("time_to_treat::-[2-9]|time_to_treat::-[1-9][0-9
 cat("Pre-treatment coefficients:\n")
 print(pre_coefs)
 
-# Joint significance test for pre-treatment periods
+# Joint test: were treated and control groups already diverging before treatment?
 wald(mod_es, "time_to_treat::-")
 
 # --- Parallel trends visualization ---
@@ -129,7 +129,7 @@ modelsummary(
 
 ## Visualization
 ```r
-# --- Event-study plot (fixest) ---
+# Visual check — pre-treatment coefficients should hover around zero
 iplot(
   mod_es,
   main = "Event Study — DiD",
