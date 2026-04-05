@@ -288,7 +288,7 @@ Caveats:
 
 **Effect size in context**: Always translate the point estimate into the user's units: "An effect of [X] on [outcome] means [practical interpretation]. Compared to your MDE of [Y], this is [larger/smaller/comparable]."
 
-**Balance check interpretation**: If any covariate shows significant imbalance, tell the user: "Randomization should balance covariates on average, but imbalance happens with finite samples. If the imbalanced covariate strongly predicts the outcome, include it as a control to reduce bias and tighten the CI."
+**Balance check interpretation**: If any covariate shows significant imbalance, tell the user: "Randomization should balance covariates on average, but imbalance happens with finite samples. If the imbalanced pre-treatment covariate strongly predicts the outcome, include it as a control to reduce bias and tighten the CI."
 
 **Non-compliance**: If ITT and CACE/IV estimates diverge, tell the user: "The ITT of [X] is the effect of being assigned to treatment — including non-compliers. The CACE of [Y] is the effect for people who actually took the treatment. For policy decisions where you control assignment, ITT is usually the relevant number."
 
