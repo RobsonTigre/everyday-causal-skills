@@ -121,11 +121,12 @@ from itertools import combinations
 G = nx.DiGraph()
 G.add_edges_from([("X", "D"), ("X", "Y"), ("D", "Y")])
 
+# Check unconditional d-separation: pairs the DAG says are marginally independent
+# Two nodes with no directed path can still be d-connected via a common cause,
+# so we must use d-separation, not path reachability.
 for v1, v2 in combinations(G.nodes(), 2):
-    # Check if there's any path connecting them
-    has_path = nx.has_path(G, v1, v2) or nx.has_path(G, v2, v1)
-    if not has_path:
-        print(f"{v1} and {v2} should be independent — check in data")
+    if nx.d_separated(G, {v1}, {v2}, set()):
+        print(f"{v1} and {v2} should be marginally independent — check in data")
         # If they're correlated in data, you may be missing a common cause
 ```
 
@@ -134,6 +135,67 @@ for v1, v2 in combinations(G.nodes(), 2):
 **Severity if violated**: Serious. Missing a common cause means a confounding path is open but invisible in the graph. The adjustment sets computed from the graph will be incomplete, leading to omitted variable bias. If the missing common cause is strongly related to both treatment and outcome, the bias can be large.
 
 **Mitigation**: (1) Brainstorm aggressively: for every variable pair, ask "what could cause both of these?" Include domain experts. (2) Represent uncertain common causes as latent nodes (U) with bidirected edges. This tells dagitty/DoWhy that unobserved confounding exists, and the software will correctly report that no backdoor adjustment is available. (3) Run sensitivity analysis (e.g., E-value, Rosenbaum bounds) to assess how strong an unobserved confounder would need to be to overturn the result. (4) If key confounders are missing, consider IV or panel methods instead of cross-sectional adjustment.
+
+---
+
+## Causal Markov Condition
+
+**Plain language**: Once you know a variable's direct causes (its parents in the DAG), knowing anything else about its non-descendants gives you no additional information about it. In other words, each variable's behavior is fully determined by its direct causes plus noise — distant ancestors or unrelated variables add nothing once the direct causes are accounted for.
+
+**Formal statement**: For every variable V_i in the DAG G, V_i is conditionally independent of all its non-descendants given its parents: V_i ⊥ NonDesc(V_i) | Parents(V_i). Together with faithfulness, this axiom allows us to read conditional independencies directly from the graph using d-separation.
+
+**Testable?**: Not directly. The CMC is an axiom relating the probability distribution to the graph structure. However, its implications (conditional independencies) ARE testable via the faithfulness assumption. If a testable implication fails, either the CMC or the graph structure is wrong.
+
+**How to test**:
+
+The CMC itself is untestable, but you can test its consequences:
+
+R:
+```r
+library(dagitty)
+
+# The CMC + faithfulness together imply specific conditional independencies.
+# localTests checks these against data.
+dag <- dagitty('dag {
+  D [exposure]
+  Y [outcome]
+  X -> D
+  X -> Y
+  D -> Y
+}')
+
+# These tests check consequences of the CMC:
+# each implied independence comes from the Markov condition applied to the graph
+tests <- localTests(dag, data = df, type = "cis.pillai")
+print(tests)
+```
+
+Python:
+```python
+import networkx as nx
+
+# The CMC implies: each node is independent of its non-descendants given its parents.
+# Verify this structurally by checking d-separation for each node:
+G = nx.DiGraph()
+G.add_edges_from([("X", "D"), ("X", "Y"), ("D", "Y")])
+
+for node in G.nodes():
+    parents = set(G.predecessors(node))
+    descendants = nx.descendants(G, node) | {node}
+    non_descendants = set(G.nodes()) - descendants
+
+    for nd in non_descendants:
+        if nd not in parents:
+            # CMC implies: node ⊥ nd | parents
+            is_sep = nx.d_separated(G, {node}, {nd}, parents)
+            print(f"CMC check: {node} ⊥ {nd} | {parents} → d-separated: {is_sep}")
+```
+
+**What violation looks like**: A variable shows systematic dependence on a non-descendant even after conditioning on all its parents. This suggests either: (1) the graph is missing an edge (a direct cause was omitted), (2) the Markov condition genuinely fails (rare — implies the causal model is fundamentally wrong), or (3) statistical artifact from finite samples.
+
+**Severity if violated**: Serious. The CMC is the foundation for reading conditional independencies from the graph. If it fails, d-separation cannot be trusted, and adjustment sets derived from the graph may not block the paths they're supposed to. In practice, CMC violations almost always indicate a misspecified graph rather than a true violation of the axiom.
+
+**Mitigation**: (1) Re-examine the graph for missing edges — the most common explanation. (2) Check for latent variables that could explain the residual dependence. (3) Consider measurement error: noisy proxies for parent variables can create apparent CMC violations. (4) If the domain genuinely involves quantum effects or other non-classical mechanisms, the CMC may not hold — but this is exceedingly rare in social science and business applications.
 
 ---
 

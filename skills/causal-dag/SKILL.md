@@ -80,6 +80,13 @@ Analyze the DAG structure:
 3. **Identify naturally closed paths**: Any path containing a collider is closed by default.
 4. **Find valid adjustment sets** using the backdoor criterion: close all back-door paths without closing front-door paths.
 
+**D-separation rules** — how conditioning opens or closes paths:
+- **Chain** (A → B → C): Conditioning on B **blocks** the path. Information no longer flows from A to C through B.
+- **Fork** (A ← B → C): Conditioning on B **blocks** the path. A and C are independent once their common cause B is held fixed.
+- **Collider** (A → B ← C): The path is **blocked by default**. Conditioning on B (or any descendant of B) **opens** the path, creating a spurious association between A and C.
+
+These three rules, applied to every node on every path, determine which paths are open (transmit association) and which are closed (blocked).
+
 **Apply the control variable taxonomy** (Cinelli, Forney & Pearl 2024; discussed in Chernozhukov et al. Ch. 11) to each variable the user might control for:
 
 **Good controls:**
