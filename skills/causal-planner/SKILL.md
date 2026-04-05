@@ -181,9 +181,9 @@ Ask: "How strong do you expect the effect to be — a big obvious change or some
 
 **P6 — Effect Timing**
 
-Ask: "When did the treatment start? Same time for everyone, or did different groups start at different times?"
+Ask: "When did the treatment start? Same time for everyone, or did different groups start at different times? And once treatment hits, do you expect the effect to show up right away or build over time?"
 
-*(Want to know more? Staggered rollout requires specialized estimators — standard two-way fixed effects can give wrong answers with staggered timing.)*
+*(Want to know more? Staggered rollout requires specialized estimators — standard two-way fixed effects can give wrong answers with staggered timing. Effect lag matters too: if the effect builds gradually, you need a longer post-treatment window and dynamic effect models.)*
 
 **P7 — Panel Data**
 
@@ -202,7 +202,7 @@ Use answers to refine method selection:
 
 Ask: "Did everyone assigned to treatment actually take it? And is there something that nudged some people toward treatment but shouldn't directly affect the outcome?"
 
-*(Want to know more? Non-compliance means 'as assigned' differs from 'as received.' An instrument — something that shifts treatment take-up without directly affecting outcomes — lets us use IV to recover a causal effect for compliers.)*
+*(Want to know more? Non-compliance means 'as assigned' differs from 'as received.' An instrument — something that shifts treatment take-up without directly affecting outcomes — lets us use IV to estimate a causal effect despite the non-compliance.)*
 
 If treatment has non-compliance + valid instrument → IV path. Watch for population definition issues masquerading as non-compliance.
 
@@ -275,7 +275,7 @@ Use today's date. Ask the user for a short project name if not obvious from cont
 - [ ] Audit results with /causal-auditor
 
 ### What to Watch For
-[1-2 sentences explaining the biggest risk of the recommended method in the user's specific context. Example: "DiD assumes treated and control groups would have followed the same trajectory without treatment. If there's reason to think they were already diverging, the estimate absorbs that pre-existing difference."]
+[Based on the interview, name the single biggest threat to this analysis and explain what it would do to the estimate if it were true. Do not repeat the assumptions list above — focus on the threat most likely given the user's context. Example: "DiD assumes treated and control groups would have followed the same trajectory without treatment. If there's reason to think they were already diverging, the estimate absorbs that pre-existing difference."]
 ```
 
 Tell the user: "Your analysis plan is saved at [path]."
