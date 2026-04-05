@@ -17,6 +17,11 @@
     "regression-discontinuity",
     "synthetic-control",
     "treatment-effects",
-    "impact-evaluation"
+    "impact-evaluation",
+    "incrementality",
+    "lift-measurement",
+    "quasi-experiment",
+    "program-evaluation",
+    "counterfactual-analysis"
   ]
 }
