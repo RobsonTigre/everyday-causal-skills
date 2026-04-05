@@ -204,11 +204,11 @@ This plugin helps you think through causal problems step by step, but it does no
 
 ## Roadmap
 
-- [ ] **`/causal-ml`**: Causal forests, X-learner, DML, heterogeneous treatment effects
+- [ ] **Causal ML estimators**: incorporate causal ML methods into the existing method skills
 - [ ] **`/causal-sensitivity`**: E-values, Rosenbaum bounds, omitted variable bias (Cinelli & Hazlett)
 - [ ] **`/causal-mediation`**: direct/indirect effects, natural and controlled mediation
 - [ ] **`/causal-news`**: summaries of recent causal inference papers
 - [ ] **`/causal-report`**: publication-ready reports with tables, figures, and method summaries
 - [ ] **`/causal-roi`**: assess the ROI of an intervention by calculating causal (incremental) ROI, separating true lift from what would have happened anyway
-- [ ] **Ground skills in seminal papers**: link each skill to its foundational papers with key results and assumptions
+- [ ] **Ground skills in seminal references**: link each skill to its foundational references with key results and assumptions
 - [ ] **Token optimization**: compress SKILL.md files to reduce token cost without losing precision
