@@ -348,7 +348,7 @@ print(f"\nObservations retained after trimming: {n_after} of {n_before}")
 
 **What violation looks like**: Propensity score distributions for treated and untreated groups that barely overlap. Large regions where one group has no observations. Extreme propensity scores (near 0 or 1) concentrated in one group. After trimming to common support, you lose a substantial fraction of the sample.
 
-**Severity if violated**: Fatal. Without positivity, the causal effect is not identified for the strata that lack overlap. Adjustment estimators (regression, IPW, matching) will extrapolate into regions with no data, producing estimates driven by model assumptions rather than data. IPW estimates become highly unstable with extreme weights.
+**Severity if violated**: Serious. Positivity is an estimation requirement, not an identification requirement — the DAG and adjustment set may be correct even when positivity is practically violated. Without positivity, estimators extrapolate into regions with no data, producing model-dependent results.
 
 **Mitigation**: (1) Trim the sample to the region of common support and acknowledge the estimand changes (you're estimating the effect for the overlap population, not the full population). (2) Use weight truncation or stabilized weights in IPW. (3) Consider a different adjustment set that creates better overlap. (4) If positivity fails badly, the treatment is essentially deterministic given covariates — backdoor adjustment won't work, and you need a different identification strategy (IV, RDD, DiD).
 

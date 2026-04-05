@@ -56,3 +56,10 @@ Format:
 **Mistake**: Allowing the instrument in the adjustment set, which amplifies bias by removing exogenous variation while leaving confounded variation
 **Rule**: If a variable affects only the treatment (not the outcome directly), it's an instrument. With unobserved confounding, including it as a control makes bias worse. Either use it as an instrument via 2SLS or exclude it from the adjustment set.
 **Source**: Design decision (CausalML Ch. 11, Figure 11.6), 2026-04-05
+
+### DAG: Post-treatment conditioning biases total effects
+**Layer**: L2
+**Trigger**: User proposes controlling for any variable affected by treatment when estimand is total effect
+**Mistake**: Allowing post-treatment variables (mediators, descendants, colliders downstream of treatment) in the adjustment set
+**Rule**: Any variable that is a descendant of D should not be in the adjustment set when the target is the total effect. Check `nx.descendants(G, treatment)` (Python) or `dagitty::descendants(dag, "D")` (R) before accepting controls. This includes mediators, colliders, and any other post-treatment variables.
+**Source**: Design decision (Pearl 2009, Rosenbaum 1984), 2026-04-05

@@ -111,7 +111,7 @@ These three rules, applied to every node on every path, determine which paths ar
 3. Common ancestors of D and Y (good default)
 4. Union of ancestors excluding descendants of D (most robust under DAG uncertainty — recommend this as default)
 
-**Front-door criterion check**: If no valid backdoor adjustment exists but a full mediator M exists (D→M→Y with no direct D→Y and no unobserved confounder of M and Y), note: "Backdoor adjustment isn't possible here, but there's an alternative: the front-door criterion. It requires two regressions — D on M, then M on Y controlling for D — and multiplies the coefficients." Generate the code if the user wants it.
+**Front-door criterion check**: If no valid backdoor adjustment exists but a full mediator M exists (D→M→Y with no direct D→Y and all backdoor paths from M to Y are blocked by conditioning on D), note: "Backdoor adjustment isn't possible here, but there's an alternative: the front-door criterion. It requires two regressions — D on M, then M on Y controlling for D — and multiplies the coefficients." Generate the code if the user wants it.
 
 **Testable implications**: List conditional independencies implied by the DAG. "Your DAG predicts that [X] should be independent of [Y] given [Z]. You can check this in your data — if it fails, the DAG may be wrong."
 
