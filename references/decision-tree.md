@@ -66,7 +66,7 @@ Example: "We launched the loyalty program in November." → Probe: "Was this dur
 
 **Classify**:
 1. **Random**: A/B test or explicit randomized assignment.
-2. **Conditionally random**: Random within strata (e.g., multiple A/B tests merged with different assignment probabilities). Rare but possible.
+2. **Conditionally random**: Random within known strata. Probe: "Is it possible your data combines multiple experiments with different randomization rates?" Example: a company ran separate A/B tests in different regions — 50/50 split in São Paulo, 70/30 in Rio — then merged the datasets. The merged data is NOT unconditionally random, but it IS random conditional on region. Treatment: stratify the analysis by the grouping variable, or weight by the known assignment probability. Do not analyze the merged data as if it were a single randomized experiment.
 3. **Not random**: No randomization.
 
 ### If random (1 or 2) + large sample:
