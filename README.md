@@ -38,6 +38,7 @@ The plugin works in five steps, from refining the question you want to answer, t
 | Skill | Purpose |
 |---|---|
 | `/causal-planner` | Describe a causal question in plain language and get a method recommendation with an analysis plan |
+| `/causal-dag` | Map causal relationships, find adjustment sets, detect bad controls |
 | `/causal-experiments` | Design and analyze RCTs and A/B tests (power analysis, randomization checks, balance diagnostics) |
 | `/causal-did` | Difference-in-differences with support for staggered adoption, TWFE, and event studies |
 | `/causal-iv` | Instrumental variables estimation with 2SLS, weak instrument diagnostics, and exclusion checks |
@@ -177,7 +178,6 @@ This plugin helps you think through causal problems step by step, but it does no
 
 ## Roadmap
 
-- [ ] **`/causal-dag`**: DAG construction, critique, and identification-strategy reasoning
 - [ ] **`/causal-ml`**: Causal forests, X-learner, DML, heterogeneous treatment effects
 - [ ] **`/causal-sensitivity`**: E-values, Rosenbaum bounds, omitted variable bias (Cinelli & Hazlett)
 - [ ] **`/causal-mediation`**: direct/indirect effects, natural and controlled mediation

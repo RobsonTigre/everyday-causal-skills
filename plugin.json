@@ -22,6 +22,10 @@
     "lift-measurement",
     "quasi-experiment",
     "program-evaluation",
-    "counterfactual-analysis"
+    "counterfactual-analysis",
+    "dag",
+    "causal-graph",
+    "backdoor",
+    "collider"
   ]
 }
