@@ -40,6 +40,15 @@ Examples:
 
 If detected: Explain how this conditioning can create selection bias or misalign the business objective (from P1) with the causal estimand. Suggest expanding the population.
 
+**Prior exposure check** (ask on every case): "Has this population already been exposed to this intervention, or is this the first time?"
+
+Classify:
+1. **No prior exposure**: Clean baseline. Measuring first-time effect.
+2. **Partial exposure**: Some units were exposed before. Risk of contamination between exposed and unexposed. Possible novelty effect inflating results for newly-exposed units.
+3. **Full prior exposure**: Everyone has already seen the intervention. The estimand is the incremental/ongoing effect, NOT the first-time effect. Must reframe the causal question accordingly — e.g., "what is the marginal effect of continuing X" rather than "what is the effect of X."
+
+Example: "We've been showing personalized recommendations for 6 months. Now we want to know if they increase purchases." → Full prior exposure. The relevant estimand is the ongoing lift from recommendations, not the initial surprise effect. Consider a removal experiment (turn it OFF for a random group) rather than trying to estimate the original effect.
+
 ---
 
 ## P3: Randomization?
