@@ -1,0 +1,7 @@
+name: trigger_hte_paraphrase_2
+description: HTE should trigger on personalization/targeting language
+layer: 0
+skill: causal-hte
+user_message: "I want to build a targeting model to decide which users should receive the promotional offer based on their predicted treatment effect"
+expected:
+  should_trigger: true

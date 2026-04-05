@@ -1,0 +1,7 @@
+name: trigger_hte_paraphrase_1
+description: HTE should trigger on "who benefits most"
+layer: 0
+skill: causal-hte
+user_message: "We ran an A/B test and found a positive average effect. Now I want to understand who benefits the most from the new feature"
+expected:
+  should_trigger: true

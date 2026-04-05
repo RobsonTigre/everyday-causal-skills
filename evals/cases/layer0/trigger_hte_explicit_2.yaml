@@ -1,0 +1,7 @@
+name: trigger_hte_explicit_2
+description: HTE should trigger on "causal forest"
+layer: 0
+skill: causal-hte
+user_message: "Can you help me run a causal forest to estimate conditional average treatment effects?"
+expected:
+  should_trigger: true

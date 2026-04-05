@@ -1,0 +1,7 @@
+name: trigger_hte_explicit_1
+description: HTE should trigger on "heterogeneous treatment effects"
+layer: 0
+skill: causal-hte
+user_message: "I want to estimate heterogeneous treatment effects to see which customers respond best to the discount"
+expected:
+  should_trigger: true
