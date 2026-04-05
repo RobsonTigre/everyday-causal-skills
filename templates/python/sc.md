@@ -113,8 +113,8 @@ print(f"Pre-treatment RMSPE: {rmspe_pre:.4f}")
 actual_post = df[(df["unit"] == treated_unit) & (df["time"] >= treatment_time)].set_index("time")["outcome"]
 synthetic_post = donor_panel.loc[donor_panel.index >= treatment_time].dot(weights.flatten())
 rmspe_post = np.sqrt(np.mean((actual_post.values - synthetic_post.values) ** 2))
-print(f"Post-treatment RMSPE: {rmspe_post:.4f}")
 # Post/pre RMSPE ratio: > 2 suggests the treatment gap is real, not noise
+print(f"Post-treatment RMSPE: {rmspe_post:.4f}")
 print(f"Post/Pre RMSPE ratio: {rmspe_post / rmspe_pre:.2f}")
 ```
 

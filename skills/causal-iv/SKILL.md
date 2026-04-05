@@ -232,7 +232,7 @@ Caveats:
 
 ### Reading Your Results
 
-**First-stage F-statistic**: If F < 10: "Your instrument is weak — it barely moves treatment. The 2SLS estimates are unreliable: biased toward OLS, with misleading standard errors. Use Anderson-Rubin confidence sets instead, or find a stronger instrument." If 10-25: "Moderate instrument strength. Standard 2SLS is usable, but report Anderson-Rubin CIs alongside for robustness." If > 25: "Strong instrument. Standard inference is reliable."
+**First-stage F-statistic**: If F < 10: "Your instrument is weak — it barely moves treatment. The 2SLS estimates are unreliable: biased toward OLS, with misleading standard errors. Use Anderson-Rubin confidence sets instead, or find a stronger instrument." If 10-25: "Moderate instrument strength. Standard 2SLS is usable, but report Anderson-Rubin CIs alongside for robustness." If 25-100: "Adequate instrument. Standard inference is reliable, though modern standards prefer F > 100." If > 100: "Strong instrument by modern standards. Standard inference is fully reliable."
 
 **OLS vs IV gap**: "OLS estimates [X], IV estimates [Y]. The gap suggests the OLS estimate has [upward/downward] bias from [endogeneity source]. If IV is larger than OLS, the naive estimate was attenuated — common with measurement error in the treatment. If IV is smaller, OLS was inflated — common with positive selection into treatment."
 
