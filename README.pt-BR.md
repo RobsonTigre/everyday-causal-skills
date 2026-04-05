@@ -19,7 +19,7 @@ Plugin de inferência causal para agentes de IA. Descreva um problema em linguag
 O plugin funciona em cinco etapas, desde refinar a pergunta que você quer responder até escrever o relatório. Você pode começar por qualquer uma.
 
 ```
-Descreva seu problema
+→ Descreva seu problema
 → Receba uma recomendação de método
 → Verifique premissas e estruture a análise
 → Teste a robustez dos resultados
@@ -92,11 +92,15 @@ Para atualizar automaticamente ao iniciar: `/plugin` → aba **Marketplaces** �
 <details>
 <summary><h3>Gemini CLI</h3></summary>
 
+Execute no terminal (fora de uma sessão interativa do Gemini):
+
 ```bash
 gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
 ```
 
-Quando solicitado, confirme o fallback para git clone e a revisão de segurança.
+Quando solicitado, confirme a revisão de segurança.
+
+Para verificar: `gemini extensions list`
 
 Para atualizar:
 
@@ -113,14 +117,21 @@ gemini extensions update everyday-causal-skills
 copilot plugin install RobsonTigre/everyday-causal-skills
 ```
 
+Para verificar: `copilot plugin list`
+
+Para atualizar: `copilot plugin update everyday-causal-skills`
+
 </details>
 
 <details>
 <summary><h3>Codex CLI</h3></summary>
 
 ```bash
-git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plugins/everyday-causal-skills
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git
+cp -r everyday-causal-skills/skills/* ~/.agents/skills/
 ```
+
+Depois reinicie o Codex.
 
 </details>
 
@@ -128,8 +139,11 @@ git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plu
 <summary><h3>Cursor</h3></summary>
 
 ```bash
-git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/plugins/everyday-causal-skills
+mkdir -p ~/.cursor/plugins/local
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/plugins/local/everyday-causal-skills
 ```
+
+Depois reinicie o Cursor.
 
 </details>
 
@@ -141,6 +155,8 @@ Se seu agente suporta o padrão SKILL.md mas não está listado acima, clone o r
 ```bash
 git clone https://github.com/RobsonTigre/everyday-causal-skills.git
 ```
+
+Cada skill fica em `skills/<nome-da-skill>/SKILL.md`.
 
 </details>
 

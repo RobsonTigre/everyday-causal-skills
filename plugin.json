@@ -10,10 +10,13 @@
   "keywords": [
     "causal-inference",
     "econometrics",
+    "experiment-design",
+    "ab-testing",
     "difference-in-differences",
     "instrumental-variables",
     "regression-discontinuity",
     "synthetic-control",
-    "treatment-effects"
+    "treatment-effects",
+    "impact-evaluation"
   ]
 }

@@ -19,7 +19,7 @@ A causal inference plugin for AI agents. Describe a problem in plain language an
 The plugin works in five steps, from refining the question you want to answer, to writing the report. You are free to pick and start from any step you like.
 
 ```
-Describe your problem
+→ Describe your problem
 → Get a method recommendation
 → Check assumptions and structure the analysis
 → Stress-test the results
@@ -92,11 +92,15 @@ To auto-update on startup: `/plugin` → **Marketplaces** tab → toggle **auto-
 <details>
 <summary><h3>Gemini CLI</h3></summary>
 
+Run from the terminal (not inside an interactive Gemini session):
+
 ```bash
 gemini extensions install https://github.com/RobsonTigre/everyday-causal-skills
 ```
 
-When prompted, confirm the git clone fallback and the security review.
+When prompted, confirm the security review.
+
+To verify: `gemini extensions list`
 
 To update:
 
@@ -113,14 +117,21 @@ gemini extensions update everyday-causal-skills
 copilot plugin install RobsonTigre/everyday-causal-skills
 ```
 
+To verify: `copilot plugin list`
+
+To update: `copilot plugin update everyday-causal-skills`
+
 </details>
 
 <details>
 <summary><h3>Codex CLI</h3></summary>
 
 ```bash
-git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plugins/everyday-causal-skills
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git
+cp -r everyday-causal-skills/skills/* ~/.agents/skills/
 ```
+
+Then restart Codex.
 
 </details>
 
@@ -128,19 +139,24 @@ git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.codex/plu
 <summary><h3>Cursor</h3></summary>
 
 ```bash
-git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/plugins/everyday-causal-skills
+mkdir -p ~/.cursor/plugins/local
+git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/plugins/local/everyday-causal-skills
 ```
+
+Then restart Cursor.
 
 </details>
 
 <details>
-<summary><h3>Manual installation</h3></summary>
+<summary><h3>Manual install</h3></summary>
 
 If your agent supports the SKILL.md standard but isn't listed above, clone the repo and point your agent at the `skills/` directory:
 
 ```bash
 git clone https://github.com/RobsonTigre/everyday-causal-skills.git
 ```
+
+Each skill lives in `skills/<skill-name>/SKILL.md`.
 
 </details>
 
