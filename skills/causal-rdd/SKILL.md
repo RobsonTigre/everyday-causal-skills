@@ -237,6 +237,16 @@ Caveats:
 - [Limited external validity — this is a local estimate]
 - [Sample size near cutoff]"
 
+### Reading Your Results
+
+**McCrary density test**: If the test rejects: "There are suspiciously more (or fewer) units just above or below the cutoff. This suggests people can manipulate their score to land on the preferred side, which breaks the 'as-if random' logic of RDD. The estimate is not credible without addressing this." If it passes: "No evidence of manipulation at the cutoff. Units on either side appear comparable."
+
+**Bandwidth choice**: "The bandwidth of [h] means you're using units within [h] of the cutoff. Narrower = less bias (tighter local comparison) but more variance (fewer observations). The robust confidence interval accounts for this tradeoff. If results change dramatically across bandwidths, the estimate is fragile."
+
+**Local interpretation**: "This effect applies only to units near the cutoff — not the entire population. If you're deciding whether to change a policy that affects everyone, consider whether the effect at the margin generalizes to units far from the cutoff."
+
+**Covariate smoothness**: If any covariate shows a discontinuity at the cutoff: "This covariate jumps at the cutoff, which shouldn't happen if assignment near the cutoff is as-if random. Either there's manipulation, or there's a compound treatment — something else changes at the same cutoff."
+
 ## Saving Output
 
 Save alongside the plan (or create a new directory if standalone):

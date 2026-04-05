@@ -92,6 +92,7 @@ print(bw_df.to_string(index=False, float_format="%.4f"))
 ## Diagnostics — Manipulation Testing
 
 ```python
+# Manipulation check: bunching at the cutoff suggests people can control their score
 # McCrary / density test: check for bunching at the cutoff
 # If units can manipulate the running variable, the density will jump at the cutoff
 density_test = rddensity(X, c=cutoff)
@@ -107,6 +108,7 @@ else:
 ## Diagnostics — Covariate Balance at the Cutoff
 
 ```python
+# Covariates should pass smoothly through the cutoff — discontinuities signal compound treatment
 # Test whether pre-treatment covariates are smooth through the cutoff
 # This should show no discontinuity for covariates unaffected by treatment
 covariates = ["covariate1", "covariate2"]  # Replace with your covariates
