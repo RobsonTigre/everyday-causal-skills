@@ -68,6 +68,7 @@ Once you have the estimate, `/causal-auditor` stress-tests the analysis: could s
 | `/causal-rdd` | Sharp and fuzzy regression discontinuity with bandwidth selection and manipulation tests |
 | `/causal-sc` | Synthetic control with donor weighting, pre-fit diagnostics, and placebo tests |
 | `/causal-matching` | Propensity score matching, IPW, and doubly-robust estimators with balance diagnostics |
+| `/causal-hte` | Heterogeneous treatment effects with Causal Forest, DML, and policy learning (policytree) |
 | `/causal-timeseries` | Interrupted time series and CausalImpact with pre-period validation |
 | `/causal-auditor` | Stress-test any completed analysis against five categories of threats to validity |
 | `/causal-exercises` | Practice on simulated data with known ground truth and get feedback on your approach |

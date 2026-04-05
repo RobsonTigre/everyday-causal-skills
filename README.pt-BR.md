@@ -68,6 +68,7 @@ Com a estimativa em mãos, `/causal-auditor` submete a análise a um stress-test
 | `/causal-rdd` | Regressão descontínua sharp e fuzzy com seleção de bandwidth e testes de manipulação |
 | `/causal-sc` | Controle sintético com ponderação de doadores, diagnóstico de ajuste pré-tratamento e testes placebo |
 | `/causal-matching` | Matching por escore de propensão, IPW e estimadores duplamente robustos com diagnóstico de balanceamento |
+| `/causal-hte` | Efeitos heterogêneos de tratamento com Causal Forest, DML e aprendizado de políticas (policytree) |
 | `/causal-timeseries` | Séries temporais interrompidas e CausalImpact com validação pré-período |
 | `/causal-auditor` | Stress-test de qualquer análise finalizada contra cinco categorias de ameaças à validade |
 | `/causal-exercises` | Pratique com dados simulados com ground truth conhecido e receba feedback sobre sua abordagem |

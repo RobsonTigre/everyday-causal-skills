@@ -26,6 +26,12 @@
     "dag",
     "causal-graph",
     "backdoor",
-    "collider"
+    "collider",
+    "heterogeneous-treatment-effects",
+    "cate",
+    "causal-forest",
+    "policy-learning",
+    "personalization",
+    "targeting"
   ]
 }
