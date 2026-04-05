@@ -173,9 +173,23 @@ If no → continue to P5.
 
 ### Phase 4: Data Structure & Effect Characteristics (P5-P7)
 
-**P5** — Ask about treatment strength (strong vs. weak effect expected).
-**P6** — Ask about effect lag (immediate vs. delayed; trajectory).
-**P7** — Ask about panel data availability. If available: how many units? how many periods?
+**P5 — Treatment Strength**
+
+Ask: "How strong do you expect the effect to be — a big obvious change or something subtle? This helps me gauge whether we need a more sensitive design."
+
+*(Want to know more? Weak effects need larger samples or more precise estimators like panel methods. If you expect a large, obvious effect, simpler methods often suffice.)*
+
+**P6 — Effect Timing**
+
+Ask: "When did the treatment start? Same time for everyone, or did different groups start at different times?"
+
+*(Want to know more? Staggered rollout requires specialized estimators — standard two-way fixed effects can give wrong answers with staggered timing.)*
+
+**P7 — Panel Data**
+
+Ask: "Do you have repeated observations on the same units over time? How many units, and how many time periods?"
+
+*(Want to know more? Panel data lets us control for everything about a unit that doesn't change — their 'fixed' characteristics. This unlocks DiD and fixed effects, which handle time-invariant confounders automatically.)*
 
 Use answers to refine method selection:
 - Weak treatment + randomized → panel methods for variance reduction
@@ -184,11 +198,29 @@ Use answers to refine method selection:
 
 ### Phase 5: Identification Strategy (P8-P10)
 
-**P8 — Non-compliance**: If treatment has non-compliance + valid instrument → IV path. Watch for population definition issues masquerading as non-compliance.
+**P8 — Non-Compliance / Instrument**
 
-**P9 — Discontinuity**: If cutoff/threshold exists → RDD path.
+Ask: "Did everyone assigned to treatment actually take it? And is there something that nudged some people toward treatment but shouldn't directly affect the outcome?"
 
-**P10 — Selection on observables** (last resort): → Matching/PSW/DR. Always warn about weakness of conditional independence.
+*(Want to know more? Non-compliance means 'as assigned' differs from 'as received.' An instrument — something that shifts treatment take-up without directly affecting outcomes — lets us use IV to recover a causal effect for compliers.)*
+
+If treatment has non-compliance + valid instrument → IV path. Watch for population definition issues masquerading as non-compliance.
+
+**P9 — Cutoff / Threshold**
+
+Ask: "Is there a specific score, threshold, or rule that determines who gets treated? For example, 'students below 70 get tutoring' or 'cities above 100K get the grant.'"
+
+*(Want to know more? A sharp cutoff creates a natural experiment — units just above and below are nearly identical except for treatment. This enables regression discontinuity, one of the most credible observational designs.)*
+
+If cutoff/threshold exists → RDD path.
+
+**P10 — Comparison Group & Observables**
+
+Ask: "Do you have a clear comparison group? And how confident are you that you've measured everything that influenced who got treated?"
+
+*(Want to know more? Without randomization, a cutoff, or an instrument, we rely on matching or weighting — which assumes all confounders are observed. This is the weakest identification strategy, so we need to be honest about what might be missing.)*
+
+Selection on observables is the last resort → Matching/PSW/DR. Always warn about weakness of conditional independence.
 
 ## Saving the Analysis Plan
 
@@ -241,6 +273,9 @@ Use today's date. Ask the user for a short project name if not obvious from cont
 - [ ] Implement analysis
 - [ ] Run robustness checks
 - [ ] Audit results with /causal-auditor
+
+### What to Watch For
+[1-2 sentences explaining the biggest risk of the recommended method in the user's specific context. Example: "DiD assumes treated and control groups would have followed the same trajectory without treatment. If there's reason to think they were already diverging, the estimate absorbs that pre-existing difference."]
 ```
 
 Tell the user: "Your analysis plan is saved at [path]."
