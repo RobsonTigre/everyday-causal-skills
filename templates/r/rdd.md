@@ -86,14 +86,14 @@ ggplot(bw_results, aes(x = bandwidth, y = estimate)) +
 ## Diagnostics
 ```r
 # Manipulation check: can units game the running variable to land on the preferred side?
-# --- McCrary density test (manipulation of the running variable) ---
+# --- Density test for manipulation (Cattaneo, Jansson, and Ma 2020) ---
 # H0: density is continuous at the cutoff (no sorting)
 density_test <- rddensity(X = df$running_var, c = cutoff)
 summary(density_test)
 
 # Density plot
 rdplotdensity(density_test, df$running_var,
-              title = "McCrary Density Test",
+              title = "Density Test at Cutoff",
               xlabel = "Running Variable",
               ylabel = "Density")
 

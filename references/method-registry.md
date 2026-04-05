@@ -86,7 +86,7 @@ Single source of truth for all causal inference methods supported by this plugin
 
 **Python packages**: `rdrobust` (rdrobust, rdplot), `rddensity`
 
-**Key diagnostics**: McCrary density test (manipulation), covariate smoothness at cutoff, bandwidth sensitivity analysis, donut hole test.
+**Key diagnostics**: Cattaneo, Jansson, and Ma (2020) density test via `rddensity` (manipulation), covariate smoothness at cutoff, bandwidth sensitivity analysis, donut hole test.
 
 **Assumption checklist**: `assumptions/rdd.md`
 

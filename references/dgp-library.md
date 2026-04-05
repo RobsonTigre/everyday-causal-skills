@@ -1145,7 +1145,7 @@ df.to_csv("data.csv", index=False)
 
 ## DGP-16: RDD with Manipulation (Advanced, RDD)
 
-**Narrative**: A government subsidy program awards grants to firms scoring at or above 70 on a review score. However, some firms near the cutoff lobby reviewers to nudge their scores just above 70. This creates bunching (excess density) just above the cutoff. The true effect of the subsidy on firm revenue is $3 million, but because manipulating firms differ systematically from non-manipulators, estimates near the cutoff are biased. The student must detect the manipulation via a McCrary/density test and understand its implications.
+**Narrative**: A government subsidy program awards grants to firms scoring at or above 70 on a review score. However, some firms near the cutoff lobby reviewers to nudge their scores just above 70. This creates bunching (excess density) just above the cutoff. The true effect of the subsidy on firm revenue is $3 million, but because manipulating firms differ systematically from non-manipulators, estimates near the cutoff are biased. The student must detect the manipulation via a density test (`rddensity`) and understand its implications.
 
 **True effect**: 3.0 (millions of dollars, but biased by sorting)
 
@@ -1153,7 +1153,7 @@ df.to_csv("data.csv", index=False)
 
 **Target method**: RDD (violation detection)
 
-**Complications**: Running variable manipulation at the cutoff. McCrary density test rejects smoothness. Student must detect the bunching and understand that the local randomization assumption fails.
+**Complications**: Running variable manipulation at the cutoff. Density test (`rddensity`) rejects smoothness. Student must detect the bunching and understand that the local randomization assumption fails.
 
 **R code**:
 ```r

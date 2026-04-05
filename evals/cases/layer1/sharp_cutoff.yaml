@@ -14,5 +14,5 @@ expected:
   rubric:
     - "Does the response recommend regression discontinuity design (RDD) as the primary method?"
     - "Does the response identify the GPA cutoff of 3.5 as the key feature enabling causal identification?"
-    - "Does the response discuss checking for manipulation at the cutoff (e.g., bunching, McCrary test)?"
+    - "Does the response discuss checking for manipulation at the cutoff (e.g., bunching, density test)?"
   must_not_recommend: [did, synthetic control, matching]

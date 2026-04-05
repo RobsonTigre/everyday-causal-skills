@@ -59,7 +59,7 @@ For each assumption:
 **Key assumptions to walk through**:
 
 1. **No manipulation of the running variable**: "Can units precisely control their score to sort around the cutoff? If so, units just above and below differ systematically."
-   - Testable: McCrary density test — check for a jump in the density of the running variable at the cutoff.
+   - Testable: Cattaneo, Jansson, and Ma (2020) density test (`rddensity`) — check for a jump in the density of the running variable at the cutoff.
    - Offer density test code.
 
 2. **Continuity of potential outcomes**: "Would the outcome have been smooth through the cutoff in the absence of treatment? No other jump at the cutoff."
@@ -85,7 +85,7 @@ Generate complete analysis code. Read the appropriate template from `templates/r
 
 **Always include**:
 - RD plot (visual inspection of the discontinuity)
-- McCrary density test
+- Density test for manipulation (Cattaneo, Jansson, and Ma 2020)
 - Main RD estimate with robust confidence interval
 - Bandwidth selection details
 - Covariate smoothness checks
@@ -101,7 +101,7 @@ rdplot(Y, X, c = cutoff,
        x.label = "Running Variable",
        y.label = "Outcome")
 
-# McCrary density test — check for manipulation
+# Density test for manipulation (Cattaneo, Jansson, and Ma 2020)
 density_test <- rddensity(X, c = cutoff)
 summary(density_test)
 
@@ -134,7 +134,7 @@ rdplot(Y, X, c=cutoff,
        x_label="Running Variable",
        y_label="Outcome")
 
-# McCrary density test
+# Density test for manipulation (Cattaneo, Jansson, and Ma 2020)
 density_test = rddensity(X, c=cutoff)
 print(density_test)
 
@@ -187,7 +187,7 @@ Before proceeding to interpretation, confirm ALL of the following from actual co
 
 | Signal | Severity | Action |
 |--------|----------|--------|
-| McCrary density test rejects | 🚨 Fatal | Running variable is manipulated. RDD is likely invalid. Warn user before continuing. |
+| Density test rejects (rddensity) | 🚨 Fatal | Running variable is manipulated. RDD is likely invalid. Warn user before continuing. |
 | Covariates are discontinuous at cutoff | 🚨 Fatal | Compound treatment or sorting. Warn user before continuing. |
 | Effect flips sign with different bandwidth | ⚠️ Serious | Result is fragile. Report sensitivity plot. |
 | Very few observations near cutoff | ⚠️ Serious | Estimates imprecise. Report effective sample size and CI width. |
@@ -213,7 +213,7 @@ Use only **FATAL** and **SERIOUS** severity labels. Do not invent additional tie
 | "This is just an exploratory analysis" | If results will influence a decision, it's not exploratory. Apply full rigor. |
 | "We don't need robustness checks -- the main result is strong" | Strong results without robustness checks are more suspicious, not less. |
 | "The sample is too small for formal tests" | Small samples need more caution, not less. Flag the limitation explicitly. |
-| "There's no manipulation -- it's a natural cutoff" | Run the McCrary test. Natural cutoffs can still be gamed. |
+| "There's no manipulation -- it's a natural cutoff" | Run the density test (`rddensity`). Natural cutoffs can still be gamed. |
 | "We can extrapolate the RDD effect to the full population" | RDD estimates are local to the cutoff. Say so. |
 | "Default bandwidth is fine" | Report sensitivity to bandwidth choice. One bandwidth = one fragile result. |
 
@@ -228,7 +228,7 @@ Help write a plain-language summary:
 
 **Local interpretation**: This effect applies to units near the cutoff ([running variable] close to [cutoff value]), not the full population. Units far from the cutoff may experience different effects.
 
-McCrary test:
+Density test (Cattaneo, Jansson, and Ma 2020):
 - [Result of density test — 'No evidence of manipulation' or 'Warning: density discontinuity detected']
 
 Caveats:
@@ -239,7 +239,7 @@ Caveats:
 
 ### Reading Your Results
 
-**McCrary density test**: If the test rejects: "There are suspiciously more (or fewer) units just above or below the cutoff. This suggests people can manipulate their score to land on the preferred side, which breaks the 'as-if random' logic of RDD. The estimate is not credible without addressing this." If it passes: "No evidence of manipulation at the cutoff. Units on either side appear comparable."
+**Density test (Cattaneo, Jansson, and Ma 2020)**: If the test rejects: "There are suspiciously more (or fewer) units just above or below the cutoff. This suggests people can manipulate their score to land on the preferred side, which breaks the 'as-if random' logic of RDD. The estimate is not credible without addressing this." If it passes: "No evidence of manipulation at the cutoff. Units on either side appear comparable."
 
 **Bandwidth choice**: "The bandwidth of [h] means you're using units within [h] of the cutoff. Narrower = less bias (tighter local comparison) but more variance (fewer observations). The robust confidence interval accounts for this tradeoff. If results change dramatically across bandwidths, the estimate is fragile."
 
@@ -269,7 +269,7 @@ Use the Write tool. Tell the user where files are saved.
 
 ## Common Issues
 
-- **Manipulation of the running variable**: If units can precisely control their position relative to the cutoff, RDD is invalid. Run McCrary density test before proceeding.
+- **Manipulation of the running variable**: If units can precisely control their position relative to the cutoff, RDD is invalid. Run the density test (`rddensity`) before proceeding.
 - **Bandwidth too wide**: Large bandwidths increase bias. Always report results across multiple bandwidths and use MSE-optimal selection from rdrobust.
 - **Covariate discontinuities**: If covariates jump at the cutoff, there may be compound treatments. Check covariate balance at the threshold.
 

@@ -70,7 +70,7 @@ for cov in covariates:
 
 **Formal statement**: The density of the running variable f(X) is continuous at the cutoff: lim_{x->c-} f(x) = lim_{x->c+} f(x). A jump in the density at c suggests units are sorting themselves to one side, violating the as-if-random assignment near the cutoff.
 
-**Testable?**: Yes. The McCrary (2008) density test or the improved Cattaneo, Jansson, and Ma (2020) `rddensity` test directly checks for a discontinuity in the density of the running variable at the cutoff.
+**Testable?**: Yes. The Cattaneo, Jansson, and Ma (2020) density test (`rddensity`) directly checks for a discontinuity in the density of the running variable at the cutoff. This supersedes the older McCrary (2008) `DCdensity` approach with improved local polynomial density estimation.
 
 **How to test**:
 
@@ -84,7 +84,7 @@ summary(density_test)
 
 # Visual: plot the density on both sides of the cutoff
 plot_density <- rdplotdensity(density_test, df$running_var,
-                               title = "McCrary Density Test",
+                               title = "Density Test at Cutoff",
                                xlabel = "Running Variable",
                                ylabel = "Density")
 
@@ -109,7 +109,7 @@ print(density_test)
 
 # Visual: plot the density on both sides
 rdplotdensity(density_test, df['running_var'].values,
-              title='McCrary Density Test',
+              title='Density Test at Cutoff',
               xlabel='Running Variable', ylabel='Density')
 
 # Histogram

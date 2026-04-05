@@ -93,7 +93,7 @@ print(bw_df.to_string(index=False, float_format="%.4f"))
 
 ```python
 # Manipulation check: bunching at the cutoff suggests people can control their score
-# McCrary / density test: check for bunching at the cutoff
+# Density test for manipulation (Cattaneo, Jansson, and Ma 2020)
 # If units can manipulate the running variable, the density will jump at the cutoff
 density_test = rddensity(X, c=cutoff)
 print(f"\n=== Density Test (Manipulation Check) ===")

@@ -17,7 +17,7 @@ rubric:
     - "Does the response explain what 'local' means — the estimate applies near the cutoff, not everywhere?"
     - "Does the response explain bandwidth selection and why it involves a bias-variance trade-off?"
   safety:
-    - "Does the response explain the McCrary test and why manipulation at the cutoff would invalidate the design?"
+    - "Does the response explain the density test (rddensity) and why manipulation at the cutoff would invalidate the design?"
     - "Does the response mention that the RDD estimate is a LATE at the cutoff, not the ATE for all students?"
   actionable:
     - "Does the response provide code using rdrobust (or equivalent) with proper bandwidth selection?"
