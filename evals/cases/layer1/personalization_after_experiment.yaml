@@ -1,0 +1,21 @@
+name: personalization_after_experiment
+description: After a successful A/B test, user wants to personalize — should recommend causal-hte
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We ran an A/B test on 5,000 users for a new pricing model. The test showed a
+  statistically significant 3% increase in conversion. Now management wants to know:
+  should we roll this out to everyone, or are there specific customer segments that
+  benefit more? We have rich customer data — age, income, purchase history, location,
+  device type. I use R.
+expected:
+  rubric:
+    - "Does the response identify this as a personalization/heterogeneous effects question?"
+    - "Does the response recommend causal forest, HTE estimation, or CATE analysis?"
+    - "Does the response suggest exploring which customer segments benefit most?"
+    - "Does the response NOT recommend re-running the A/B test or a different ATE method?"
+  must_not_recommend: [matching, did, iv, rdd, synthetic control]
