@@ -1,0 +1,18 @@
+name: dag_collider_bias
+description: DAG skill must detect collider bias when user proposes controlling for a collider
+layer: 2
+skill: causal-dag
+references:
+  - references/assumptions/dag.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/dag_collider.csv
+user_message: |
+  I'm studying whether gender affects wages. I have data on gender, occupation,
+  and wages. I was planning to control for occupation in my regression.
+  Can you help me draw the DAG? I think gender -> occupation, gender -> wages,
+  and occupation -> wages. I use R.
+expected:
+  must_flag: [collider_bias]
+  severity: fatal
+  must_not_miss: [collider_bias]

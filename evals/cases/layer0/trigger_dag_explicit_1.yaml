@@ -1,0 +1,7 @@
+name: trigger_dag_explicit_1
+description: DAG should trigger on "causal DAG"
+layer: 0
+skill: causal-dag
+user_message: "I need help drawing a causal DAG for my study"
+expected:
+  should_trigger: true

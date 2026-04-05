@@ -1,0 +1,17 @@
+name: dag_clean_confounder
+description: DAG skill correctly identifies a clean confounder adjustment
+layer: 2
+skill: causal-dag
+references:
+  - references/assumptions/dag.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I want to know if a college degree affects earnings. I think parental education
+  affects both whether someone goes to college and their earnings. I also think
+  parental income is affected by parental education and affects both college and
+  earnings. Help me draw the DAG. I use Python.
+expected:
+  must_flag: []
+  must_identify: [valid_adjustment_set]
+  must_not_miss: [backdoor_path_through_parental_vars]

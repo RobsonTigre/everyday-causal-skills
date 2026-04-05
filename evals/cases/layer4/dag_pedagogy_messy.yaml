@@ -1,0 +1,15 @@
+name: dag_pedagogy_messy
+description: DAG skill handles a tricky case with collider and mediator correctly
+layer: 4
+skill: causal-dag
+user_message: |
+  I want to know if smoking causes lung cancer. I have data on smoking, tar deposits
+  in lungs, cancer diagnosis, and genetic predisposition. I think genetics affects
+  both smoking behavior and cancer risk. Tar deposits are caused by smoking.
+  I was going to control for everything. Help me with the DAG. I use Python.
+rubric:
+  - "Does the skill identify tar deposits as a mediator and warn against controlling for it (total effect)?"
+  - "Does it explain the difference between total effect and direct effect in context?"
+  - "Does it identify genetic predisposition as a confounder?"
+  - "Does it warn that controlling for 'everything' is not always correct?"
+  - "Is the explanation specific (smoking/cancer, not abstract)?"

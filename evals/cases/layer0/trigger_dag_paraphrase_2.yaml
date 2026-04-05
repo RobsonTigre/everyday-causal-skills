@@ -1,0 +1,7 @@
+name: trigger_dag_paraphrase_2
+description: DAG should trigger on collider/bad controls language
+layer: 0
+skill: causal-dag
+user_message: "I'm worried I might be controlling for a collider in my regression. Can you help me think through the causal structure?"
+expected:
+  should_trigger: true

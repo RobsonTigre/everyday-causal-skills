@@ -1,0 +1,7 @@
+name: trigger_dag_explicit_2
+description: DAG should trigger on "directed acyclic graph"
+layer: 0
+skill: causal-dag
+user_message: "Can you help me build a directed acyclic graph to figure out my identification strategy?"
+expected:
+  should_trigger: true

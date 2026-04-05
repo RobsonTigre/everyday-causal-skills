@@ -1,0 +1,14 @@
+name: dag_pedagogy_clean
+description: DAG skill provides clear pedagogy for a straightforward confounder case
+layer: 4
+skill: causal-dag
+user_message: |
+  I'm studying the effect of exercise on blood pressure. I think age affects both
+  exercise frequency and blood pressure. Help me draw the DAG and figure out what
+  to control for. I use R.
+rubric:
+  - "Does the skill explain WHY age is a confounder (not just label it)?"
+  - "Does it explain the backdoor path concept in accessible language?"
+  - "Does it justify the adjustment set (not just list it)?"
+  - "Is the explanation tailored to the user's specific context (exercise/BP, not generic)?"
+  - "Does it recommend a next step (method skill)?"

@@ -1,0 +1,13 @@
+name: dag_dagitty_r
+description: DAG R code (dagitty + ggdag) executes without errors
+layer: 3
+skill: causal-dag
+language: r
+user_message: |
+  Help me build a DAG for the following: treatment D affects outcome Y.
+  Confounder X affects both D and Y. Mediator M sits on the path D -> M -> Y.
+  Generate the dagitty code. I use R.
+expected:
+  code_runs: true
+  packages_used: [dagitty, ggdag]
+  output_contains: [adjustment_set]

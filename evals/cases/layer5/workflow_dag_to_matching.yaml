@@ -1,0 +1,28 @@
+name: workflow_dag_to_matching
+description: DAG skill identifies adjustment set, then matching skill receives the DAG and builds on it
+layer: 5
+references:
+  - references/assumptions/dag.md
+  - references/assumptions/matching.md
+  - references/method-registry.md
+  - references/lessons.md
+steps:
+  - skill: causal-dag
+    scenario: |
+      I want to know if participating in a job training program affects earnings.
+      I have data on age, education, previous earnings, industry, and a measure
+      of "job readiness" that was assessed after people decided whether to
+      participate. I think age and education affect both participation and earnings.
+      Previous earnings also affect both. Industry affects earnings but not
+      participation. Job readiness is affected by the training decision. I use R.
+  - skill: causal-matching
+    input_from: step_1
+    scenario: |
+      Based on the DAG analysis, proceed with the matching analysis. Use the
+      adjustment set from the DAG.
+rubric:
+  - "Does the DAG skill correctly identify job_readiness as a post-treatment variable and warn against controlling for it?"
+  - "Does the DAG skill identify {age, education, previous_earnings} as the valid adjustment set?"
+  - "Does the matching skill acknowledge the DAG analysis (not start from scratch)?"
+  - "Does the matching skill use the adjustment set from the DAG (not add job_readiness)?"
+  - "Is the combined output coherent — DAG reasoning followed by correct estimation?"

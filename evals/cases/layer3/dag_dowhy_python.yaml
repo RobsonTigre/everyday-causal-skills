@@ -1,0 +1,13 @@
+name: dag_dowhy_python
+description: DAG Python code (DoWhy + networkx) executes without errors
+layer: 3
+skill: causal-dag
+language: python
+user_message: |
+  Help me build a DAG for the following: treatment D affects outcome Y.
+  Confounder X affects both D and Y. Mediator M sits on the path D -> M -> Y.
+  Generate the DoWhy code. I use Python.
+expected:
+  code_runs: true
+  packages_used: [dowhy, networkx]
+  output_contains: [backdoor_variables]

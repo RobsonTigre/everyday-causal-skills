@@ -1,0 +1,7 @@
+name: trigger_dag_paraphrase_1
+description: DAG should trigger on "what should I control for"
+layer: 0
+skill: causal-dag
+user_message: "I have treatment, outcome, and several covariates. What should I control for and what should I leave out?"
+expected:
+  should_trigger: true
