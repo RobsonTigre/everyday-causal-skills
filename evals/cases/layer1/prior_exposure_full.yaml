@@ -1,0 +1,20 @@
+name: prior_exposure_full
+description: Planner must recognize full prior exposure and reframe the estimand as incremental/ongoing effect
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We've been showing personalized product recommendations on our homepage for
+  about a year. Management wants to know if the recommendations actually
+  increase purchases. We have purchase data for all 500,000 users. Everyone
+  sees the recommendations — there's no control group. I use Python.
+expected:
+  rubric:
+    - "Does the response identify that the entire population has already been exposed to the intervention (full prior exposure)?"
+    - "Does the response explain that the estimand is the ongoing/incremental effect, not the first-time effect — and that these can be very different?"
+    - "Does the response suggest a valid approach such as a removal experiment (turn off recommendations for a random subset), or an interrupted time series if a removal experiment is feasible?"
+    - "Does the response warn against naive before/after comparisons that conflate the recommendation effect with time trends?"
+  must_not_recommend: [matching]

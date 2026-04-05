@@ -1,0 +1,21 @@
+name: prior_exposure_partial
+description: Planner must flag partial prior exposure as contamination and novelty risk
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We're rolling out a new onboarding tutorial for our app. So far, 30% of
+  new users have seen the new tutorial (we started showing it two months ago).
+  The other 70% got the old tutorial. Now we want to run an A/B test between
+  old and new tutorials for the remaining users. We have about 10,000 new
+  signups per week. I use R.
+expected:
+  rubric:
+    - "Does the response identify partial prior exposure — some users already experienced the new tutorial?"
+    - "Does the response flag novelty effect risk — users who see the new tutorial for the first time may respond differently than those who've been using it for months?"
+    - "Does the response correctly identify this as a viable A/B test for the remaining 70%, while noting the partial exposure complication?"
+    - "Does the response recommend keeping the analysis clean by only including users who were never exposed to the new tutorial in the control group?"
+  must_not_recommend: []

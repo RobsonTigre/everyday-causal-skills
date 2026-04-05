@@ -1,0 +1,21 @@
+name: conditionally_random_merged_tests
+description: Planner must detect conditionally random data from merged A/B tests with different split ratios
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We ran A/B tests on our pricing page in three countries. In the US we used
+  a 50/50 split, in Brazil 70/30 (more traffic to the new design), and in
+  Germany 60/40. Now we want to combine all the data to estimate the overall
+  effect of the new pricing page on conversion. We have about 200,000 users
+  total. I use Python.
+expected:
+  rubric:
+    - "Does the response identify that the merged data is NOT unconditionally random due to different assignment probabilities across countries?"
+    - "Does the response classify this as conditionally random (random within each country stratum)?"
+    - "Does the response recommend stratified analysis (by country) or inverse-probability-of-treatment weighting using the known assignment ratios?"
+    - "Does the response warn against analyzing the pooled data as a simple A/B test without accounting for the different split ratios?"
+  must_not_recommend: [iv, rdd, synthetic control]

@@ -1,0 +1,21 @@
+name: external_confounding_event
+description: Planner must surface and document a concurrent external event that threatens validity
+layer: 1
+skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We launched a new loyalty program on November 15 and want to measure its
+  effect on monthly revenue. We have revenue data for 200 stores going back
+  two years. Half the stores got the program, half didn't. We're thinking
+  difference-in-differences. Oh, and Black Friday was November 29 that year.
+  I use R.
+expected:
+  rubric:
+    - "Does the response identify the Black Friday concurrent event as a threat to validity?"
+    - "Does the response explain WHY concurrent events are problematic — e.g., if Black Friday affects treatment and control stores differently, it confounds the DiD estimate?"
+    - "Does the response recommend addressing the concurrent event — e.g., extending the analysis window, testing robustness by excluding the Black Friday period, or using a placebo date test?"
+    - "Does the response still correctly recommend DiD as the primary method (200 stores, panel data, two groups)?"
+  must_not_recommend: []
