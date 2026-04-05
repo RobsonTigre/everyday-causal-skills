@@ -114,7 +114,7 @@ print(f"Trend change: {trend_change:.4f} (p = {its_model.pvalues['time_since']:.
 # Check ITS model residuals for autocorrelation
 residuals = its_model.resid
 
-# Durbin-Watson test (2.0 = no autocorrelation)
+# Durbin-Watson near 2 = no autocorrelation. Far from 2 = CIs may be misleading
 from statsmodels.stats.stattools import durbin_watson
 dw = durbin_watson(residuals)
 print(f"Durbin-Watson statistic: {dw:.4f} (values near 2.0 suggest no autocorrelation)")
@@ -137,7 +137,7 @@ plt.show()
 ## Diagnostics — Pre-Intervention Fit
 
 ```python
-# Check model fit in the pre-period
+# Pre-period MAPE: < 3% excellent, 3-5% acceptable, > 5% unreliable counterfactual
 pre_mask = df_its["date"] < intervention_date
 pre_residuals = residuals[pre_mask]
 

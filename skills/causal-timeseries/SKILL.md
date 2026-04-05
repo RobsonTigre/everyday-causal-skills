@@ -257,6 +257,16 @@ Caveats:
 - [Pre-period length adequacy]
 - [Stationarity concerns]"
 
+### Reading Your Results
+
+**Posterior probability**: "A posterior probability of [p] means the model estimates a [p*100]% chance the intervention caused a real effect. Above 0.95 is strong. Between 0.80-0.95, the signal is suggestive but not conclusive. Below 0.80, the effect is hard to distinguish from normal fluctuation."
+
+**Pre-period MAPE**: If MAPE < 3%: "Excellent model fit — the counterfactual projection is reliable." If 3-5%: "Acceptable fit. The counterfactual is reasonable but not precise — interpret the point estimate with some caution." If > 5%: "Poor fit. The model couldn't predict the pre-period well, so the post-period counterfactual is unreliable. Consider adding control series, extending the pre-period, or checking for structural breaks."
+
+**Counterfactual interpretation**: "The counterfactual line shows what would have happened without the intervention, projected from pre-period patterns. The gap between actual and counterfactual is the estimated effect. If the counterfactual looks implausible — wild swings, obvious drift, divergence from controls — the model needs re-specification."
+
+**Cumulative vs per-period effect**: "The per-period effect of [X] is the average impact in each time unit. The cumulative effect of [Y] is the total accumulated impact across all post-intervention periods. For one-time decisions, the cumulative number usually matters more. For ongoing programs, the per-period number tells you the sustained benefit."
+
 ## Saving Output
 
 Save alongside the plan (or create a new directory if standalone):
