@@ -1,0 +1,15 @@
+name: workflow_experiments_to_hte
+description: After completing an experiment analysis, skill should offer HTE handoff
+layer: 5
+skill: causal-experiments
+references:
+  - references/method-registry.md
+user_message: |
+  The A/B test analysis is complete. We found a significant 5% lift in conversion.
+  The team now wants to know which user segments benefit most so we can optimize
+  targeting. What should I do next?
+expected:
+  rubric:
+    - "Does the response recommend /causal-hte or heterogeneous treatment effect analysis?"
+    - "Does it explain that the RCT provides a strong foundation for HTE (clean identification)?"
+    - "Does it NOT suggest re-running the experiment with different groups?"
