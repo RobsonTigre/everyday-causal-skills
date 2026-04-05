@@ -4,11 +4,9 @@
 
 ```python
 # Install (if needed)
-# pip install dowhy networkx matplotlib statsmodels pandas numpy
+# pip install networkx matplotlib statsmodels pandas numpy
 
 # Import
-import dowhy
-from dowhy import CausalModel
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,36 +17,19 @@ import statsmodels.api as sm
 ## Define the DAG
 
 ```python
-# Define the DAG using DoWhy's GML graph format
-# D = treatment, Y = outcome
-# X = observed confounder, M = mediator, U = unobserved confounder
-gml_graph = """
-graph [
-  directed 1
-  node [ id "D" label "D" ]
-  node [ id "Y" label "Y" ]
-  node [ id "X" label "X" ]
-  node [ id "M" label "M" ]
-  node [ id "U" label "U" ]
-  edge [ source "X" target "D" ]
-  edge [ source "X" target "Y" ]
-  edge [ source "D" target "Y" ]
-  edge [ source "D" target "M" ]
-  edge [ source "M" target "Y" ]
-  edge [ source "U" target "D" ]
-  edge [ source "U" target "Y" ]
-]
-"""
+# Define the causal graph as a directed acyclic graph
+G = nx.DiGraph()
+G.add_edges_from([
+    ("X", "D"),  # X causes D
+    ("X", "Y"),  # X causes Y
+    ("D", "Y"),  # D causes Y (causal effect of interest)
+])
 
-model = CausalModel(
-    data=df,
-    treatment="D",
-    outcome="Y",
-    graph=gml_graph
-)
+# Mark treatment and outcome
+treatment = "D"
+outcome = "Y"
 
-# Verify acyclicity
-G = nx.parse_gml(gml_graph)
+# Verify the graph is acyclic
 assert nx.is_directed_acyclic_graph(G), "Graph contains cycles!"
 print("DAG is valid (acyclic).")
 ```
@@ -56,120 +37,101 @@ print("DAG is valid (acyclic).")
 ## Visualize the DAG
 
 ```python
-# --- DoWhy built-in visualization ---
-model.view_model()
-
-# --- Manual networkx plot for more control ---
-fig, ax = plt.subplots(figsize=(8, 6))
-
-# Define node positions (adjust to match your graph layout)
-pos = {
-    "D": (0, 1),
-    "Y": (2, 1),
-    "X": (1, 2),
-    "M": (1, 1),
-    "U": (1, 0),
-}
-
-# Color nodes by role
-node_colors = []
-for node in G.nodes():
-    if node == "D":
-        node_colors.append("steelblue")    # treatment
-    elif node == "Y":
-        node_colors.append("salmon")        # outcome
-    elif node == "U":
-        node_colors.append("lightgray")     # unobserved
-    else:
-        node_colors.append("lightgreen")    # observed covariates
-
-nx.draw(
-    G, pos, ax=ax,
-    with_labels=True,
-    node_color=node_colors,
-    node_size=2000,
-    font_size=12,
-    font_weight="bold",
-    arrows=True,
-    arrowsize=20,
-    edge_color="gray",
-    width=2
-)
-ax.set_title("Causal DAG", fontsize=14)
+pos = nx.spring_layout(G, seed=42)
+plt.figure(figsize=(8, 6))
+nx.draw(G, pos, with_labels=True, node_color="lightblue",
+        node_size=2000, font_size=14, font_weight="bold",
+        arrowsize=20, arrows=True)
+plt.title("Causal DAG")
 plt.tight_layout()
 plt.show()
 ```
 
-## Identify Adjustment Sets
+## Compute Adjustment Sets
 
 ```python
-# --- DoWhy identification ---
-# Uses the backdoor criterion to find valid adjustment sets
-identified_estimand = model.identify_effect(proceed_when_unidentifiable=True)
-print(identified_estimand)
+# Find valid adjustment sets using d-separation
+# A set S is a valid adjustment set if it blocks all backdoor paths
+# without blocking causal paths
 
-# --- Extract backdoor variables ---
-# These are the variables DoWhy recommends conditioning on
-backdoor_vars = identified_estimand.get_backdoor_variables()
-print(f"\nBackdoor adjustment variables: {backdoor_vars}")
+from itertools import combinations
 
-# --- Check specific variables ---
-# Classify each variable by its role in the graph
-for node in G.nodes():
-    if node in ("D", "Y"):
-        continue
-    is_ancestor_D = nx.has_path(G, node, "D")
-    is_ancestor_Y = nx.has_path(G, node, "Y")
-    is_descendant_D = nx.has_path(G, "D", node)
-    role = []
-    if is_ancestor_D and is_ancestor_Y:
-        role.append("common cause (potential confounder)")
-    if is_descendant_D:
-        role.append("descendant of D (potential mediator/collider)")
-    if is_ancestor_D and not is_ancestor_Y and not is_descendant_D:
-        role.append("treatment-only cause (potential instrument)")
-    if not role:
-        role.append("no direct role in D-Y relationship")
-    print(f"  {node}: {', '.join(role)}")
+nodes = set(G.nodes()) - {treatment, outcome}
+
+valid_sets = []
+for size in range(len(nodes) + 1):
+    for subset in combinations(nodes, size):
+        s = set(subset)
+        # Check: no descendant of treatment in S
+        descendants_of_d = nx.descendants(G, treatment)
+        if s & descendants_of_d:
+            continue
+        # Check: S blocks all backdoor paths (d-separates D and Y in mutilated graph)
+        # Remove outgoing edges from D to test backdoor blocking
+        G_mutilated = G.copy()
+        G_mutilated.remove_edges_from(list(G.out_edges(treatment)))
+        if nx.d_separated(G_mutilated, {treatment}, {outcome}, s):
+            valid_sets.append(s)
+
+# Find minimal sets (no proper subset is also valid)
+minimal_sets = []
+for s in valid_sets:
+    if not any(other < s for other in valid_sets if other != s):
+        minimal_sets.append(s)
+
+print("Minimal sufficient adjustment sets:")
+for s in minimal_sets:
+    print(f"  {s if s else '{} (empty set — no adjustment needed)'}")
 ```
 
 ## List Testable Implications
 
 ```python
-# The DAG implies conditional independencies (d-separation statements).
-# If a test fails, the DAG may be missing an edge or have a wrong direction.
+# List testable conditional independence implications
+# (limited to conditioning sets of size <= 2 to avoid combinatorial explosion)
 
 from itertools import combinations
 
-def check_d_separation(G, x, y, z_set):
-    """Check if x and y are d-separated given z_set in DAG G."""
-    return nx.d_separated(G, {x}, {y}, z_set)
-
-# Enumerate testable implications for all variable triples
 nodes = list(G.nodes())
-print("Testable implications (d-separation statements):\n")
+max_cond_size = min(2, len(nodes) - 2)
+
+print("Testable implications (conditioning sets up to size 2):")
 
 implications = []
 for x, y in combinations(nodes, 2):
-    # Check unconditional independence
-    if check_d_separation(G, x, y, set()):
-        implications.append((x, y, set()))
-        print(f"  {x} _||_ {y}")
-
-    # Check conditional independence given each other variable
-    other_nodes = [n for n in nodes if n not in (x, y)]
-    for size in range(1, len(other_nodes) + 1):
-        for z_set in combinations(other_nodes, size):
+    other = [n for n in nodes if n not in (x, y)]
+    for size in range(max_cond_size + 1):
+        for z_set in combinations(other, size):
             z = set(z_set)
-            if check_d_separation(G, x, y, z):
+            if nx.d_separated(G, {x}, {y}, z):
+                z_str = ", ".join(sorted(z)) if z else "{}"
                 implications.append((x, y, z))
-                print(f"  {x} _||_ {y} | {z}")
+                print(f"  {x} ⊥ {y} | {{{z_str}}}")
 
 if not implications:
     print("  No testable implications (fully connected graph).")
 ```
 
-## Test Implications Against Data
+## With Data (Optional)
+
+The sections below require a dataframe `df` with columns matching the DAG nodes.
+
+### Identify with DoWhy
+
+```python
+# If you have a dataframe `df` with columns matching the DAG nodes:
+#
+# pip install dowhy
+#
+# from dowhy import CausalModel
+#
+# model = CausalModel(data=df, treatment="D", outcome="Y",
+#                     graph='digraph { X -> D; X -> Y; D -> Y; }')
+# identified = model.identify_effect()
+# print("Backdoor variables:", identified.get_backdoor_variables())
+```
+
+### Test Implications Against Data
 
 ```python
 # Test each implied conditional independence using partial correlations.
@@ -214,7 +176,7 @@ for x, y, z_set in implications:
         print(f"      Possible causes: missing edge, wrong direction, or faithfulness violation")
 ```
 
-## Front-Door Estimation
+### Front-Door Estimation
 
 ```python
 # Use this ONLY when:

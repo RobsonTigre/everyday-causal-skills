@@ -80,9 +80,9 @@ def generate_dag_collider():
     """Generate collider bias dataset from DGP-DAG-01.
 
     DGP: gender -> occupation, gender -> wages, ability -> occupation,
-    ability -> wages, occupation -> wages.
-    Occupation is a collider on the gender-ability path through wages.
-    Controlling for occupation alone reverses the sign of the gender effect.
+    ability -> wages. Occupation is a pure collider (no direct effect on wages).
+    Controlling for occupation induces collider bias by opening a spurious
+    path between gender and (unobserved) ability.
 
     True ATE of gender on wages: -1.0
     """
@@ -91,12 +91,11 @@ def generate_dag_collider():
     female = np.random.binomial(1, 0.5, n)
     ability = np.random.normal(0, 1, n)
     occupation = 1 + 2 * ability + (-2) * female + np.random.normal(0, 1, n)
-    wage = 1 + (-1) * female + 3 * ability + 0.5 * occupation + np.random.normal(0, 1, n)
+    wage = 1 + (-1) * female + 3 * ability + np.random.normal(0, 1, n)
 
     df = pd.DataFrame({
         "id": np.arange(1, n + 1),
         "female": female,
-        "ability": ability,
         "occupation": np.round(occupation, 2),
         "wage": np.round(wage, 2),
     })
@@ -105,5 +104,38 @@ def generate_dag_collider():
 
 
 generate_dag_collider()
+
+
+# --- DAG: M-bias (DGP-DAG-02) ---
+def generate_dag_mbias():
+    """Generate M-bias dataset from DGP-DAG-02.
+
+    DGP: U1 -> D, U1 -> Z, U2 -> Z, U2 -> Y, D -> Y.
+    Z is a pre-treatment collider of U1 and U2. Conditioning on Z
+    opens a spurious path D <- U1 -> Z <- U2 -> Y.
+
+    True ATE of D on Y: 2.0
+    """
+    from scipy.special import expit
+
+    np.random.seed(42)
+    n = 10000
+    U1 = np.random.normal(0, 1, n)
+    U2 = np.random.normal(0, 1, n)
+    Z = 0.8 * U1 + 0.8 * U2 + np.random.normal(0, 1, n)
+    D = np.random.binomial(1, expit(0.5 * U1))
+    Y = 2.0 * D + 1.5 * U2 + np.random.normal(0, 1, n)
+
+    df = pd.DataFrame({
+        "id": np.arange(1, n + 1),
+        "D": D,
+        "Y": np.round(Y, 2),
+        "Z": np.round(Z, 2),
+    })
+    df.to_csv("evals/data/dag_mbias.csv", index=False)
+    print("DAG M-bias dataset generated (n=10000, true ATE=2.0).")
+
+
+generate_dag_mbias()
 
 print("All L2 datasets generated.")

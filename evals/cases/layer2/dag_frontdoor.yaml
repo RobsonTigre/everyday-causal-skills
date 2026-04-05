@@ -1,0 +1,18 @@
+name: dag_frontdoor
+description: DAG skill must identify front-door criterion opportunity when backdoor is blocked
+layer: 2
+skill: causal-dag
+references:
+  - references/assumptions/dag.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I want to know if ad exposure increases purchases. There's an unobserved factor
+  (brand affinity) that drives both who sees ads and who buys. But ad exposure
+  works entirely through website visits — ads make people visit the site, and
+  visits lead to purchases. Brand affinity affects ad exposure and purchases
+  directly but NOT website visits. Help me with the DAG. I use Python.
+expected:
+  must_flag: [no_backdoor_adjustment]
+  must_identify: [front_door_criterion]
+  must_not_miss: [front_door_criterion]

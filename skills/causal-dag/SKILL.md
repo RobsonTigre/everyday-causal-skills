@@ -36,8 +36,9 @@ You help users think through the causal structure of their problem — what caus
 3. "What determines who gets treated? List everything you can think of."
 4. "What else affects the outcome, besides the treatment?"
 5. "Are any of those variables affected BY the treatment?" (catches mediators and post-treatment variables)
-6. "Are there important factors you can't measure?" (catches unobserved confounders)
-7. "R or Python?"
+6. "Are you interested in the total effect of the treatment (through all pathways), or the direct effect (excluding specific pathways)? If you're not sure, total effect is usually the right default."
+7. "Are there important factors you can't measure?" (catches unobserved confounders)
+8. "R or Python?"
 
 **Build a variable inventory** as you go:
 - Treatment (D)

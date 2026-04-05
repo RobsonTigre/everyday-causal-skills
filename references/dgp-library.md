@@ -1395,15 +1395,15 @@ df.to_csv("data.csv", index=False)
 
 ## DGP-DAG-01: Collider Bias (Bad Control Trap) (Intermediate, DAG)
 
-**Narrative**: A company wants to know if gender (D) affects wages (Y). They have data on occupation (O) and ability (A). The true effect of gender on wages is -1.0 (discrimination). Ability is unobserved but affects both occupation and wages. Occupation is a collider: caused by both gender and ability.
+**Narrative**: A company wants to know if gender (D) affects wages (Y). They have data on occupation (O) but ability (A) is unobserved. The true effect of gender on wages is -1.0 (discrimination). Ability affects both occupation and wages. Gender affects both occupation and wages. Occupation is a pure collider on the gender–ability path (no direct effect on wages).
 
 **True ATE**: -1.0
 
 **Difficulty**: Intermediate
 
-**Target method**: DAG reasoning — student must identify that controlling for occupation alone reverses the sign.
+**Target method**: DAG reasoning — student must identify that controlling for occupation induces collider bias.
 
-**Complications**: Controlling for O alone yields ~+0.6 (wrong sign!). Must control for both O and A, or neither (ITT).
+**Complications**: Controlling for O induces a spurious association between female and ability (collider bias), biasing the estimate away from -1.0. The correct approach is to NOT control for occupation.
 
 **R code**:
 ```r
@@ -1411,10 +1411,10 @@ set.seed(42)
 n <- 10000
 female     <- rbinom(n, 1, 0.5)
 ability    <- rnorm(n, 0, 1)
-occupation <- 1 + 2 * ability + (-2) * female + rnorm(n, 0, 1)
-wage       <- 1 + (-1) * female + 3 * ability + 0.5 * occupation + rnorm(n, 0, 1)
+occupation <- 1 + 2 * ability + (-2) * female + rnorm(n, 0, 1)  # collider of female and ability
+wage       <- 1 + (-1) * female + 3 * ability + rnorm(n, 0, 1)  # no occupation effect
 df <- data.frame(
-  id = 1:n, female = female, ability = ability,
+  id = 1:n, female = female,
   occupation = round(occupation, 2), wage = round(wage, 2)
 )
 write.csv(df, "dag_collider.csv", row.names = FALSE)
@@ -1430,9 +1430,9 @@ n = 10000
 female     = np.random.binomial(1, 0.5, n)
 ability    = np.random.normal(0, 1, n)
 occupation = 1 + 2 * ability + (-2) * female + np.random.normal(0, 1, n)
-wage       = 1 + (-1) * female + 3 * ability + 0.5 * occupation + np.random.normal(0, 1, n)
+wage       = 1 + (-1) * female + 3 * ability + np.random.normal(0, 1, n)
 df = pd.DataFrame({
-    "id": np.arange(1, n + 1), "female": female, "ability": ability,
+    "id": np.arange(1, n + 1), "female": female,
     "occupation": np.round(occupation, 2), "wage": np.round(wage, 2),
 })
 df.to_csv("dag_collider.csv", index=False)

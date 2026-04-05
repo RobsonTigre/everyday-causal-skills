@@ -1,0 +1,20 @@
+name: dag_mbias
+description: DAG skill must detect M-bias structure and warn about conditioning on a pre-treatment collider
+layer: 2
+skill: causal-dag
+references:
+  - references/assumptions/dag.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/dag_mbias.csv
+user_message: |
+  I'm studying whether a job training program affects earnings. I have a variable Z
+  that I measured before the program started. I was thinking of controlling for Z
+  to reduce bias. My concern is that Z might be influenced by both motivation
+  (which also drives program participation) and neighborhood quality (which also
+  affects earnings), but I can't measure motivation or neighborhood quality directly.
+  Help me draw the DAG. I use R.
+expected:
+  must_flag: [m_bias]
+  severity: serious
+  must_not_miss: [m_bias]

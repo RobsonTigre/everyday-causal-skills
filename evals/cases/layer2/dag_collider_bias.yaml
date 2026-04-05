@@ -9,9 +9,9 @@ references:
 dataset: evals/data/dag_collider.csv
 user_message: |
   I'm studying whether gender affects wages. I have data on gender, occupation,
-  and wages. I was planning to control for occupation in my regression.
-  Can you help me draw the DAG? I think gender -> occupation, gender -> wages,
-  and occupation -> wages. I use R.
+  and wages. I think there's also an unobserved factor like "ability" that affects
+  both occupation and wages. I was planning to control for occupation in my
+  regression. Can you help me draw the DAG? I use R.
 expected:
   must_flag: [collider_bias]
   severity: fatal
