@@ -49,6 +49,15 @@ Classify:
 
 Example: "We've been showing personalized recommendations for 6 months. Now we want to know if they increase purchases." → Full prior exposure. The relevant estimand is the ongoing lift from recommendations, not the initial surprise effect. Consider a removal experiment (turn it OFF for a random group) rather than trying to estimate the original effect.
 
+**External events check** (ask on every case): "Is anything else happening around the same time that could affect your outcome — seasonality, competing campaigns, policy changes, market shifts?"
+
+If yes: Document the events. They affect:
+- **Study window selection**: Avoid periods confounded by the external event, or at minimum note it as a limitation.
+- **Method vulnerability**: ITS and synthetic control are especially sensitive to concurrent events (they have no within-period control group). DiD is somewhat protected if the event affects treatment and control equally.
+- **Robustness checks needed**: Plan placebo dates, control series comparisons, or event-exclusion sensitivity tests.
+
+Example: "We launched the loyalty program in November." → Probe: "Was this during a holiday sales period? Were there other promotions running simultaneously?" If yes, document as a known threat and plan robustness checks that address it.
+
 ---
 
 ## P3: Randomization?
