@@ -41,7 +41,7 @@ first_stage = smf.ols("endogenous ~ instrument + control1 + control2", data=df).
 print("=== First Stage ===")
 print(first_stage.summary())
 
-# First-stage F-statistic on the excluded instrument
+# F < 10 = weak instrument — 2SLS unreliable, use Anderson-Rubin CIs instead
 # Use the F-test for the instrument coefficient specifically
 f_test = first_stage.f_test("instrument = 0")
 f_stat = float(f_test.fvalue)
@@ -53,7 +53,7 @@ print(f"Rule of thumb: F > 10 suggests instrument is not weak")
 ## Estimation — Reduced Form
 
 ```python
-# Reduced form: regress outcome directly on instrument + controls
+# Reduced form: instrument → outcome directly. Should be significant if the causal chain works
 reduced_form = smf.ols("outcome ~ instrument + control1 + control2", data=df).fit()
 print("=== Reduced Form ===")
 print(reduced_form.summary())
@@ -88,7 +88,7 @@ print(f"95% CI: [{iv_ci['lower']:.4f}, {iv_ci['upper']:.4f}]")
 
 ```python
 # --- Wu-Hausman Test (endogeneity test) ---
-# Compare OLS vs 2SLS; if they differ significantly, endogeneity is present
+# Hausman test: if OLS and IV disagree significantly, endogeneity is confirmed
 ols_model = smf.ols("outcome ~ endogenous + control1 + control2", data=df).fit()
 
 # Manual Wu-Hausman: include first-stage residuals in OLS
