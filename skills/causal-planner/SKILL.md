@@ -130,11 +130,23 @@ Common patterns to catch:
 
 If detected: (1) Name the specific post-treatment variable. (2) Explain WHY the comparison is biased -- the subset is not random, it's selected by the treatment itself. (3) Recommend the valid alternative: intent-to-treat (ITT) analysis comparing ALL treated vs ALL control, regardless of downstream behavior. (4) Warn the user NOT to proceed with the naive comparison.
 
+**Prior exposure check (ask on every case)**: After defining the population, ask: "Has this population already been exposed to this intervention, or will this be the first time?"
+
+- No prior exposure → clean baseline, first-time effect.
+- Partial → flag contamination risk and novelty effects.
+- Full prior exposure → reframe the estimand as incremental/ongoing effect. Suggest removal experiment if feasible.
+
+**External events check (ask on every case)**: Ask: "Is anything else happening around the same time that could affect your outcome — seasonality, other campaigns, policy changes?"
+
+If yes: Document in the plan under Known Threats to Validity. Flag method-specific vulnerabilities (ITS and SC are especially sensitive; DiD is partially protected).
+
 ### Phase 2: Assignment Mechanism (P3)
 
 Ask: "Was the treatment randomly assigned? Do you have an A/B test?"
 
 Classify as: Random / Conditionally random / Not random.
+
+If the user reports randomization, probe: "Is this data from a single experiment, or did you merge data from multiple experiments?" If merged with different assignment probabilities, classify as conditionally random and note the need for stratified analysis or probability weighting.
 
 **If random + large sample** → Early exit:
 - For evaluation/optimization: Recommend simple comparison or regression for variance reduction.
@@ -206,6 +218,7 @@ Use today's date. Ask the user for a short project name if not obvious from cont
 - **Population**: [Who, approximate size]
 - **Outcome**: [Metric]
 - **Assignment mechanism**: [Random / Quasi-random / Observational]
+- **Prior exposure**: [None / Partial / Full — with implications]
 
 ## Recommended Method
 **Primary**: [Method name]
@@ -221,6 +234,7 @@ Use today's date. Ask the user for a short project name if not obvious from cont
 
 ## Known Threats to Validity
 [Concerns identified during interview]
+- **Concurrent events**: [Any external factors documented during interview]
 
 ## Next Steps
 - [ ] Verify assumptions with /causal-[method]
