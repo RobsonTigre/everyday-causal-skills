@@ -76,11 +76,11 @@ Ask: "Does this capture the key relationships? Anything missing or wrong?"
 Analyze the DAG structure:
 
 1. **Enumerate all paths** from D to Y (causal and non-causal).
-2. **Classify paths**: Front-door (all arrows point away from D) vs. back-door (at least one arrow points into D).
+2. **Classify paths**: Causal/directed paths (all arrows point from D toward Y) vs. back-door paths (at least one arrow points into D).
 3. **Identify naturally closed paths**: Any path containing a collider is closed by default.
 4. **Find valid adjustment sets** using the backdoor criterion: close all back-door paths without closing front-door paths.
 
-**Apply the 18-pattern control taxonomy** (Chernozhukov et al. Ch. 11) to each variable the user might control for:
+**Apply the control variable taxonomy** (Cinelli, Forney & Pearl 2024; discussed in Chernozhukov et al. Ch. 11) to each variable the user might control for:
 
 **Good controls:**
 - Observed common cause of D and Y (classic confounder)

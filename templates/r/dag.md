@@ -109,9 +109,10 @@ cat("Local independence tests:\n")
 print(tests)
 
 # Visual summary: points left of the dashed line violate the DAG
-plotLocalTestResults(tests) +
-  labs(title = "DAG Validation: Local Independence Tests",
-       subtitle = "Points left of 0 violate implied independencies")
+# Visual summary: points left of the dashed line violate the DAG
+plotLocalTestResults(tests)
+title("DAG Validation: Local Independence Tests")
+mtext("Points left of 0 violate implied independencies", side = 3, line = 0.3, cex = 0.8)
 
 # Focus on failures
 failed <- tests[tests$p.value < 0.05, ]

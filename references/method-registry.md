@@ -222,4 +222,4 @@ These packages are used across all methods and should be loaded by default.
 
 **Assumption checklist**: `assumptions/dag.md`
 
-**Book refs**: The Effect Ch. 6-8; Mixtape Ch. 3; CausalML Ch. 7, 11; Pearl (2009) Causality
+**Book refs**: The Effect Ch. 6-8; Mixtape Ch. 3; CausalML Ch. 7, 11; Pearl (2009) Causality; Cinelli, Forney & Pearl (2024) A Crash Course in Good and Bad Controls
