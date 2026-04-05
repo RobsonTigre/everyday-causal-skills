@@ -196,6 +196,31 @@ Single source of truth for all causal inference methods supported by this plugin
 
 ---
 
+## Heterogeneous Treatment Effects (HTE) / CATE Estimation
+
+**When to use**: User has an established identification strategy (from experiments, matching, DiD, etc.) and wants to know WHO benefits more or less from treatment. User asks about heterogeneous effects, CATE, personalization, targeting, subgroup effects, "who benefits?", causal forest, or treatment effect heterogeneity.
+
+**Key assumptions**: Same identification assumptions as the upstream method (unconfoundedness for matching, parallel trends for DiD, etc.) PLUS: effect modifiers must be pre-treatment, overlap must hold within subgroups, sufficient sample size for heterogeneity detection (n ≥ 2,000).
+
+**Data needs**: Individual-level treatment, outcome, confounders (W), and candidate effect modifiers (X). Both cross-sectional and panel data supported. Binary treatment required for `grf`/`policytree`; continuous treatment supported by `CausalForestDML`.
+
+**Variants**:
+- LinearDML (recommended first pass): Interpretable coefficients on effect modifiers. Fast.
+- Causal Forest (primary estimator): Nonparametric CATE discovery. Variable importance identifies drivers.
+- policytree (policy step): Optimal shallow decision trees for treatment targeting.
+
+**R packages**: `grf` (causal_forest, best_linear_projection, test_calibration, rank_average_treatment_effect, variable_importance), `policytree` (policy_tree)
+
+**Python packages**: `econml` (CausalForestDML, LinearDML, DRPolicyTree)
+
+**Key diagnostics**: Calibration test, BLP (best linear predictor of heterogeneity), GATES (sorted group average treatment effects), CLAN (classification analysis of high/low groups), TOC/RATE (targeting operator characteristic), stability check (multi-seed variable importance).
+
+**Assumption checklist**: `assumptions/hte.md`
+
+**Book refs**: CausalML Ch. 14-15; Athey & Imbens (2016); Wager & Athey (2018); Chernozhukov et al. (2018) GenericML; Athey & Wager (2021) policytree
+
+---
+
 ## Shared Infrastructure
 
 These packages are used across all methods and should be loaded by default.
