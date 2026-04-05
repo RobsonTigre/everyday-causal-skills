@@ -108,6 +108,10 @@ Use this structure:
 
 ## Recommendations
 [Prioritized action items]
+
+## Next Steps
+
+> **Variable selection check**: Want to verify your variable choices are safe? Run `/causal-dag` to map the causal structure and check for bad controls.
 ```
 
 Tell the user where the report is saved.
@@ -136,6 +140,7 @@ Before writing the audit report, confirm ALL of the following:
 **After this skill**:
 - Return to the method skill to fix issues flagged in the audit
 - `/causal-exercises` -- Practice the method on simulated data if fundamentals are shaky
+- `/causal-dag` — Verify variable selection if audit flagged potential bad controls
 
 ## Self-Correction
 
