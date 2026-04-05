@@ -50,6 +50,9 @@ secrets.*
 # Worktrees
 .worktrees/
 
+# Temp upload artifacts
+.tmp.driveupload/
+
 # Manual test outputs
 tests/
 
