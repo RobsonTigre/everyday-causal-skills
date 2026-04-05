@@ -49,6 +49,8 @@ The plugin works in five steps, from refining the question you want to answer, t
 | `/causal-auditor` | Stress-test any completed analysis against five categories of threats to validity |
 | `/causal-exercises` | Practice on simulated data with known ground truth and get feedback on your approach |
 
+> **A note on `/causal-dag`:** This skill is fundamentally different from the others. A skill like `/causal-did` takes a well-defined estimand and generates correct estimation code — "correct" is clear. `/causal-dag` takes your domain knowledge and helps structure it into a formal graph — "correct" is much harder to define. A DAG encodes *assumptions*, not facts. Every arrow you include and every arrow you leave out is a claim you must be prepared to defend. The AI can help you organize and formalize your reasoning, but it cannot supply the subject-matter expertise that makes a DAG credible. Do not treat the output as validation of your causal model.
+
 ## How it works
 
 Every method skill follows five stages: setup, assumptions, implementation, robustness, and interpretation.
@@ -181,8 +183,6 @@ This plugin helps you think through causal problems step by step, but it does no
 - [ ] **`/causal-ml`**: Causal forests, X-learner, DML, heterogeneous treatment effects
 - [ ] **`/causal-sensitivity`**: E-values, Rosenbaum bounds, omitted variable bias (Cinelli & Hazlett)
 - [ ] **`/causal-mediation`**: direct/indirect effects, natural and controlled mediation
-- [ ] **`/causal-discovery`**: learn causal structure from data (PC, FCI, score-based)
-- [ ] **`/causal-trivia`**: concept drills and causal inference trivia
 - [ ] **`/causal-news`**: summaries of recent causal inference papers
 - [ ] **`/causal-report`**: publication-ready reports with tables, figures, and method summaries
 - [ ] **`/causal-roi`**: assess the ROI of an intervention by calculating causal (incremental) ROI, separating true lift from what would have happened anyway

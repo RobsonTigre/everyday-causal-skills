@@ -49,6 +49,8 @@ O plugin funciona em cinco etapas, desde refinar a pergunta que você quer respo
 | `/causal-auditor` | Stress-test de qualquer análise finalizada contra cinco categorias de ameaças à validade |
 | `/causal-exercises` | Pratique com dados simulados com ground truth conhecido e receba feedback sobre sua abordagem |
 
+> **Uma nota sobre `/causal-dag`:** Esta skill é fundamentalmente diferente das demais. Uma skill como `/causal-did` recebe um estimando bem definido e gera código de estimação correto — "correto" é claro. `/causal-dag` recebe o seu conhecimento de domínio e ajuda a estruturá-lo em um grafo formal — "correto" é muito mais difícil de definir. Um DAG codifica *premissas*, não fatos. Cada seta que você inclui e cada seta que você omite é uma afirmação que você precisa estar preparado para defender. A IA pode ajudar a organizar e formalizar seu raciocínio, mas não pode fornecer o conhecimento de domínio que torna um DAG crível. Não trate o output como validação do seu modelo causal.
+
 ## Como funciona
 
 Cada skill de método segue cinco etapas: setup, premissas, implementação, robustez e interpretação.
@@ -181,8 +183,6 @@ Este plugin ajuda você a pensar em problemas causais passo a passo, mas não su
 - [ ] **`/causal-ml`**: Causal forests, X-learner, DML, efeitos heterogêneos de tratamento
 - [ ] **`/causal-sensitivity`**: E-values, limites de Rosenbaum, viés de variável omitida (Cinelli & Hazlett)
 - [ ] **`/causal-mediation`**: efeitos diretos/indiretos, mediação natural e controlada
-- [ ] **`/causal-discovery`**: descoberta de estrutura causal a partir de dados (PC, FCI, score-based)
-- [ ] **`/causal-trivia`**: exercícios conceituais e trivia de inferência causal
 - [ ] **`/causal-news`**: resumos de artigos recentes de inferência causal
 - [ ] **`/causal-report`**: relatórios prontos para publicação com tabelas, figuras e resumos de métodos
 - [ ] **`/causal-roi`**: avaliar o ROI de uma intervenção calculando o ROI causal (incremental), separando o impacto real do que teria acontecido de qualquer forma
