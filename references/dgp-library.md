@@ -1532,6 +1532,99 @@ df.to_csv("dag_frontdoor.csv", index=False)
 
 ---
 
+## DGP-HTE-01: Known Heterogeneous Treatment Effects (Intermediate, HTE)
+
+**Narrative**: A company offers a job training program. 2,000 workers are observed, some self-selected into training. Age and income are both confounders (affect selection and outcome) AND effect modifiers (the treatment effect varies with them). Gender is a noise variable — it has no true moderation effect. The true CATE is linear in age and income: younger, lower-income workers benefit more.
+
+**True ATE**: 2.0
+
+**True CATE function**: tau(X) = 2.0 + 1.5 * age_centered - 1.0 * low_income_indicator
+
+Where:
+- age_centered = (age - mean(age)) / sd(age)
+- low_income_indicator = 1 if income < median(income), else 0
+
+So younger workers (negative age_centered) have CATE > 2, and low-income workers have CATE + 1.0 = 3.0 on average.
+
+**Difficulty**: Intermediate
+
+**Target method**: Causal Forest / DML / HTE estimation
+
+**Complications**: Self-selection (confounding), age and income are both confounders AND effect modifiers (must go in both X and W), gender is a red herring.
+
+**Key test**: Student should (1) detect age and income as drivers of heterogeneity, NOT gender; (2) recover approximate CATE function; (3) run BLP and find significant heterogeneity.
+
+**R code**:
+```r
+set.seed(2026)
+n <- 2000
+
+age <- rnorm(n, 40, 10)
+income <- rnorm(n, 50000, 15000)
+gender <- rbinom(n, 1, 0.5)  # Noise — no true effect modification
+
+age_c <- (age - mean(age)) / sd(age)
+low_income <- as.integer(income < median(income))
+
+# Selection: older, higher-income workers more likely to self-select
+ps <- plogis(-0.5 + 0.3 * age_c + 0.4 * (income / 10000 - 5))
+treatment <- rbinom(n, 1, ps)
+
+# True CATE
+tau <- 2.0 + 1.5 * age_c - 1.0 * low_income
+
+# Outcome
+outcome <- 50 + 3 * age_c + 2 * (income / 10000) + tau * treatment + rnorm(n, 0, 5)
+
+df <- data.frame(
+  worker_id  = 1:n,
+  age        = age,
+  income     = income,
+  gender     = gender,
+  treatment  = treatment,
+  outcome    = outcome
+)
+write.csv(df, "hte_data.csv", row.names = FALSE)
+```
+
+**Python code**:
+```python
+import numpy as np
+import pandas as pd
+
+np.random.seed(2026)
+n = 2000
+
+age = np.random.normal(40, 10, n)
+income = np.random.normal(50000, 15000, n)
+gender = np.random.binomial(1, 0.5, n)  # Noise — no true effect modification
+
+age_c = (age - age.mean()) / age.std()
+low_income = (income < np.median(income)).astype(int)
+
+# Selection: older, higher-income workers more likely to self-select
+ps = 1 / (1 + np.exp(-(-0.5 + 0.3 * age_c + 0.4 * (income / 10000 - 5))))
+treatment = np.random.binomial(1, ps)
+
+# True CATE
+tau = 2.0 + 1.5 * age_c - 1.0 * low_income
+
+# Outcome
+outcome = 50 + 3 * age_c + 2 * (income / 10000) + tau * treatment + np.random.normal(0, 5, n)
+
+df = pd.DataFrame({
+    "worker_id": np.arange(1, n + 1),
+    "age": age,
+    "income": income,
+    "gender": gender,
+    "treatment": treatment,
+    "outcome": outcome,
+})
+df.to_csv("hte_data.csv", index=False)
+```
+
+---
+
 ## Quick Reference Index
 
 | DGP | Title | Difficulty | Method | True Effect | Key Feature |
@@ -1557,3 +1650,4 @@ df.to_csv("dag_frontdoor.csv", index=False)
 | DAG-01 | Collider Bias (Bad Control Trap) | Intermediate | DAG | ATE = -1.0 | Collider conditioning reverses sign |
 | DAG-02 | M-Bias (Pre-Treatment Collider) | Advanced | DAG | ATE = 2.0 | Conditioning on Z opens spurious path |
 | DAG-03 | Front-Door Criterion | Advanced | DAG | ATE = 1.5 | Front-door identification via mediator |
+| HTE-01 | Known Heterogeneous Treatment Effects | Intermediate | HTE | ATE = 2.0 | CATE varies by age and income; gender is noise |
