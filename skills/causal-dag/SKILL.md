@@ -141,6 +141,8 @@ Based on the DAG structure and identification strategy, recommend the appropriat
 - Instrument / natural experiment → LATE (compliers only)
 - Explain why this matters for their business question.
 
+**Summarize the key insight**: Before handing off, tell the user in 2-3 plain-language sentences: (1) what their DAG reveals about the causal structure, (2) which variables they should and should NOT control for, and (3) what the main threat to validity is. Keep it concrete and specific to their context — no generic boilerplate.
+
 **Handoff**: "Based on your DAG, I recommend [method]. Would you like to proceed with `/causal-[method]`?"
 
 Save the DAG analysis to `docs/causal-plans/YYYY-MM-DD-<project>/dag.md` using this structure:
@@ -185,9 +187,22 @@ Before saving the DAG analysis, confirm ALL of the following:
 - [ ] Code generated and uses the correct template
 - [ ] Method recommendation provided with treatment effect characterization
 
+**Severity verdicts must appear BEFORE this gate.** If a Fatal or Serious issue was identified during Stage 2 or Stage 3, the severity verdict block must already be visible in the output above. Do not defer severity communication to after the user runs code if the context already reveals the violation.
+
 **If any box is unchecked**: Flag it and complete it before saving.
 
 ## Red Flags
+
+### Diagnostic Signal Summary
+
+| Signal | Severity | Action |
+|---|---|---|
+| User proposes controlling for a collider | 🚨 FATAL | Block. Explain collider bias with context-specific example. |
+| User proposes controlling for a mediator (total effect) | 🚨 FATAL | Block. Explain overcontrol bias. |
+| No valid backdoor adjustment set exists | CONDITIONAL FATAL | Check front-door, IV, FE, RDD alternatives before declaring impossible. |
+| Instrument included as control with unobserved confounding | ⚠️ SERIOUS | Warn about bias amplification. Suggest IV/2SLS instead. |
+| M-bias structure detected | ⚠️ SERIOUS | Warn with nuance. Present both options. |
+| Implicit post-treatment conditioning via sample selection | ⚠️ SERIOUS | Flag and suggest expanding the population. |
 
 ### 🚨 FATAL: Collider Conditioning
 
@@ -227,6 +242,35 @@ If none: "With this causal structure, observational data alone cannot identify t
 **Trigger**: A pre-treatment variable is a common effect of two unobserved causes — one affecting D, the other affecting Y.
 
 **Action**: Warn with nuance. "This is an M-bias structure. Conditioning on [Z] opens a path between two otherwise independent confounders. However, the severity depends on the relative strengths of the paths — in many realistic settings the bias from conditioning is smaller than the bias from the confounders themselves (Ding & Miratrix 2015). Consider both options and report which you chose."
+
+## Severity Verdict Format
+
+Use only **FATAL** and **SERIOUS** severity labels. Do not invent additional tiers (Critical, Yellow, Minor, etc.). When in doubt, round UP to the next severity level.
+
+🚨 **Fatal** — Emit this verdict block immediately after the diagnostic that reveals the violation:
+
+> **FATAL: [violation name]**
+> [One sentence: what was found in the data or proposed by the user.]
+> This analysis should not proceed without addressing this issue. Results produced under this violation are not trustworthy.
+
+⚠️ **Serious** — Emit this block:
+
+> **SERIOUS: [limitation name]**
+> [One sentence: what was found.]
+> Results may be substantially biased. Proceed with caution and flag this in interpretation.
+
+## Rationalization Shortcuts
+
+Do NOT accept these rationalizations. Challenge them.
+
+| Shortcut | Reality |
+|---|---|
+| "I can't think of any unobserved confounders" | Absence of evidence is not evidence of absence. Actively brainstorm: what determines treatment AND outcome that you haven't measured? |
+| "This variable is probably irrelevant" | If you're not sure, leave it in the DAG. Let identification analysis determine whether it matters. |
+| "The DAG is good enough" | Good enough for what? If it's for a causal estimate, every missing edge is a potential source of bias. |
+| "I just want exploratory results" | If results will influence any decision, apply full rigor. DAG assumptions don't relax because the stakes feel lower. |
+| "Everyone controls for these variables" | Convention is not justification. Each control must be justified by the DAG structure, not by precedent. |
+| "I'll just control for everything pre-treatment" | Including a pre-treatment collider (M-bias) or an instrument as a control can make bias worse, not better. |
 
 ## Integration
 
