@@ -313,6 +313,16 @@ Caveats:
 - [Whether the effect applies only to this specific unit]
 - [Any donors with large weights that may be problematic]"
 
+### Reading Your Results
+
+**Donor weights**: "The synthetic control is a weighted mix of donor units. If one donor carries more than 60-70% of the weight, the analysis is essentially a comparison with that single unit — fragile and sensitive to anything idiosyncratic about that donor. A more balanced portfolio of donors is more credible."
+
+**Pre-treatment RMSPE**: "RMSPE of [X] means the synthetic control's predictions were off by [X] on average in the pre-treatment period. Lower is better. If the synthetic version can't track the treated unit before treatment, its post-treatment projection is unreliable — like forecasting with a broken model."
+
+**Post/pre RMSPE ratio**: "A ratio above 2 means the gap between the treated unit and its synthetic version roughly doubled after treatment — suggesting a real effect. A ratio near 1 means no detectable change. Compare this ratio to the placebo distribution."
+
+**Placebo rank**: "The treated unit ranks [X] out of [N] in the placebo distribution. Only [X-1] donor units showed a larger effect when we pretended they were treated. Think of rank/N as a pseudo p-value: 1/20 = 0.05, 2/20 = 0.10. Ranks above 0.10 are not clearly distinguishable from noise."
+
 ## Saving Output
 
 Save alongside the plan (or create a new directory if standalone):

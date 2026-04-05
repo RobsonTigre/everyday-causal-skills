@@ -86,6 +86,7 @@ sc_out
 
 ## Diagnostics
 ```r
+# Pre-treatment fit: if the synthetic version can't track the real unit before treatment, the counterfactual is unreliable
 # --- Pre-treatment fit: RMSPE ---
 # Lower RMSPE = better pre-treatment fit
 pre_rmspe <- sc_out %>%
@@ -96,8 +97,8 @@ pre_rmspe <- sc_out %>%
 
 cat("Pre-treatment RMSPE:", round(pre_rmspe, 4), "\n")
 
+# Check weight concentration — one dominant donor makes this a fragile pairwise comparison
 # --- Donor unit weights ---
-# Check which units contribute to the synthetic control
 sc_out %>%
   grab_unit_weights() %>%
   arrange(desc(weight)) %>%
@@ -108,8 +109,8 @@ sc_out %>%
 sc_out %>%
   grab_predictor_balance()
 
+# Post/pre RMSPE ratio: how much worse did the fit get? Large ratio = evidence of real effect
 # --- Pre/post RMSPE ratio ---
-# Large ratio = treatment effect unlikely due to chance
 sc_out %>%
   grab_signficance() %>%
   select(unit_name, pre_mspe, post_mspe) %>%
