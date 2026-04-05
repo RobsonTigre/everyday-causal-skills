@@ -1,0 +1,21 @@
+name: hte_pedagogy_clean
+description: Clean HTE scenario — skill should explain X vs W, run full pipeline, interpret results
+layer: 4
+skill: causal-hte
+references:
+  - references/assumptions/hte.md
+  - references/method-registry.md
+user_message: |
+  I ran an A/B test with 5,000 users. Treatment is randomly assigned 50/50.
+  I have age, income, and device type as covariates. I want to know if
+  different customers respond differently to the new checkout flow.
+  I use R.
+expected:
+  rubric:
+    - "Does the response explain the X vs W distinction clearly (what goes where and why)?"
+    - "Does it note that for an RCT, the propensity is known (0.5) and should be supplied?"
+    - "Does it run LinearDML or BLP first as a quick screen before the full forest?"
+    - "Does it include a calibration test and BLP test with proper interpretation?"
+    - "Does it present GATES with confidence intervals, not just point estimates?"
+    - "Does it show variable importance and explain that importance ≠ causal moderation?"
+    - "Does it include a deployment disclaimer before any policy recommendation?"

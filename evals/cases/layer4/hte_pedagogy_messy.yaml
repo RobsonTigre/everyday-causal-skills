@@ -1,0 +1,21 @@
+name: hte_pedagogy_messy
+description: Messy HTE scenario — small sample, binary outcome, observational, post-treatment variable
+layer: 4
+skill: causal-hte
+references:
+  - references/assumptions/hte.md
+  - references/method-registry.md
+user_message: |
+  I have observational data on 800 patients. Treatment is a new drug (not randomized —
+  doctors chose based on severity). Outcome is binary (recovered/not). I want to
+  find which patients benefit most. My variables are: age, severity score,
+  insurance type, and "number of follow-up visits after starting treatment."
+  I use Python.
+expected:
+  rubric:
+    - "Does it flag 'number of follow-up visits' as a post-treatment variable (FATAL)?"
+    - "Does it warn about small sample size (n=800 < 2000) as SERIOUS?"
+    - "Does it note binary outcome and warn about boundary issues?"
+    - "Does it emphasize that observational data means unconfoundedness is required?"
+    - "Does it recommend LinearDML over causal forest given the small sample?"
+    - "Does it NOT proceed to policytree given the FATAL and multiple SERIOUS flags?"
