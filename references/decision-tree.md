@@ -75,7 +75,8 @@ Example: "We launched the loyalty program in November." → Probe: "Was this dur
 → Recommend: Simple comparison of means, or regression / PSW / DR for variance reduction.
 
 **For Personalization objective**:
-→ Recommend: Meta-learners (T-learner, S-learner, R-learner).
+→ Recommend: Heterogeneous treatment effect analysis — Causal Forest with DML validation.
+→ Handoff to `causal-hte`.
 
 **Note**: Even with randomization, verify balance. Test with ROC-AUC of a propensity score model on a holdout set.
 
@@ -211,7 +212,7 @@ This is the **weakest identification strategy**. Must explicitly warn the user.
 | Path | Recommended Method | Skill Handoff |
 |---|---|---|
 | P3=random + large + eval/optim | Experiments (mean comparison / regression) | `causal-experiments` |
-| P3=random + large + personalization | Meta-learners | `causal-matching` (HTE methods) |
+| P3=random + large + personalization | Causal Forest / HTE | `causal-hte` |
 | P4=yes + individual control | A/B test design | `causal-experiments` |
 | P4=yes + group control | SC design / switchback | `causal-experiments` or `causal-sc` |
 | P4=yes + instrument available | Encouragement design | `causal-experiments` |
@@ -220,5 +221,6 @@ This is the **weakest identification strategy**. Must explicitly warn the user.
 | P8=non-compliance + valid IV | Instrumental variables | `causal-iv` |
 | P9=cutoff exists | RDD | `causal-rdd` |
 | P10=good overlap | Matching / PSW / DR | `causal-matching` |
+| P10=good overlap + personalization | Causal Forest / HTE (observational) | `causal-hte` |
 | P10=deterministic regions | Regression / DML / DR | `causal-matching` |
 | P7=yes + weak treatment + random | DiD for variance reduction | `causal-did` |
