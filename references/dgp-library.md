@@ -1393,6 +1393,145 @@ df.to_csv("data.csv", index=False)
 
 ---
 
+## DGP-DAG-01: Collider Bias (Bad Control Trap) (Intermediate, DAG)
+
+**Narrative**: A company wants to know if gender (D) affects wages (Y). They have data on occupation (O) and ability (A). The true effect of gender on wages is -1.0 (discrimination). Ability is unobserved but affects both occupation and wages. Occupation is a collider: caused by both gender and ability.
+
+**True ATE**: -1.0
+
+**Difficulty**: Intermediate
+
+**Target method**: DAG reasoning — student must identify that controlling for occupation alone reverses the sign.
+
+**Complications**: Controlling for O alone yields ~+0.6 (wrong sign!). Must control for both O and A, or neither (ITT).
+
+**R code**:
+```r
+set.seed(42)
+n <- 10000
+female     <- rbinom(n, 1, 0.5)
+ability    <- rnorm(n, 0, 1)
+occupation <- 1 + 2 * ability + (-2) * female + rnorm(n, 0, 1)
+wage       <- 1 + (-1) * female + 3 * ability + 0.5 * occupation + rnorm(n, 0, 1)
+df <- data.frame(
+  id = 1:n, female = female, ability = ability,
+  occupation = round(occupation, 2), wage = round(wage, 2)
+)
+write.csv(df, "dag_collider.csv", row.names = FALSE)
+```
+
+**Python code**:
+```python
+import numpy as np
+import pandas as pd
+
+np.random.seed(42)
+n = 10000
+female     = np.random.binomial(1, 0.5, n)
+ability    = np.random.normal(0, 1, n)
+occupation = 1 + 2 * ability + (-2) * female + np.random.normal(0, 1, n)
+wage       = 1 + (-1) * female + 3 * ability + 0.5 * occupation + np.random.normal(0, 1, n)
+df = pd.DataFrame({
+    "id": np.arange(1, n + 1), "female": female, "ability": ability,
+    "occupation": np.round(occupation, 2), "wage": np.round(wage, 2),
+})
+df.to_csv("dag_collider.csv", index=False)
+```
+
+---
+
+## DGP-DAG-02: M-Bias (Pre-Treatment Collider) (Advanced, DAG)
+
+**Narrative**: A researcher studies whether a job training program (D) improves earnings (Y). Variable Z is observed and is a pre-treatment collider: caused by U1 (unobserved motivation, which also causes D) and U2 (unobserved neighborhood quality, which also causes Y). U1 and U2 are independent. Conditioning on Z opens a spurious path.
+
+**True ATE**: 2.0
+
+**Difficulty**: Advanced
+
+**Target method**: DAG reasoning — student must recognize Z as an M-bias collider and NOT control for it.
+
+**Complications**: Naive OLS controlling for Z gives a biased estimate (~2.3). Omitting Z gives the correct estimate (~2.0).
+
+**R code**:
+```r
+set.seed(42)
+n <- 10000
+U1 <- rnorm(n)
+U2 <- rnorm(n)
+Z  <- 0.8 * U1 + 0.8 * U2 + rnorm(n)
+D  <- rbinom(n, 1, plogis(0.5 * U1))
+Y  <- 2.0 * D + 1.5 * U2 + rnorm(n)
+df <- data.frame(id = 1:n, D = D, Y = round(Y, 2), Z = round(Z, 2))
+write.csv(df, "dag_mbias.csv", row.names = FALSE)
+```
+
+**Python code**:
+```python
+import numpy as np
+import pandas as pd
+from scipy.special import expit
+
+np.random.seed(42)
+n = 10000
+U1 = np.random.normal(0, 1, n)
+U2 = np.random.normal(0, 1, n)
+Z  = 0.8 * U1 + 0.8 * U2 + np.random.normal(0, 1, n)
+D  = np.random.binomial(1, expit(0.5 * U1))
+Y  = 2.0 * D + 1.5 * U2 + np.random.normal(0, 1, n)
+df = pd.DataFrame({
+    "id": np.arange(1, n + 1), "D": D,
+    "Y": np.round(Y, 2), "Z": np.round(Z, 2),
+})
+df.to_csv("dag_mbias.csv", index=False)
+```
+
+---
+
+## DGP-DAG-03: Front-Door Criterion (Advanced, DAG)
+
+**Narrative**: A company wants to know if ad exposure (D) increases purchases (Y). An unobserved factor (U, brand affinity) causes both ad exposure and purchases. However, ad exposure works entirely through a measurable mediator: website visits (M). The front-door criterion applies: D → M → Y, with U → D and U → Y.
+
+**True ATE**: 1.5 (= effect of D on M × effect of M on Y = 0.6 × 2.5)
+
+**Difficulty**: Advanced
+
+**Target method**: DAG reasoning + front-door estimation — student must recognize backdoor is blocked by unobserved U, but front-door through M is available.
+
+**Complications**: Naive regression of Y on D gives biased estimate (~2.8). Front-door two-step gives ~1.5.
+
+**R code**:
+```r
+set.seed(42)
+n <- 10000
+U <- rnorm(n)
+D <- rbinom(n, 1, plogis(1.0 * U))
+M <- 0.6 * D + rnorm(n, 0, 0.5)
+Y <- 2.5 * M + 2.0 * U + rnorm(n, 0, 0.5)
+df <- data.frame(id = 1:n, D = D, M = round(M, 2), Y = round(Y, 2))
+write.csv(df, "dag_frontdoor.csv", row.names = FALSE)
+```
+
+**Python code**:
+```python
+import numpy as np
+import pandas as pd
+from scipy.special import expit
+
+np.random.seed(42)
+n = 10000
+U = np.random.normal(0, 1, n)
+D = np.random.binomial(1, expit(1.0 * U))
+M = 0.6 * D + np.random.normal(0, 0.5, n)
+Y = 2.5 * M + 2.0 * U + np.random.normal(0, 0.5, n)
+df = pd.DataFrame({
+    "id": np.arange(1, n + 1), "D": D,
+    "M": np.round(M, 2), "Y": np.round(Y, 2),
+})
+df.to_csv("dag_frontdoor.csv", index=False)
+```
+
+---
+
 ## Quick Reference Index
 
 | DGP | Title | Difficulty | Method | True Effect | Key Feature |
@@ -1415,3 +1554,6 @@ df.to_csv("data.csv", index=False)
 | 16 | RDD with Manipulation | Advanced | RDD | Effect = 3.0 (biased) | Bunching at cutoff |
 | 17 | Matching with Unobserved Confounder | Advanced | Matching | ATE = 2.0 (biased ~4.0) | OVB from hidden variable |
 | 18 | IV with Exclusion Violation | Advanced | IV | LATE = 10.0 (biased ~15.0) | Direct instrument effect |
+| DAG-01 | Collider Bias (Bad Control Trap) | Intermediate | DAG | ATE = -1.0 | Collider conditioning reverses sign |
+| DAG-02 | M-Bias (Pre-Treatment Collider) | Advanced | DAG | ATE = 2.0 | Conditioning on Z opens spurious path |
+| DAG-03 | Front-Door Criterion | Advanced | DAG | ATE = 1.5 | Front-door identification via mediator |

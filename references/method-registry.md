@@ -203,3 +203,23 @@ These packages are used across all methods and should be loaded by default.
 **R**: `tidyverse` (data manipulation + ggplot2), `modelsummary` (results tables), `fixest` (fixed effects backbone)
 
 **Python**: `pandas` (data manipulation), `numpy` (computation), `matplotlib` + `seaborn` (visualization), `statsmodels` (statistical backbone)
+
+---
+
+## Directed Acyclic Graphs (DAGs)
+
+**When to use**: User wants to reason about causal structure before choosing an estimation method. User asks about DAGs, causal graphs, confounders, backdoor paths, colliders, adjustment sets, "what should I control for", or bad controls. Also use when the identification strategy for another method is unclear.
+
+**Key assumptions**: Acyclicity, causal sufficiency (all common causes represented), correct edge direction, faithfulness (for testable implications), positivity (for adjustment).
+
+**Data needs**: Domain knowledge is the primary input. Data is optional (used for testing implications and checking positivity). No specific panel/cross-section requirement.
+
+**R packages**: `dagitty` (adjustment sets, testable implications, d-separation), `ggdag` (visualization)
+
+**Python packages**: `dowhy` (identification, estimation pipeline), `networkx` (graph operations, d-separation)
+
+**Key diagnostics**: Testable implication checks (conditional independence tests), positivity / overlap checks for proposed adjustment sets, collider detection.
+
+**Assumption checklist**: `assumptions/dag.md`
+
+**Book refs**: The Effect Ch. 6-8; Mixtape Ch. 3; CausalML Ch. 7, 11; Pearl (2009) Causality
