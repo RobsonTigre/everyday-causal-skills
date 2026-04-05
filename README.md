@@ -26,12 +26,35 @@ The plugin works in five steps, from refining the question you want to answer, t
 → Write the executive report
 ```
 
-**Example:**
+### Example use case 1: Designing an A/B test
 
-1. Say a retail company rolled out a loyalty program in 12 stores and wants to know if repeat purchases actually increased. You run `/causal-planner`, answer a few questions about treatment, outcome, and data structure.
-2. The plugin recommends you to use difference-in-differences as the tool to measure the impact of the program.
-3. Then `/causal-did` picks it up: it checks whether pre-trends hold, writes the estimation code in R or Python, and runs placebo and robustness checks. If something breaks along the way, it tells you before you waste time on code that won't hold up.
-4. Once you have results, `/causal-auditor` pokes holes in the analysis so you don't have to wait for a reviewer to do it.
+An e-commerce team redesigned their checkout page and wants to know if it increases conversion before rolling it out to everyone. They're not sure how long the test needs to run.
+
+> **You:** `/causal-experiments` We redesigned our checkout page and want to A/B test if it increases conversion. How long should we run the experiment?
+
+The plugin asks a few follow-up questions in plain language: what's your current conversion rate, how many visitors do you get per week, and what's the smallest improvement that would make the redesign worth it. From your answers, it calculates the sample size and tells you how many weeks the test needs to run to detect that difference reliably.
+
+Then it flags design decisions you might not have thought about — like whether to randomize by visitor or by session, and how to handle users who see both versions during the test.
+
+> **You:** We can randomize by visitor using a cookie. What about users who abandon and come back?
+
+It walks you through those edge cases, writes the analysis code in R or Python, and builds in the checks you'll need: balance diagnostics to make sure the groups are comparable, and a pre-registered analysis plan so you're not fishing for results after the fact.
+
+By the time you launch the test, the analysis is already written. When the data comes in, you run the code and get the answer.
+
+### Example use case 2: Measuring the impact of a loyalty program
+
+A retail company rolled out a loyalty program in 12 of its 50 stores and wants to know if repeat purchases actually increased — or if the stores that got the program were already trending up.
+
+> **You:** `/causal-planner` We launched a loyalty program in 12 stores three months ago. The other 38 stores didn't get it yet. I want to know if repeat purchases increased because of the program.
+
+The plugin asks about your data structure — how far back your records go, whether you chose the 12 stores or they were assigned somehow, and what outcome you're tracking. Based on your answers, it recommends difference-in-differences and explains why: you have treatment and control groups with data before and after the rollout.
+
+> **You:** `/causal-did` I have weekly repeat purchase rates for all 50 stores going back 18 months.
+
+The skill checks whether the treated and untreated stores were following similar trends before the program launched — the key assumption that makes the method work. It writes the estimation code in R or Python, runs placebo and robustness checks, and flags problems before you waste time on results that won't hold up.
+
+Once you have the estimate, `/causal-auditor` stress-tests the analysis: could something other than the program explain the difference? Were the 12 stores chosen in a way that biases the result? You get a list of threats to address before presenting the findings.
 
 ## Skills
 

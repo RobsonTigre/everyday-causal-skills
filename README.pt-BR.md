@@ -26,12 +26,35 @@ O plugin funciona em cinco etapas, desde refinar a pergunta que você quer respo
 → Escreva o relatório executivo
 ```
 
-**Exemplo:**
+### Exemplo 1: Planejando um teste A/B
 
-1. Digamos que uma empresa de varejo lançou um programa de fidelidade em 12 lojas e quer saber se as compras recorrentes realmente aumentaram. Você roda `/causal-planner`, responde algumas perguntas sobre tratamento, resultado e estrutura dos dados.
-2. O plugin recomenda usar diferenças em diferenças como ferramenta para medir o impacto do programa.
-3. Depois, `/causal-did` assume: verifica se as tendências pré-tratamento se sustentam, escreve o código de estimação em R ou Python e roda testes placebo e de robustez. Se algo falhar no caminho, ele avisa antes de você perder tempo com código que não vai se sustentar.
-4. Com os resultados em mãos, `/causal-auditor` busca falhas na análise para que você não precise esperar um revisor fazer isso.
+Um time de e-commerce redesenhou a página de checkout e quer saber se isso aumenta a conversão antes de liberar para todo mundo. Eles não sabem por quanto tempo o teste precisa rodar.
+
+> **Você:** `/causal-experiments` Redesenhamos a página de checkout e queremos fazer um teste A/B para saber se aumenta a conversão. Por quanto tempo precisamos rodar o experimento?
+
+O plugin faz algumas perguntas em linguagem simples: qual é a taxa de conversão atual, quantos visitantes vocês recebem por semana e qual é a menor melhoria que justificaria o redesign. A partir das respostas, ele calcula o tamanho de amostra necessário e diz quantas semanas o teste precisa rodar para detectar essa diferença de forma confiável.
+
+Depois, ele sinaliza decisões de design que você talvez não tenha pensado — como se deve aleatorizar por visitante ou por sessão, e como lidar com usuários que veem as duas versões durante o teste.
+
+> **Você:** Podemos aleatorizar por visitante usando um cookie. E os usuários que abandonam e voltam depois?
+
+Ele te guia por esses casos, escreve o código de análise em R ou Python e inclui as verificações necessárias: diagnósticos de balanceamento para garantir que os grupos são comparáveis e um plano de análise pré-registrado para evitar que você busque resultados depois do fato.
+
+Quando o teste é lançado, a análise já está pronta. Quando os dados chegam, você roda o código e tem a resposta.
+
+### Exemplo 2: Medindo o impacto de um programa de fidelidade
+
+Uma empresa de varejo lançou um programa de fidelidade em 12 das suas 50 lojas e quer saber se as compras recorrentes realmente aumentaram — ou se as lojas que receberam o programa já estavam em tendência de alta.
+
+> **Você:** `/causal-planner` Lançamos um programa de fidelidade em 12 lojas há três meses. As outras 38 ainda não receberam. Quero saber se as compras recorrentes aumentaram por causa do programa.
+
+O plugin pergunta sobre a estrutura dos dados — há quanto tempo os registros existem, se as 12 lojas foram escolhidas de alguma forma específica e qual resultado você está acompanhando. Com base nas respostas, recomenda diferenças em diferenças e explica por quê: você tem grupos de tratamento e controle com dados antes e depois do lançamento.
+
+> **Você:** `/causal-did` Tenho taxas semanais de compra recorrente para todas as 50 lojas nos últimos 18 meses.
+
+A skill verifica se as lojas tratadas e não tratadas seguiam tendências semelhantes antes do programa ser lançado — a premissa-chave que sustenta o método. Ela escreve o código de estimação em R ou Python, roda testes placebo e de robustez e sinaliza problemas antes de você perder tempo com resultados que não se sustentam.
+
+Com a estimativa em mãos, `/causal-auditor` testa a análise: algo além do programa poderia explicar a diferença? As 12 lojas foram escolhidas de um jeito que enviesaria o resultado? Você recebe uma lista de ameaças para endereçar antes de apresentar os achados.
 
 ## Skills
 
