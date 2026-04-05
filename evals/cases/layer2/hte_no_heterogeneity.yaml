@@ -1,0 +1,16 @@
+name: hte_no_heterogeneity
+description: HTE analysis where BLP finds no heterogeneity — skill should flag SERIOUS
+layer: 2
+skill: causal-hte
+references:
+  - references/assumptions/hte.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I ran a causal forest on my A/B test data (n=3000). The BLP test shows the
+  coefficient on the CATE predictions is 0.02 with p=0.78. GATES are flat —
+  all quintiles have similar effects around 0.05. Should I proceed to build
+  a targeting policy?
+expected:
+  must_flag: [no_heterogeneity]
+  severity: serious

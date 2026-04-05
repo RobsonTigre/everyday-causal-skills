@@ -1,0 +1,17 @@
+name: hte_poor_subgroup_overlap
+description: HTE analysis with extreme propensity scores in top CATE quintile — should flag FATAL
+layer: 2
+skill: causal-hte
+references:
+  - references/assumptions/hte.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I estimated CATEs with a causal forest on observational data (n=2500).
+  The top CATE quintile has propensity scores ranging from 0.92 to 0.99 —
+  almost everyone in the high-effect group was treated. The GATE for this
+  group is 8.5, much larger than the other quintiles (around 1-2). Is this
+  real heterogeneity?
+expected:
+  must_flag: [overlap]
+  severity: fatal

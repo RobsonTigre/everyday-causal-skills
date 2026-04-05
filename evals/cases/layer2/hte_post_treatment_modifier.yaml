@@ -1,0 +1,15 @@
+name: hte_post_treatment_modifier
+description: User includes a post-treatment variable as effect modifier — should flag FATAL
+layer: 2
+skill: causal-hte
+references:
+  - references/assumptions/hte.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I want to estimate heterogeneous effects of a marketing email campaign on purchases.
+  My effect modifiers are: age, gender, income, and "number of times they opened
+  the email." I'm using Python with econml.
+expected:
+  must_flag: [post_treatment]
+  severity: fatal
