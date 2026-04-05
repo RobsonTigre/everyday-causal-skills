@@ -1,0 +1,16 @@
+name: needs_dag_first
+description: User has observational data with unclear confounder/mediator distinction -- planner should recommend DAG
+layer: 1
+skill: causal-planner
+user_message: |
+  I want to know if a marketing campaign increased revenue. I have data on
+  campaign exposure, revenue, customer demographics, website visits, and
+  email signups. I'm not sure what's a confounder and what's a mediator --
+  for example, website visits could be caused by the campaign or could be
+  an independent driver of revenue. I use Python.
+expected:
+  rubric:
+    - "Does the planner recommend /causal-dag as a step before choosing an estimation method?"
+    - "Does it explain why variable classification (confounder vs mediator) matters for the adjustment set?"
+    - "Does it identify that website visits could be either a confounder or mediator depending on the causal structure?"
+  must_mention: [causal-dag, adjustment, confounder, mediator]

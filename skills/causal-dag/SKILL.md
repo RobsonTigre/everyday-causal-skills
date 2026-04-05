@@ -95,7 +95,7 @@ These three rules, applied to every node on every path, determine which paths ar
 
 **Neutral controls:**
 - Outcome-only cause (safe, may improve precision)
-- Treatment-only cause / instrument (safe but may reduce precision — and if unobserved confounding exists, can AMPLIFY bias)
+- Treatment-only cause / instrument (safe **only if no unobserved confounding**; otherwise see Bad Controls below for bias amplification risk)
 
 **Bad controls — flag with severity:**
 - 🚨 FATAL: Conditioning on a collider (opens closed path, can reverse sign of estimate)

@@ -354,6 +354,101 @@ print(f"\nObservations retained after trimming: {n_after} of {n_before}")
 
 ---
 
+## Stable Unit Treatment Value Assumption (SUTVA)
+
+**Plain language**: Each unit's outcome depends only on its own treatment status, not on what treatment other units receive. There is also only one version of the treatment — no hidden variations. If you're studying the effect of a marketing email, SUTVA means my response to the email doesn't depend on whether my neighbor also got it, and every recipient got the same email.
+
+**Formal statement**: For all units i: Y_i(d_1, ..., d_N) = Y_i(d_i). The potential outcome for unit i depends only on i's own treatment assignment d_i, not on the treatment assignments of other units. Additionally, if d_i = d_j, then the treatment received by i is identical to that received by j (no hidden versions).
+
+**Testable?**: Partially. Interference (spillover) can sometimes be detected by checking whether outcomes of untreated units correlate with the treatment density in their neighborhood. Hidden treatment versions can be detected by examining treatment implementation details.
+
+**How to test**:
+
+R:
+```r
+# Check for interference/spillover:
+# If untreated units near many treated units have different outcomes
+# than untreated units near few treated units, SUTVA may be violated.
+
+# Example: compute treatment density in each unit's neighborhood
+# df$treat_neighbors = number of treated units in same group/region
+summary(lm(Y ~ D + treat_neighbors, data = df[df$D == 0, ]))
+# If treat_neighbors is significant among untreated, spillover exists
+```
+
+Python:
+```python
+import statsmodels.api as sm
+
+# Check for interference/spillover among untreated units:
+# If outcome of untreated units depends on how many neighbors are treated,
+# SUTVA is violated (spillover exists).
+untreated = df[df["D"] == 0].copy()
+X = sm.add_constant(untreated["treat_neighbors"])
+model = sm.OLS(untreated["Y"], X).fit()
+print(model.summary())
+# If treat_neighbors coefficient is significant, spillover exists
+```
+
+**What violation looks like**: Untreated units near many treated units show different outcomes than isolated untreated units. Treatment effect estimates change dramatically when you vary the definition of the control group. Different implementations of "the same" treatment produce different effect sizes.
+
+**Severity if violated**: Serious. Interference means the standard potential outcomes framework breaks down — there isn't a single "untreated potential outcome" for each unit, because it depends on others' treatment. Hidden treatment versions mean the treatment effect is a mixture across versions, making interpretation ambiguous. Both violations make the causal estimand ill-defined.
+
+**Mitigation**: (1) For interference: use clustered designs where treatment is assigned at the group level, or model spillover explicitly. (2) For hidden treatment versions: standardize treatment implementation, or estimate version-specific effects. (3) Conduct sensitivity analysis: how large would spillover need to be to overturn the result? (4) If interference is the core feature (e.g., social networks), use interference-aware methods (exposure mapping, partial interference models).
+
+---
+
+## Consistency
+
+**Plain language**: The outcome you observe for a treated unit is the same outcome that unit would have had if we had intervened to set their treatment. In other words, there's no gap between "naturally receiving treatment" and "being assigned treatment" — the mechanism of treatment delivery doesn't matter, only the treatment itself.
+
+**Formal statement**: If D_i = d, then Y_i^{obs} = Y_i(d). The observed outcome equals the potential outcome under the observed treatment value. This links the observed data to the counterfactual framework.
+
+**Testable?**: No. Consistency is a definitional bridge between observed and potential outcomes. It fails when the treatment is poorly defined (e.g., "exercise" can mean many different things) or when the assignment mechanism itself affects the outcome.
+
+**How to test**:
+
+Consistency is untestable from data alone. Instead, verify it through study design:
+
+R:
+```r
+# Consistency check is conceptual, not statistical.
+# Ask these questions about your treatment:
+# 1. Is the treatment well-defined? (one specific intervention, not a vague concept)
+# 2. Would the outcome be the same regardless of HOW the unit came to be treated?
+# 3. Are there meaningful treatment versions you're collapsing together?
+
+# If treatment is "took the drug", consistency holds if:
+# - The drug is standardized (same formulation, dose)
+# - Self-selection into treatment doesn't change the drug's mechanism
+# If treatment is "exercised regularly", consistency is questionable:
+# - Exercise type, duration, intensity all vary
+# - People who choose to exercise may exercise differently than if assigned
+```
+
+Python:
+```python
+# Consistency is verified through design review, not code.
+# Check: does the treatment variable have a clear, manipulable definition?
+
+# Red flags for consistency violations:
+# - Treatment is an attribute (race, gender) rather than an action
+# - Treatment has many versions (different exercise types lumped together)
+# - Assignment mechanism might change the treatment itself
+
+# If treatment has versions, check if effect varies across them:
+# df.groupby(["D", "treatment_version"])["Y"].mean()
+# Large variation across versions suggests consistency is shaky
+```
+
+**What violation looks like**: The treatment effect varies dramatically depending on how treatment was assigned (randomized vs. self-selected), even after controlling for confounders. The treatment concept is too vague to define a single intervention (e.g., "being educated" vs. "completing a specific degree program").
+
+**Severity if violated**: Serious. Without consistency, the connection between observed data and potential outcomes breaks. The "causal effect" becomes ambiguous because Y(d) isn't well-defined. Results may be internally valid for one version of treatment but not generalizable.
+
+**Mitigation**: (1) Define treatment precisely and manipulably. (2) If treatment has versions, estimate version-specific effects or acknowledge the estimand is an average across versions. (3) Avoid treatments that are attributes rather than actions (the "race" vs. "perception of race" distinction). (4) Check whether assignment mechanism affects outcomes independently of treatment.
+
+---
+
 ## Faithfulness
 
 **Plain language**: Every statistical independence in the data corresponds to a separation in the DAG structure. There are no "accidental" cancellations where two causal paths happen to exactly offset each other, making variables appear independent when they're actually causally connected. If the DAG says X and Y are connected by an open path, then X and Y should be statistically dependent.

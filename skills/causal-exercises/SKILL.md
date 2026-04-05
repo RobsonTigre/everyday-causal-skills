@@ -34,6 +34,8 @@ Generate realistic causal inference exercises with simulated data. The true effe
 
 Ask: "What difficulty level? (Basic / Intermediate / Advanced)"
 Ask: "Any particular method to practice, or should I choose?"
+
+Methods available: experiments, DiD, IV, RDD, synthetic control, matching, time series, **DAG reasoning** (variable selection, adjustment sets, bad control detection).
 Ask: "R or Python?"
 
 - **Basic**: Clean setup, one method clearly correct, no complications.
@@ -87,6 +89,7 @@ Save debrief to `docs/causal-exercises/YYYY-MM-DD-<exercise>/debrief.md`.
 
 **After this skill**:
 - `/causal-[method]` -- Apply the practiced method to real data
+- `/causal-dag` -- Practice drawing DAGs, identifying adjustment sets, and detecting bad controls
 
 ## Self-Correction
 
