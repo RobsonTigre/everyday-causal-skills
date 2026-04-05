@@ -106,7 +106,7 @@ m_out <- matchit(treatment ~ X1 + X2 + X3, data = df,
                  ratio = 1, replace = FALSE)
 summary(m_out)
 
-# Balance diagnostics
+# Balance check: did matching make treated and control groups comparable?
 bal.tab(m_out, thresholds = c(m = 0.1))
 love.plot(m_out, thresholds = c(m = 0.1))
 
@@ -131,7 +131,7 @@ df$ps <- predict(ps_model, type = "response")
 # IPW weights (for ATT)
 df$ipw <- ifelse(df$treatment == 1, 1, df$ps / (1 - df$ps))
 
-# Check overlap
+# Overlap: are there treated units with no comparable controls? If so, we're extrapolating
 hist(df$ps[df$treatment == 1], col = rgb(1, 0, 0, 0.5), main = "PS Overlap")
 hist(df$ps[df$treatment == 0], col = rgb(0, 0, 1, 0.5), add = TRUE)
 
@@ -284,6 +284,16 @@ Caveats:
 - [Overlap quality — were there regions of poor common support?]
 - [Sensitivity of results to specification choices]
 - [This is the weakest identification strategy — interpret with appropriate caution]"
+
+### Reading Your Results
+
+**Standardized mean differences (SMD)**: If all SMDs < 0.1: "Balance looks good — treated and control groups are comparable on observed covariates after matching." If 0.1-0.25: "Some residual imbalance. Check whether these covariates strongly predict the outcome — if they do, this imbalance could bias the estimate." If any > 0.25: "Substantial imbalance remains. Matching didn't equalize the groups on these variables. Consider re-specifying the propensity score model, tightening the caliper, or switching to a doubly-robust estimator."
+
+**Rosenbaum bounds / sensitivity analysis**: "A Gamma of [X] means an unobserved confounder would need to change the odds of treatment by a factor of [X] to explain away your result. Below 1.3 is fragile — even a weak hidden confounder could flip the conclusion. Above 2.0 is robust to substantial hidden bias."
+
+**Overlap / common support**: "If the propensity score distributions barely overlap, you're extrapolating — comparing treated units to controls that look nothing like them. Check the overlap plot. If there are treated units with no comparable controls, trim the sample to the region of overlap and re-estimate. The trimmed estimate is more credible but applies to a narrower population."
+
+**CIA plausibility**: Always remind the user: "Matching assumes you've measured everything that matters. If there's an important confounder you couldn't include — motivation, ability, private information — the estimate is biased. The sensitivity analysis tells you how large that hidden bias would need to be."
 
 ## Saving Output
 

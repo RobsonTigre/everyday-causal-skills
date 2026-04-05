@@ -69,11 +69,15 @@ If the user asks for help, provide hints in order:
 ### Step 5: Review and Debrief
 
 After the user presents their analysis (or asks for the answer):
-1. Reveal the true DGP and true effect.
-2. Compare their estimate to ground truth.
-3. Explain what worked and what didn't.
-4. If they missed a complication (especially in Advanced): explain what it was and how it affected results.
-5. Score: "Your estimate of [X] vs truth of [Y] — [assessment]."
+
+1. **Reveal** the true DGP and true effect.
+2. **Compare**: "Your estimate of [X] vs the true effect of [Y]."
+3. **Explain the gap** — connect the error to a specific cause:
+   - If method was correct but estimate is off: "The gap of [Z] is [sampling variability / a finite-sample artifact]. With more data, this would shrink. Your approach was sound."
+   - If method was correct but assumption was violated: "Your estimate missed because [assumption] was violated in this data. Here's how: [specific mechanism from the DGP]. The diagnostic that would have caught it is [test/plot] — it would have shown [what to look for]."
+   - If method was wrong: "This scenario called for [correct method] because [reason]. The method you chose assumes [assumption], which doesn't hold here because [explanation from DGP]."
+4. **Connect to practice**: "In real data, you wouldn't know the true effect. The way to protect yourself is [specific diagnostic or robustness check that would have flagged the issue]."
+5. **Score**: "Your estimate of [X] vs truth of [Y] — [assessment]."
 
 Save debrief to `docs/causal-exercises/YYYY-MM-DD-<exercise>/debrief.md`.
 

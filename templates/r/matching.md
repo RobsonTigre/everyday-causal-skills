@@ -121,7 +121,7 @@ print(ate_dr)
 
 ## Diagnostics
 ```r
-# --- Balance table (before and after matching) ---
+# Balance check: did matching make treated and control groups comparable?
 bal.tab(
   m_nn,
   stats   = c("m", "v", "ks"),   # mean diff, variance ratio, KS statistic
@@ -139,7 +139,7 @@ love.plot(
   title      = "Covariate Balance: Before vs After Matching"
 )
 
-# --- Propensity score overlap ---
+# Overlap: are there treated units with no comparable controls? If so, we're extrapolating
 ggplot(df, aes(x = pscore, fill = factor(treatment))) +
   geom_histogram(alpha = 0.5, position = "identity", bins = 50) +
   labs(
@@ -148,7 +148,7 @@ ggplot(df, aes(x = pscore, fill = factor(treatment))) +
   ) +
   theme_minimal()
 
-# --- Effective sample size (for IPW) ---
+# How much data did matching actually use? Low ESS means high variance
 ess_treated <- sum(df$ipw_trimmed[df$treatment == 1])^2 /
                sum(df$ipw_trimmed[df$treatment == 1]^2)
 ess_control <- sum(df$ipw_trimmed[df$treatment == 0])^2 /

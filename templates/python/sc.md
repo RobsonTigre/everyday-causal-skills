@@ -74,7 +74,7 @@ sc_est = scpi.scest(sc_data, e_method="all")
 # Print the estimation summary
 print(sc_est)
 
-# Extract weights for the donor units
+# Weight concentration: > 60-70% on one donor is a red flag
 weights = sc_est.w
 print("\n=== Donor Weights ===")
 for donor, weight in zip(donor_units, weights.flatten()):
@@ -94,7 +94,7 @@ print(sc_pi)
 ## Diagnostics — Pre-Treatment Fit
 
 ```python
-# Assess how well the synthetic control matches the treated unit pre-treatment
+# Pre-treatment RMSPE: lower = better synthetic match. High values mean unreliable counterfactual
 pre_periods = range(time_min, treatment_time)
 
 # Actual treated unit outcomes (pre-treatment)
@@ -113,6 +113,7 @@ print(f"Pre-treatment RMSPE: {rmspe_pre:.4f}")
 actual_post = df[(df["unit"] == treated_unit) & (df["time"] >= treatment_time)].set_index("time")["outcome"]
 synthetic_post = donor_panel.loc[donor_panel.index >= treatment_time].dot(weights.flatten())
 rmspe_post = np.sqrt(np.mean((actual_post.values - synthetic_post.values) ** 2))
+# Post/pre RMSPE ratio: > 2 suggests the treatment gap is real, not noise
 print(f"Post-treatment RMSPE: {rmspe_post:.4f}")
 print(f"Post/Pre RMSPE ratio: {rmspe_post / rmspe_pre:.2f}")
 ```

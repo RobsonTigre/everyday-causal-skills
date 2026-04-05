@@ -111,7 +111,7 @@ plot(impact)
 impact_data <- as_tibble(impact$series) %>%
   mutate(date = index(ts_data))
 
-# Pre-period prediction accuracy
+# Pre-period fit check: if MAPE > 5%, the counterfactual projection is unreliable
 pre_data <- impact_data %>%
   filter(date <= pre.period[2])
 
@@ -119,7 +119,7 @@ cat("Pre-period MAE:", mean(abs(pre_data$response - pre_data$point.pred), na.rm 
 cat("Pre-period MAPE:", mean(abs((pre_data$response - pre_data$point.pred) / pre_data$response), na.rm = TRUE) * 100, "%\n")
 
 # --- CausalArima: model diagnostics ---
-# Check residual autocorrelation
+# Residual autocorrelation inflates confidence — CIs may be too narrow
 if (exists("ca_fit")) {
   plot(ca_fit)
 }

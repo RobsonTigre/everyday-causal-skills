@@ -145,7 +145,7 @@ print(f"95% CI: [{ate_aipw - 1.96*se_aipw:.4f}, {ate_aipw + 1.96*se_aipw:.4f}]")
 ## Diagnostics — Propensity Score Overlap
 
 ```python
-# Check the overlap (positivity) assumption
+# Overlap check: treated units outside the control PS range have no valid match
 print("=== Propensity Score Summary by Group ===")
 print(df.groupby("treatment")["pscore"].describe())
 
@@ -159,7 +159,7 @@ print(f"Propensity scores > 0.98: {extreme_high}")
 ## Diagnostics — Covariate Balance (SMD)
 
 ```python
-# Standardized Mean Differences: unweighted vs IPW-weighted
+# Standardized mean differences: < 0.1 is good, > 0.25 means matching didn't work well enough
 def compute_smd(df, cov, treatment_col, weight_col=None):
     """Compute (weighted) standardized mean difference."""
     t1 = df[df[treatment_col] == 1]

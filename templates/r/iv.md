@@ -75,6 +75,7 @@ mod_first <- feols(
 
 summary(mod_first)
 
+# F < 10 = weak instrument — estimates biased toward OLS, standard errors misleading
 # First-stage F-statistic (rule of thumb: F > 10)
 fitstat(mod_iv_fixest, "ivf")
 ```
@@ -82,12 +83,12 @@ fitstat(mod_iv_fixest, "ivf")
 ## Diagnostics
 ```r
 # --- Wu-Hausman endogeneity test ---
-# Tests whether OLS and IV estimates differ significantly
+# Does OLS give a significantly different answer? If so, the endogeneity problem is real
 # H0: endogenous variable is exogenous (OLS is consistent)
 summary(mod_iv_aer, diagnostics = TRUE)
 
 # --- Reduced-form estimate ---
-# Direct effect of instrument on outcome (intent-to-treat)
+# Reduced form: instrument → outcome directly. Should be significant if the causal chain works
 mod_rf <- feols(outcome ~ instrument, data = df)
 summary(mod_rf)
 

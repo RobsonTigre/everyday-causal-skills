@@ -201,6 +201,16 @@ Caveats:
 - [Weakest assumptions from Stage 2]
 - [What the estimate does NOT tell us]"
 
+### Reading Your Results
+
+**Pre-treatment coefficients (event study)**: If any pre-treatment coefficient is individually significant, tell the user: "This period shows a significant effect before treatment — which shouldn't happen. Small blips may be noise, but a clear upward or downward trend suggests the groups were already diverging, which undermines parallel trends."
+
+**Parallel trends test**: If the joint test rejects (p < 0.05): "The formal test rejects parallel trends — the core assumption for DiD. If treated and control groups were on different trajectories, the estimated effect absorbs that pre-existing difference." If p > 0.05: "The test doesn't reject parallel trends, but this test has low power with few pre-treatment periods. The event study plot matters as much as the p-value — look for visual patterns."
+
+**ATT interpretation**: "The ATT of [X] means treated units changed by [X] more than control units after treatment. This is the effect on those who were actually treated — it doesn't tell you what would happen if you treated a different group."
+
+**Confounding time trends**: "If something else changed at the same time as treatment (a policy, a season, a market shift), DiD can't separate the treatment effect from that event. Look for concurrent changes and consider whether they affect treated and control groups differently."
+
 ## Saving Output
 
 Save alongside the plan (or create a new directory if standalone):

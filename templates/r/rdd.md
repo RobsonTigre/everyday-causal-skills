@@ -85,6 +85,7 @@ ggplot(bw_results, aes(x = bandwidth, y = estimate)) +
 
 ## Diagnostics
 ```r
+# Manipulation check: can units game the running variable to land on the preferred side?
 # --- McCrary density test (manipulation of the running variable) ---
 # H0: density is continuous at the cutoff (no sorting)
 density_test <- rddensity(X = df$running_var, c = cutoff)
@@ -96,6 +97,7 @@ rdplotdensity(density_test, df$running_var,
               xlabel = "Running Variable",
               ylabel = "Density")
 
+# Covariates should be smooth through the cutoff — a jump means something else is changing too
 # --- Covariate smoothness (placebo outcomes) ---
 # Covariates should NOT jump at the cutoff
 # Replace covariate1, covariate2 with actual covariate names

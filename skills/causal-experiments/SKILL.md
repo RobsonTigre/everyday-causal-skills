@@ -31,14 +31,22 @@ You guide users through a complete experimental analysis following a 5-stage pat
 
 **If plan exists**: Read it. Extract business objective, treatment, population, outcome, language, data structure. Confirm: "I've read your analysis plan. You're running an experiment on [treatment] measuring [outcome]. Does that sound right?"
 
-**If no plan**: Ask:
-1. "What's the treatment (what are you randomizing)?"
+**If no plan**: Collect these inputs — explain why each matters:
+
+1. "What's the treatment — what are you randomizing?"
 2. "What's the primary outcome metric?"
-3. "What's the population and approximate sample size?"
-4. "What type of randomization? Individual-level, cluster (e.g., by store/region), or stratified?"
-5. "Any duration constraints (how long can the experiment run)?"
-6. "Are you at the design stage (pre-experiment) or analysis stage (data in hand)?"
+3. "What's the smallest effect that would actually change your decision? We'll design the experiment to detect effects at least this large."
+   *(Want to know more? This is the minimum detectable effect. Smaller MDEs need larger samples. Set it too small and you waste resources; too large and you risk missing a real but modest effect.)*
+4. "What gets randomized — individual users, stores, regions?"
+   *(Want to know more? Cluster randomization dramatically increases the required sample size because units within a cluster behave similarly. A 1000-user experiment randomized individually has far more power than one randomized across 10 stores.)*
+5. "How long can the experiment run?"
+   *(Want to know more? Longer experiments increase power but also increase attrition and contamination risk. There's a tradeoff between precision and practical validity.)*
+6. "Are you at the design stage or do you already have data?"
 7. "R or Python?"
+
+Power analysis parameters (ask if design stage):
+- "Standard false-positive rate is 5% — one-in-twenty chance of declaring a non-existent effect. Want stricter?" *(Want to know more? Alpha = 0.05 is convention, not physics. Multiple tests warrant stricter thresholds. Low-stakes decisions can tolerate 10%.)*
+- "Standard power is 80% — 20% chance of missing a real effect. Want higher?" *(Want to know more? Higher power means larger samples and longer experiments. 80% is conventional; 90% is common for high-stakes decisions.)*
 
 **Determine variant**:
 - Design stage, no data yet → Power analysis + randomization plan
@@ -113,6 +121,7 @@ cat("Required sample size per group:", ceiling(power$n), "\n")
 ```r
 library(cobalt)
 
+# If randomization worked, covariates should be balanced — large imbalances suggest a problem
 bal.tab(treatment ~ X1 + X2 + X3, data = df,
         binary = "std", continuous = "std",
         thresholds = c(m = 0.1))
@@ -159,6 +168,7 @@ print(f"Required sample size per group: {n_per_group}")
 from scipy.stats import chi2_contingency, ttest_ind
 import pandas as pd
 
+# If randomization worked, covariates should be balanced — large imbalances suggest a problem
 covariates = ['X1', 'X2', 'X3']
 balance = []
 for cov in covariates:
@@ -197,7 +207,7 @@ Options (offer the most relevant):
 1. **AA test (pre-experiment null)**: Run the analysis on a pre-experiment period where no treatment existed. If you find an effect, something is wrong.
 2. **Placebo outcome**: Run the experiment analysis on an outcome that should NOT be affected by the treatment.
 3. **Permutation / randomization inference**: Randomly reassign treatment labels many times and compare the actual estimate to the permutation distribution.
-4. **Balance test (ROC-AUC)**: Train a classifier to predict treatment from covariates. AUC should be near 0.5.
+4. **Balance test (ROC-AUC)**: Train a classifier to predict treatment from covariates. AUC near 0.5 means treatment is unpredictable from covariates — exactly what randomization should produce.
 5. **Attrition analysis**: Compare attrition rates across groups and test whether attriters differ on observables.
 
 ## Verification Gate
@@ -269,6 +279,18 @@ Caveats:
 - [Any compliance issues — ITT vs CACE distinction]
 - [Attrition concerns]
 - [External validity limitations — does this generalize beyond the experiment sample?]"
+
+### Reading Your Results
+
+**Power analysis interpretation**: If the estimated effect is smaller than the MDE, tell the user: "Your experiment wasn't designed to detect effects this small. 'No significant effect' may mean 'not enough data,' not 'no real effect.' To detect smaller effects, you'd need a larger sample or longer runtime."
+
+**Confidence interval width**: If the CI spans both meaningfully positive and negative values, tell the user: "The confidence interval includes both positive and negative effects of practical size — the experiment is inconclusive. You can't rule out either a benefit or a harm."
+
+**Effect size in context**: Always translate the point estimate into the user's units: "An effect of [X] on [outcome] means [practical interpretation]. Compared to your MDE of [Y], this is [larger/smaller/comparable]."
+
+**Balance check interpretation**: If any covariate shows significant imbalance, tell the user: "Randomization should balance covariates on average, but imbalance happens with finite samples. If the imbalanced pre-treatment covariate strongly predicts the outcome, include it as a control to reduce bias and tighten the CI."
+
+**Non-compliance**: If ITT and CACE/IV estimates diverge, tell the user: "The ITT of [X] is the effect of being assigned to treatment — including non-compliers. The CACE of [Y] is the effect for people who actually took the treatment. For policy decisions where you control assignment, ITT is usually the relevant number."
 
 ## Saving Output
 

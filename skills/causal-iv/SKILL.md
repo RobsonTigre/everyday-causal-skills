@@ -100,6 +100,7 @@ library(fixest)
 library(modelsummary)
 
 # First stage: check instrument relevance
+# F < 10 = weak instrument — estimates biased toward OLS, standard errors misleading
 first_stage <- feols(treatment ~ instrument + X1 + X2, data = df)
 summary(first_stage)
 cat("First-stage F-statistic:", fitstat(first_stage, "ivf")$ivf$stat, "\n")
@@ -130,6 +131,7 @@ from linearmodels.iv import IV2SLS
 import statsmodels.formula.api as smf
 
 # First stage
+# F < 10 = weak instrument — 2SLS unreliable, use Anderson-Rubin CIs instead
 first_stage = smf.ols('treatment ~ instrument + X1 + X2', data=df).fit()
 print("First-stage F-statistic:", first_stage.fvalue)
 print(first_stage.summary())
@@ -227,6 +229,16 @@ Caveats:
 - [Exclusion restriction plausibility — strongest or weakest argument]
 - [Weak instrument concerns if F < 100]
 - [Monotonicity plausibility]"
+
+### Reading Your Results
+
+**First-stage F-statistic**: If F < 10: "Your instrument is weak — it barely moves treatment. The 2SLS estimates are unreliable: biased toward OLS, with misleading standard errors. Use Anderson-Rubin confidence sets instead, or find a stronger instrument." If 10-25: "Moderate instrument strength. Standard 2SLS is usable, but report Anderson-Rubin CIs alongside for robustness." If 25-100: "Adequate instrument. Standard inference is reliable, though modern standards prefer F > 100." If > 100: "Strong instrument by modern standards. Standard inference is fully reliable."
+
+**OLS vs IV gap**: "OLS estimates [X], IV estimates [Y]. The gap suggests the OLS estimate has [upward/downward] bias from [endogeneity source]. If IV is larger than OLS, the naive estimate was attenuated — common with measurement error in the treatment. If IV is smaller, OLS was inflated — common with positive selection into treatment."
+
+**LATE interpretation**: "This estimate applies to compliers — people whose treatment changed because of the instrument. In your context, compliers are [description]. If you think treatment effects vary across people, the LATE may differ substantially from the population average effect. Consider whether compliers are the group you care about."
+
+**Wu-Hausman test**: If p < 0.05: "The Hausman test rejects exogeneity — OLS and IV give significantly different answers, confirming the endogeneity problem. IV is the appropriate estimator." If p > 0.05: "OLS and IV aren't significantly different. You might not need IV, but the test has limited power — a non-rejection doesn't prove exogeneity."
 
 ## Saving Output
 

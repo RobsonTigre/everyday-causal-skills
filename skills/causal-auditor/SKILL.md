@@ -103,6 +103,7 @@ Use this structure:
 **Explanation**: [Plain language, specific to their context]
 **Diagnostic**: [Code or test if applicable]
 **Suggested fix**: [Actionable recommendation]
+**Why this matters**: [What happens to the estimate if this threat is real — bias direction, magnitude concern, or decision risk. Example: "If this confounder is present, your estimated positive effect could be entirely spurious — you'd be investing in a program that doesn't work."]
 
 [Repeat for each finding, ordered by severity]
 
@@ -115,6 +116,14 @@ Use this structure:
 ```
 
 Tell the user where the report is saved.
+
+### Assigning Severity
+
+**Fatal**: The estimate is likely wrong in direction or magnitude. Acting on it risks a harmful decision. Examples: violated exclusion restriction with no alternative instrument, clear manipulation in RDD, treatment applied after the outcome was measured.
+
+**Serious**: The estimate could be substantially biased, but the direction of bias is knowable and the analysis might be salvageable with additional work. Examples: weak instrument (F near 10), moderate parallel trends violation, unobserved confounder with known direction.
+
+**Minor**: The issue reduces precision or limits generalizability but doesn't threaten the core conclusion. Examples: small sample near RDD cutoff, imperfect covariate balance after matching with SMD 0.1-0.2, short pre-period for synthetic control.
 
 ## Verification Gate
 
