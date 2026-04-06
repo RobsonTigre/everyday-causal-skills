@@ -224,3 +224,17 @@ This is the **weakest identification strategy**. Must explicitly warn the user.
 | P10=good overlap + personalization | Causal Forest / HTE (observational) | `causal-hte` |
 | P10=deterministic regions | Regression / DML / DR | `causal-matching` |
 | P7=yes + weak treatment + random | DiD for variance reduction | `causal-did` |
+
+---
+
+## After Analysis: Report Generation
+
+After completing any analysis path above and optionally running `/causal-auditor`, the user can compile their findings:
+
+→ **`/causal-report`** — Compiles all artifacts (plan, implementation, audit) into a structured report with tables, figures, and method summaries. Three modes: business, academic, hybrid.
+
+This is the terminal step in the full workflow:
+
+```
+/causal-planner → /causal-[method] → /causal-auditor → /causal-report
+```

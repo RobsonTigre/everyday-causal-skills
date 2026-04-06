@@ -71,9 +71,22 @@ Com a estimativa em mãos, `/causal-auditor` submete a análise a um stress-test
 | `/causal-hte` | Efeitos heterogêneos de tratamento com Causal Forest, DML e aprendizado de políticas (policytree) |
 | `/causal-timeseries` | Séries temporais interrompidas e CausalImpact com validação pré-período |
 | `/causal-auditor` | Stress-test de qualquer análise finalizada contra cinco categorias de ameaças à validade |
+| `/causal-report` | Compile sua análise em um relatório estruturado — modo business, acadêmico ou híbrido — com tabelas, figuras e resumos de métodos |
 | `/causal-exercises` | Pratique com dados simulados com ground truth conhecido e receba feedback sobre sua abordagem |
 
 > **Uma nota sobre `/causal-dag`:** Esta skill é fundamentalmente diferente das demais. Uma skill como `/causal-did` recebe um estimando bem definido e gera código de estimação correto — "correto" é claro. `/causal-dag` recebe o seu conhecimento de domínio e ajuda a estruturá-lo em um grafo formal — "correto" é muito mais difícil de definir. Um DAG codifica *premissas*, não fatos. Cada seta que você inclui e cada seta que você omite é uma afirmação que você precisa estar preparado para defender. A IA pode ajudar a organizar e formalizar seu raciocínio, mas não pode fornecer o conhecimento de domínio que torna um DAG crível. Não trate o output como validação do seu modelo causal.
+
+### Como funciona o relatório
+
+`/causal-report` é a etapa final do workflow. Ele lê os artefatos salvos pelas outras skills — plano, notas de implementação, achados da auditoria e código de análise — e compila tudo em um relatório estruturado.
+
+Três coisas para saber:
+
+1. **Funciona melhor após o workflow completo** (planner → método → auditor), mas não exige isso. Se você fez sua análise fora do plugin ou usou apenas algumas skills, a skill de relatório faz uma entrevista para preencher as lacunas.
+2. **Cria a pasta do projeto se não existir.** Você não precisa ter rodado `/causal-planner` antes.
+3. **Três modos.** Business (linguagem simples, acionável), Acadêmico (notação formal, tabelas completas) ou Híbrido (acessível com rigor metodológico). Você escolhe quando o relatório começa.
+
+Figuras são geradas a partir do seu código de análise. A skill tenta rodar o código de plotagem no seu ambiente R ou Python. Se um pacote estiver faltando ou o código falhar, ela inclui o código no relatório como fallback e oferece ajuda para configurar seu ambiente.
 
 ## Como funciona
 
@@ -208,7 +221,6 @@ Este plugin ajuda você a pensar em problemas causais passo a passo, mas não su
 - [ ] **`/causal-sensitivity`**: E-values, limites de Rosenbaum, viés de variável omitida (Cinelli & Hazlett)
 - [ ] **`/causal-mediation`**: efeitos diretos/indiretos, mediação natural e controlada
 - [ ] **`/causal-news`**: resumos de artigos recentes de inferência causal
-- [ ] **`/causal-report`**: relatórios prontos para publicação com tabelas, figuras e resumos de métodos
 - [ ] **`/causal-roi`**: avaliar o ROI de uma intervenção calculando o ROI causal (incremental), separando o impacto real do que teria acontecido de qualquer forma
 - [ ] **Fundamentar skills em referências seminais**: vincular cada skill às suas referências seminais com resultados-chave e premissas
 - [ ] **Otimização de tokens**: comprimir arquivos SKILL.md para reduzir custo de tokens sem perder precisão

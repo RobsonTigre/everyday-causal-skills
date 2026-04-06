@@ -71,9 +71,22 @@ Once you have the estimate, `/causal-auditor` stress-tests the analysis: could s
 | `/causal-hte` | Heterogeneous treatment effects with Causal Forest, DML, and policy learning (policytree) |
 | `/causal-timeseries` | Interrupted time series and CausalImpact with pre-period validation |
 | `/causal-auditor` | Stress-test any completed analysis against five categories of threats to validity |
+| `/causal-report` | Compile your analysis into a structured report — business, academic, or hybrid mode — with tables, figures, and method summaries |
 | `/causal-exercises` | Practice on simulated data with known ground truth and get feedback on your approach |
 
 > **A note on `/causal-dag`:** This skill is fundamentally different from the others. A skill like `/causal-did` takes a well-defined estimand and generates correct estimation code — "correct" is clear. `/causal-dag` takes your domain knowledge and helps structure it into a formal graph — "correct" is much harder to define. A DAG encodes *assumptions*, not facts. Every arrow you include and every arrow you leave out is a claim you must be prepared to defend. The AI can help you organize and formalize your reasoning, but it cannot supply the subject-matter expertise that makes a DAG credible. Do not treat the output as validation of your causal model.
+
+### How reporting works
+
+`/causal-report` is the final step in the workflow. It reads the artifacts saved by other skills — plan, implementation notes, audit findings, and analysis code — and compiles them into a structured report.
+
+Three things to know:
+
+1. **It works best after the full workflow** (planner → method → auditor), but it doesn't require it. If you ran your analysis outside the plugin or only used some skills, the report skill interviews you to fill the gaps.
+2. **It creates the project folder if none exists.** You don't need to have run `/causal-planner` first.
+3. **Three modes.** Business (plain language, actionable), Academic (formal notation, full tables), or Hybrid (accessible with methodological rigor). You pick when the report starts.
+
+Figures are generated from your analysis code. The skill tries to run the plotting code in your R or Python environment. If a package is missing or the code fails, it falls back to including the code in the report and offers to help set up your environment.
 
 ## How it works
 
@@ -208,7 +221,6 @@ This plugin helps you think through causal problems step by step, but it does no
 - [ ] **`/causal-sensitivity`**: E-values, Rosenbaum bounds, omitted variable bias (Cinelli & Hazlett)
 - [ ] **`/causal-mediation`**: direct/indirect effects, natural and controlled mediation
 - [ ] **`/causal-news`**: summaries of recent causal inference papers
-- [ ] **`/causal-report`**: publication-ready reports with tables, figures, and method summaries
 - [ ] **`/causal-roi`**: assess the ROI of an intervention by calculating causal (incremental) ROI, separating true lift from what would have happened anyway
 - [ ] **Ground skills in seminal references**: link each skill to its foundational references with key results and assumptions
 - [ ] **Token optimization**: compress SKILL.md files to reduce token cost without losing precision

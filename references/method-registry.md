@@ -248,3 +248,25 @@ These packages are used across all methods and should be loaded by default.
 **Assumption checklist**: `assumptions/dag.md`
 
 **Book refs**: The Effect Ch. 6-8; Mixtape Ch. 3; CausalML Ch. 7, 11; Pearl (2009) Causality; Cinelli, Forney & Pearl (2024) A Crash Course in Good and Bad Controls
+
+---
+
+## Causal Report (Compilation Skill)
+
+**When to use**: Analysis is complete (or partially complete). User wants to document findings in a structured report. User says "write a report", "summarize my analysis", "executive summary", "publication-ready".
+
+**Not a method**: This is a compilation skill — it doesn't estimate causal effects. It compiles artifacts from method skills into a readable report.
+
+**Prerequisites**: Works best with a full artifact chain (plan.md → implementation.md → audit.md), but works standalone via interview.
+
+**Report modes**: Business (plain language, actionable), Academic (formal, full tables), Hybrid (accessible with rigor).
+
+**Report sections**: Executive Summary, Question to Be Answered & Design, Data Description, Assumptions & Threats, Results, Robustness Checks, Limitations & Caveats, Recommendations, Appendix.
+
+**Figure generation**: Method-specific plots from `templates/r/report-figures.md` and `templates/python/report-figures.md`. Attempts execution; falls back to code blocks on failure.
+
+**R packages** (for figures): `ggplot2`, `fixest` (event study plots), `modelsummary` (tables)
+
+**Python packages** (for figures): `matplotlib`, `pandas`, `numpy`
+
+**Output**: `docs/causal-plans/YYYY-MM-DD-<project>/report.md` (or `report-{mode}.md`)
