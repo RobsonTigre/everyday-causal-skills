@@ -165,6 +165,17 @@ result = ca.fit()
 # Summary: point, cumulative, and temporal average causal effects
 print(ca.summary())
 
+# Extract key numbers from summary DataFrame
+summary = ca.summary()
+point_effect = summary.loc['Point causal effect', summary.columns[0]]
+cumulative_effect = summary.loc['Cumulative causal effect', summary.columns[0]]
+avg_effect = summary.loc['Temporal average causal effect', summary.columns[0]]
+p_value = summary.loc['Bidirectional p-value', summary.columns[0]]
+print(f"Point causal effect: {point_effect:.3f}")
+print(f"Cumulative effect: {cumulative_effect:.3f}")
+print(f"Temporal average effect: {avg_effect:.3f}")
+print(f"p-value (two-sided): {p_value:.4f}")
+
 # Visualizations
 ca.plot(type='forecast')   # observed vs counterfactual
 ca.plot(type='impact')     # point and cumulative effects
