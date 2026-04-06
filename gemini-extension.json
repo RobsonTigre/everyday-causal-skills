@@ -1,5 +1,6 @@
 {
   "name": "everyday-causal-skills",
-  "version": "0.1.0",
-  "description": "Causal inference plugin: plan, implement, and stress-test causal analyses in R and Python."
+  "version": "0.4.0",
+  "description": "Causal inference plugin: plan, implement, and stress-test causal analyses in R and Python.",
+  "contextFileName": "GEMINI.md"
 }

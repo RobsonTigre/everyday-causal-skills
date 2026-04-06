@@ -1,6 +1,6 @@
 {
   "name": "everyday-causal-skills",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "description": "Causal inference plugin: plan, implement, and stress-test causal analyses in R and Python.",
   "author": {
     "name": "Robson Tigre"
@@ -26,7 +26,16 @@
     "dag",
     "causal-graph",
     "backdoor",
-    "collider"
+    "collider",
+    "heterogeneous-treatment-effects",
+    "cate",
+    "causal-forest",
+    "policy-learning",
+    "personalization",
+    "targeting",
+    "causal-report",
+    "publication-ready",
+    "executive-summary"
   ],
   "skills": "./skills/"
 }
