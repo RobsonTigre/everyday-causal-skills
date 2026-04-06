@@ -179,34 +179,16 @@ ggplot(df, aes(x = outcome, fill = factor(treatment))) +
   ) +
   theme_minimal()
 
-# --- Treatment effect with confidence interval ---
-estimates <- tibble(
-  Model = c("Unadjusted", "Covariate-Adjusted", "Cluster-Robust"),
-  Estimate = c(
-    coef(mod_simple)["treatment"],
-    coef(mod_adj)["treatment"],
-    coef(mod_cluster)["treatment"]
+# --- Treatment effect comparison (native modelsummary function) ---
+modelplot(
+  list(
+    "Unadjusted"        = mod_simple,
+    "Covariate-Adjusted" = mod_adj,
+    "Cluster-Robust"     = mod_cluster
   ),
-  CI_Lower = c(
-    confint(mod_simple)["treatment", 1],
-    confint(mod_adj)["treatment", 1],
-    confint(mod_cluster)["treatment", 1]
-  ),
-  CI_Upper = c(
-    confint(mod_simple)["treatment", 2],
-    confint(mod_adj)["treatment", 2],
-    confint(mod_cluster)["treatment", 2]
-  )
-)
-
-ggplot(estimates, aes(x = Model, y = Estimate)) +
-  geom_point(size = 3) +
-  geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper), width = 0.2) +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-  coord_flip() +
-  labs(
-    title = "Treatment Effect Estimates",
-    x = NULL, y = "Estimated Effect"
-  ) +
+  coef_map = c("treatment" = "Treatment Effect"),
+  title    = "Treatment Effect Estimates"
+) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "grey50") +
   theme_minimal()
 ```

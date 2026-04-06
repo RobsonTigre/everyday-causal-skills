@@ -146,22 +146,4 @@ rdplot(
   x.label = "Running Variable",
   y.label = "Outcome"
 )
-
-# --- Custom ggplot RD visualization ---
-ggplot(df, aes(x = running_var, y = outcome)) +
-  geom_point(aes(color = factor(treated)), alpha = 0.3, size = 1) +
-  geom_smooth(
-    data = filter(df, running_var < cutoff),
-    method = "loess", se = TRUE, color = "#E41A1C"
-  ) +
-  geom_smooth(
-    data = filter(df, running_var >= cutoff),
-    method = "loess", se = TRUE, color = "#377EB8"
-  ) +
-  geom_vline(xintercept = cutoff, linetype = "dashed", color = "grey40") +
-  labs(
-    title = "RD Design: Outcome vs Running Variable",
-    x = "Running Variable", y = "Outcome", color = "Treated"
-  ) +
-  theme_minimal()
 ```

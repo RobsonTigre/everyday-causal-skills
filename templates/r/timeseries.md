@@ -168,34 +168,4 @@ knitr::kable(ci_summary, digits = 3, caption = "Causal Impact Summary")
 # --- Full CausalImpact plot (3 panels) ---
 plot(impact) +
   theme_minimal()
-
-# --- Custom ggplot: actual vs counterfactual ---
-impact_df <- as_tibble(impact$series) %>%
-  mutate(date = index(ts_data))
-
-ggplot(impact_df, aes(x = date)) +
-  geom_line(aes(y = response, color = "Actual"), linewidth = 0.8) +
-  geom_line(aes(y = point.pred, color = "Counterfactual"), linewidth = 0.8) +
-  geom_ribbon(aes(ymin = point.pred.lower, ymax = point.pred.upper),
-              alpha = 0.2, fill = "steelblue") +
-  geom_vline(xintercept = as.numeric(intervention_date),
-             linetype = "dashed", color = "grey40") +
-  labs(
-    title = "Actual vs Counterfactual (CausalImpact)",
-    x = "Date", y = "Outcome", color = NULL
-  ) +
-  scale_color_manual(values = c("Actual" = "black", "Counterfactual" = "steelblue")) +
-  theme_minimal()
-
-# --- Pointwise causal effect over time ---
-ggplot(impact_df %>% filter(date >= post.period[1]), aes(x = date)) +
-  geom_line(aes(y = point.effect), color = "steelblue", linewidth = 0.8) +
-  geom_ribbon(aes(ymin = point.effect.lower, ymax = point.effect.upper),
-              alpha = 0.2, fill = "steelblue") +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
-  labs(
-    title = "Pointwise Causal Effect Over Time",
-    x = "Date", y = "Estimated Effect"
-  ) +
-  theme_minimal()
 ```

@@ -145,38 +145,14 @@ print(f"Kernel: Triangular | Order: 1 (local linear)")
 ## Visualization
 
 ```python
-fig, axes = plt.subplots(1, 2, figsize=(13, 5))
+# --- RD Plot: binned scatter with local polynomial fits (native rdrobust function) ---
+rdplot(Y, X, c=cutoff,
+       x_label="Running Variable",
+       y_label="Outcome",
+       title="RD Plot")
 
-# --- Panel 1: RD Plot with binned scatter ---
-ax = axes[0]
-# Use rdplot for automatic binning (captures output for custom plotting)
-rdplot_result = rdplot(Y, X, c=cutoff, x_label="Running Variable",
-                       y_label="Outcome", title="RD Plot")
-plt.close()  # Close rdplot's own figure; we redraw below
-
-# Manual binned scatter for more control
-n_bins = 30
-for side, color, label in [("left", "steelblue", "Control"), ("right", "coral", "Treated")]:
-    if side == "left":
-        mask = X < cutoff
-    else:
-        mask = X >= cutoff
-    x_sub, y_sub = X[mask], Y[mask]
-    bins = np.linspace(x_sub.min(), x_sub.max(), n_bins // 2 + 1)
-    bin_idx = np.digitize(x_sub, bins)
-    bin_means_x = [x_sub[bin_idx == i].mean() for i in range(1, len(bins)) if (bin_idx == i).sum() > 0]
-    bin_means_y = [y_sub[bin_idx == i].mean() for i in range(1, len(bins)) if (bin_idx == i).sum() > 0]
-    ax.scatter(bin_means_x, bin_means_y, color=color, s=30, alpha=0.7, label=label)
-
-ax.axvline(cutoff, color="black", linestyle="--", linewidth=1, label="Cutoff")
-ax.set_xlabel("Running Variable")
-ax.set_ylabel("Outcome (binned means)")
-ax.set_title(f"RD Plot (Estimate = {rd_est:.3f})")
-ax.legend()
-sns.despine(ax=ax)
-
-# --- Panel 2: Bandwidth sensitivity plot ---
-ax = axes[1]
+# --- Bandwidth sensitivity plot (no native function; hand-rolled is correct) ---
+fig, ax = plt.subplots(figsize=(7, 5))
 ax.errorbar(
     bw_df["bandwidth"], bw_df["estimate"],
     yerr=1.96 * bw_df["se"],
@@ -188,9 +164,8 @@ ax.set_xlabel("Bandwidth")
 ax.set_ylabel("RD Estimate")
 ax.set_title("Bandwidth Sensitivity")
 ax.legend()
-sns.despine(ax=ax)
-
+sns.despine()
 plt.tight_layout()
-plt.savefig("rdd_diagnostics.png", dpi=150)
+plt.savefig("rdd_bandwidth_sensitivity.png", dpi=150)
 plt.show()
 ```

@@ -4,14 +4,17 @@
 
 ```python
 # Install (if needed)
-# pip install pandas numpy matplotlib seaborn scpi
+# pip install pandas numpy matplotlib seaborn scpi-pkg
 
 # Import
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import scpi
+from scpi_pkg.scdata import scdata
+from scpi_pkg.scest import scest
+from scpi_pkg.scpi import scpi
+from scpi_pkg.scplot import scplot
 ```
 
 ## Data Preparation
@@ -40,7 +43,7 @@ assert panel_check.nunique() == 1, "Panel is unbalanced — each unit must have 
 ## Estimation — Prepare Data with scdata
 
 ```python
-# scpi.scdata prepares the matrices for synthetic control estimation
+# scdata prepares the matrices for synthetic control estimation
 # id_var: unit identifier column
 # time_var: time period column
 # outcome_var: outcome column name
@@ -53,7 +56,7 @@ donor_units = [u for u in df["unit"].unique() if u != treated_unit]
 time_min = df["time"].min()
 time_max = df["time"].max()
 
-sc_data = scpi.scdata(
+sc_data = scdata(
     df=df,
     id_var="unit",
     time_var="time",
@@ -69,7 +72,7 @@ sc_data = scpi.scdata(
 
 ```python
 # scest estimates the synthetic control weights and treatment effects
-sc_est = scpi.scest(sc_data, e_method="all")
+sc_est = scest(sc_data, e_method="all")
 
 # Print the estimation summary
 print(sc_est)
@@ -86,7 +89,7 @@ for donor, weight in zip(donor_units, weights.flatten()):
 
 ```python
 # scpi provides prediction intervals (accounts for in-sample uncertainty)
-sc_pi = scpi.scpi(sc_data, sims=200, cores=1)
+sc_pi = scpi(sc_data, sims=200, cores=1)
 
 print(sc_pi)
 ```
@@ -144,45 +147,17 @@ print(f"Post/Pre RMSPE ratio: {rmspe_post / rmspe_pre:.2f}")
 ## Visualization
 
 ```python
-fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+# --- Native scpi plot: treated vs synthetic, gaps, prediction intervals ---
+scplot(sc_pi)
 
-# --- Panel 1: Treated vs Synthetic over time ---
-ax = axes[0]
-ax.plot(actual_all.index, actual_all.values, "o-", color="black", markersize=3, label="Treated")
-ax.plot(synthetic_all.index, synthetic_all.values, "s--", color="steelblue", markersize=3, label="Synthetic")
-ax.axvline(treatment_time, color="red", linestyle=":", linewidth=1, label="Treatment")
-ax.set_xlabel("Time")
-ax.set_ylabel("Outcome")
-ax.set_title("Treated vs. Synthetic Control")
-ax.legend()
-sns.despine(ax=ax)
-
-# --- Panel 2: Gaps plot (treatment effect over time) ---
-ax = axes[1]
-ax.plot(gaps.index, gaps.values, "o-", color="steelblue", markersize=3)
-ax.axhline(0, color="gray", linestyle="--", linewidth=0.8)
-ax.axvline(treatment_time, color="red", linestyle=":", linewidth=1, label="Treatment")
-ax.fill_between(
-    gaps.index, gaps.values, 0,
-    where=gaps.index >= treatment_time,
-    alpha=0.2, color="steelblue"
-)
-ax.set_xlabel("Time")
-ax.set_ylabel("Gap (Treated - Synthetic)")
-ax.set_title("Treatment Effect (Gaps)")
-ax.legend()
-sns.despine(ax=ax)
-
-# --- Panel 3: Donor weights ---
-ax = axes[2]
+# --- Donor weights (no native function; hand-rolled is correct) ---
+fig, ax = plt.subplots(figsize=(6, 4))
 w_df = pd.DataFrame({"donor": donor_units, "weight": weights.flatten()})
 w_df = w_df[w_df["weight"].abs() > 0.001].sort_values("weight", ascending=True)
 ax.barh(w_df["donor"], w_df["weight"], color="steelblue")
 ax.set_xlabel("Weight")
 ax.set_title("Donor Unit Weights")
-sns.despine(ax=ax)
-
+sns.despine()
 plt.tight_layout()
-plt.savefig("sc_results.png", dpi=150)
 plt.show()
 ```

@@ -7,6 +7,7 @@
 from econml.dml import CausalForestDML, LinearDML
 from econml.policy import DRPolicyTree
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
+from sklearn.tree import plot_tree
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -215,6 +216,18 @@ pt.fit(Y, T, X=X, W=W)
 policy = pt.predict(X)
 print(f"Policy tree treats: {policy.mean():.3f} of units")
 print(f"Threshold rule treats: {treat_rule.mean():.3f} of units")
+
+# Visualize the policy tree (econml trees use sklearn internals)
+fig, ax = plt.subplots(figsize=(14, 6))
+plot_tree(
+    pt.tree_model_ if hasattr(pt, "tree_model_") else pt,
+    feature_names=feature_names,
+    filled=True, rounded=True,
+    fontsize=9, ax=ax
+)
+ax.set_title("Policy Tree: Who Should Be Treated?")
+plt.tight_layout()
+plt.show()
 ```
 
 ### Step 4c: Fairness check
