@@ -335,3 +335,69 @@ if season_length and n_pre < 3 * season_length:
 **Severity if violated**: Serious. With too few pre-treatment observations, the model parameters are imprecise, the counterfactual is unreliable, and the confidence intervals are so wide that you may not detect a genuine effect. The analysis lacks statistical power.
 
 **Mitigation**: (1) Use higher-frequency data if available (daily instead of weekly, weekly instead of monthly) to increase the number of observations. (2) Extend the pre-treatment window further back in time if data exists. (3) Use simpler models with fewer parameters (fewer control series, simpler trend components) to reduce the data demands. (4) If the pre-period is truly too short, acknowledge that the analysis is underpowered and interpret results as suggestive rather than definitive. (5) Consider complementary methods (DiD, before-after comparison with controls) that may require fewer time periods.
+
+---
+
+## No Structural Breaks in Pre-Period
+
+**Plain language**: The patterns in your pre-treatment data don't suddenly change partway through. If your data collection methodology changed, a recession hit, or a regime shift happened in the pre-period, the model is learning from two different worlds — and its counterfactual projection will be unreliable.
+
+**Formal statement**: The data-generating process in the pre-treatment period {Y_t : t < T_0} is structurally stable — the regression coefficients (trend, level, seasonal components) do not change at any interior point. Formally, there is no breakpoint tau in (1, T_0) such that the model parameters differ between [1, tau) and [tau, T_0).
+
+**Testable?**: Yes. Structural break tests (CUSUM, Bai-Perron, Chow) directly test for parameter instability.
+
+**How to test**:
+
+R:
+```r
+library(strucchange)
+
+# Extract pre-period data
+pre_data <- df[df$post == 0, ]
+
+# 1. CUSUM test (detects gradual parameter drift)
+cusum <- efp(outcome ~ time, data = pre_data, type = "OLS-CUSUM")
+plot(cusum, main = "CUSUM Test for Structural Breaks")
+sctest(cusum)
+# p < 0.05 → reject stability → structural break detected
+
+# 2. Bai-Perron breakpoint detection (finds optimal break locations)
+bp <- breakpoints(outcome ~ time, data = pre_data)
+summary(bp)
+# 0 breaks = stable pre-period (good).
+plot(bp, main = "Bai-Perron Breakpoint Detection")
+lines(ts(pre_data$outcome))
+```
+
+Python:
+```python
+import ruptures as rpt
+import numpy as np
+import matplotlib.pyplot as plt
+
+pre_outcome = df.loc[df['post'] == 0, 'outcome'].values
+
+# 1. PELT algorithm for changepoint detection
+algo = rpt.Pelt(model="rbf", min_size=5).fit(pre_outcome)
+breaks = algo.predict(pen=10)
+n_breaks = len(breaks) - 1
+
+print(f"Detected {n_breaks} structural break(s) in pre-period")
+if n_breaks > 0:
+    print(f"Break location(s): {breaks[:-1]}")
+
+rpt.display(pre_outcome, breaks, figsize=(12, 4))
+plt.title("Structural Break Detection (PELT)")
+plt.show()
+
+# 2. Alternative: dynamic programming (Bai-Perron style)
+algo_dp = rpt.Dynp(model="l2", min_size=5).fit(pre_outcome)
+breaks_dp = algo_dp.predict(n_bkps=1)
+print(f"Dynp break location: {breaks_dp[:-1]}")
+```
+
+**What violation looks like**: The CUSUM path crosses the boundary lines. Bai-Perron finds breakpoints. The pre-period visually shows a level shift, trend change, or variance change partway through.
+
+**Severity if violated**: Fatal. A structural break means the model is trained on data from two different regimes. The counterfactual projection extrapolates from an unstable foundation.
+
+**Mitigation**: (1) **Truncate**: Use only the post-break portion of the pre-period. (2) **Model the break**: Add a level-shift dummy at the break date. (3) **Investigate**: Understand why the break occurred. (4) **Acknowledge**: If you must proceed, carry the structural break as a FATAL caveat.

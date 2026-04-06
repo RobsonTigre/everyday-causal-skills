@@ -42,11 +42,25 @@ You guide users through a complete interrupted time series / CausalImpact analys
 
 **Determine variant**:
 - Control series available → CausalImpact (Bayesian structural time series) — preferred
-- No control series, strong pre-period trend → CausalArima (ARIMA-based counterfactual)
-- Simple level/slope change → Segmented regression (basic ITS)
+- No control series → CausalArima (ARIMA-based counterfactual)
 - Multiple interventions → Stepped-wedge or multi-intervention ITS
 
-**Pre-flight data check (before proceeding to Stage 2):** If the user has provided a dataset, check the pre-treatment period for structural breaks before proceeding. Run a quick visual inspection or formal test (Chow test, CUSUM, or Bai-Perron) for level shifts or trend changes in the pre-period. If a structural break exists, flag it immediately — the counterfactual projection will be unreliable because the model will be fit on data from two different regimes. Discuss whether to truncate the pre-period to after the break, use a different modeling approach, or abandon the time series method. Do not proceed to full estimation without acknowledging the structural break.
+**Method selection logic**:
+
+```
+Control series available?
+├── YES → CausalImpact (BSTS with regression on controls) ✓ PREFERRED
+└── NO  → CausalArima (ARIMA-based counterfactual)
+
+Either method: pre-period model fit diagnostic (MAPE) determines
+whether the data supports reliable counterfactual projection.
+If MAPE is poor or diagnostics fail → WARN user that the data
+may not support causal modeling. User decides whether to proceed.
+```
+
+When in doubt, prefer CausalImpact (if controls exist) or CausalArima (if no controls). Segmented regression is available as a descriptive supplement within either analysis to show level/slope changes, but is NOT a standalone causal method.
+
+**Pre-flight data check (before proceeding to Stage 2):** If the user has provided a dataset, check the pre-treatment period for structural breaks before proceeding. Run the structural break detection code from `references/assumptions/timeseries.md` → "No Structural Breaks in Pre-Period" section (CUSUM in R via `strucchange::efp()`, PELT in Python via `ruptures`). If a structural break exists, flag it immediately with a FATAL verdict — the counterfactual projection will be unreliable because the model will be fit on data from two different regimes. Discuss whether to truncate the pre-period to after the break, model the break with a level-shift dummy, or abandon the time series method. Do not proceed to full estimation without resolving the structural break.
 
 ## Stage 2: Assumptions
 
@@ -130,6 +144,33 @@ summary(result)
 plot(result)
 ```
 
+**CausalArima (Python)** — when no control series available:
+```python
+from pycausalarima import CausalArima
+import pandas as pd
+
+dates = pd.to_datetime(df['date'])
+intervention_date = pd.Timestamp('YYYY-MM-DD')  # adapt to user's data
+
+ca = CausalArima(
+    y=df['outcome'].values,
+    dates=dates,
+    intervention_date=intervention_date,
+    auto=True,           # auto-select ARIMA order
+    ic='aic',            # information criterion
+    alpha=0.05
+)
+result = ca.fit()
+
+# Summary: point, cumulative, and temporal average causal effects
+print(ca.summary())
+
+# Visualizations
+ca.plot(type='forecast')   # observed vs counterfactual
+ca.plot(type='impact')     # point and cumulative effects
+ca.plot(type='residuals')  # residual diagnostics
+```
+
 **CausalImpact (Python)**:
 ```python
 from causalimpact import CausalImpact
@@ -151,7 +192,29 @@ print(ci.summary(output='report'))
 ci.plot()
 ```
 
-**Segmented regression / basic ITS (Python)**:
+**Segmented regression (R, descriptive supplement)**:
+```r
+# Descriptive supplement: level shift and slope change estimates.
+# Use alongside CausalImpact or CausalArima — not as a standalone causal method.
+library(sandwich)
+library(lmtest)
+
+df$time <- seq_len(nrow(df))
+df$post <- as.integer(df$time >= intervention_time)
+df$time_since <- pmax(0, df$time - intervention_time)
+
+# OLS with Newey-West HAC standard errors
+fit_ols <- lm(outcome ~ time + post + time_since, data = df)
+coeftest(fit_ols, vcov = NeweyWest(fit_ols, lag = 4))
+
+# Alternative: Prais-Winsten GLS (better coverage for autocorrelated errors;
+# see Bottomley et al., 2023)
+library(prais)
+fit_pw <- prais_winsten(outcome ~ time + post + time_since, data = df)
+summary(fit_pw)
+```
+
+**Segmented regression (descriptive supplement)** — not a standalone causal method. Use alongside CausalImpact or CausalArima to show level/slope changes as interpretive aids:
 ```python
 import statsmodels.formula.api as smf
 import numpy as np
@@ -167,6 +230,16 @@ model = smf.ols('outcome ~ time + post + time_since', data=df).fit(
 print(model.summary())
 print(f"Level change at intervention: {model.params['post']:.3f}")
 print(f"Slope change after intervention: {model.params['time_since']:.3f}")
+
+# Alternative: GLS with AR(1) errors (preferred for autocorrelated series)
+from statsmodels.regression.linear_model import GLSAR
+import statsmodels.api as sm
+
+X = sm.add_constant(df[['time', 'post', 'time_since']])
+model_gls = GLSAR(df['outcome'], X, rho=1)  # rho=1 = AR(1)
+result_gls = model_gls.iterative_fit(maxiter=50)
+print(result_gls.summary())
+# GLSAR iteratively estimates the AR(1) coefficient — Python equivalent of Prais-Winsten.
 ```
 
 Adapt code to the user's variable names and data structure.
