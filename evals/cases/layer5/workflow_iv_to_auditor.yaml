@@ -18,8 +18,11 @@ steps:
   - skill: causal-auditor
     input_from: step_1
     scenario: |
-      Please audit this IV analysis. I'm particularly concerned about whether
-      the instrument is strong enough and whether the exclusion restriction holds.
+      You have reviewed the IV analysis above. Provide a focused audit:
+      1. Is distance to tutoring center truly exogenous? What confounds could correlate with distance?
+      2. Is the first-stage F-statistic sufficient, and what changes if it's borderline?
+      3. What unobserved confounders would destroy this analysis?
+      Focus on gaps and threats the IV skill missed. Do NOT repeat checks already performed.
     references:
       - references/assumptions/iv.md
       - references/method-registry.md

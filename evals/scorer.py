@@ -504,8 +504,8 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
             )
             # DGP's ESTIMATE: output IS the ground truth — record it but don't grade accuracy
             # (there's no student analysis code to compare against)
-    elif code_blocks and case.get("dataset"):
-        # Standard L3 case: run first code block against provided dataset
+    elif code_blocks and (case.get("dataset") or expected.get("code_runs")):
+        # Standard L3 case or dataset-free case (e.g., DAG structural code)
         exec_result = _execute_code(
             code_blocks[0],
             language=case.get("language", "python"),

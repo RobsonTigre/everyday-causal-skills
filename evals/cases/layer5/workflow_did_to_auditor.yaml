@@ -18,8 +18,11 @@ steps:
   - skill: causal-auditor
     input_from: step_1
     scenario: |
-      Please audit the analysis above. Check for any threats to validity I might
-      have missed.
+      Based on the DiD analysis above, identify:
+      1. Any specific threats to validity the analysis didn't address
+      2. Additional robustness checks needed beyond what was already proposed
+      3. Overall credibility assessment given the store selection context
+      Focus on gaps and threats the DiD skill missed. Do NOT repeat checks already performed.
     references:
       - references/assumptions/did.md
       - references/method-registry.md
