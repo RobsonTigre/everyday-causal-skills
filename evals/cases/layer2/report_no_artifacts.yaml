@@ -1,0 +1,22 @@
+name: report_no_artifacts
+description: Report from scratch — should interview and create project folder
+layer: 2
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I ran a synthetic control analysis comparing California to other states
+  after a minimum wage increase. I have the results but nothing saved.
+  Can you write up a report for an academic audience?
+expected:
+  must_do:
+    - create_project_folder
+    - interview_for_details
+  must_not_include:
+    - fabricated_estimates
+rubric:
+  - "Does the report skill create a project folder?"
+  - "Does it interview the user for key details (method, results, threats)?"
+  - "Does it produce a report in academic mode from the interview answers?"
+  - "Does it avoid fabricating any estimates not provided by the user?"

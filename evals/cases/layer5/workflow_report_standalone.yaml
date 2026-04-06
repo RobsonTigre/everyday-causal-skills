@@ -1,0 +1,19 @@
+name: workflow_report_standalone
+description: Report without prior skills — should interview and create artifacts
+layer: 5
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I ran an IV analysis outside this plugin. Distance to college was the instrument,
+  years of education was the treatment, and earnings was the outcome. The first-stage
+  F-statistic was 28. The LATE was $1,200 per year (SE: $400). The exclusion
+  restriction is debatable — distance might affect earnings through channels other
+  than education. Write a business report.
+rubric:
+  - "Does the report skill create a project folder without requiring prior skills?"
+  - "Does it build the report from the user's description without hallucinating details?"
+  - "Does it flag the exclusion restriction concern in the Limitations section?"
+  - "Does the Recommendations section suggest running /causal-auditor for a deeper review?"
+  - "Is the business tone maintained throughout?"

@@ -1,0 +1,7 @@
+name: trigger_report_paraphrase_2
+description: Report should trigger on "present results to leadership"
+layer: 0
+skill: causal-report
+user_message: "I need to present my DiD results to leadership. Can you write up an executive summary with the key findings?"
+expected:
+  should_trigger: true

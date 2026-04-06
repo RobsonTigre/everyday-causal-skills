@@ -1,0 +1,7 @@
+name: trigger_report_explicit_1
+description: Report should trigger on "write a causal report"
+layer: 0
+skill: causal-report
+user_message: "I need to write a causal report summarizing my DiD analysis"
+expected:
+  should_trigger: true

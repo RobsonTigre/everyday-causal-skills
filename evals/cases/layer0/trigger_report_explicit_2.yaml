@@ -1,0 +1,7 @@
+name: trigger_report_explicit_2
+description: Report should trigger on "create a report"
+layer: 0
+skill: causal-report
+user_message: "Create a report for the analysis in docs/causal-plans/2026-03-15-loyalty-program/"
+expected:
+  should_trigger: true

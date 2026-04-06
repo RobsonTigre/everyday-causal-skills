@@ -1,0 +1,22 @@
+name: report_tone_business
+description: Same analysis in business mode — no jargon, actionable recommendations
+layer: 4
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We ran a DiD comparing 12 stores that got a loyalty program to 38 that didn't.
+  The program increased repeat purchases by 12% (95% CI: 8%-16%). Parallel trends
+  held. No fatal audit findings. Write a business report for the VP of Marketing.
+rubric:
+  pedagogy:
+    - "Does the report avoid Greek letters and formal statistical notation?"
+    - "Does it explain the method in plain language a VP would understand?"
+    - "Does it translate the effect into business impact (revenue, customers)?"
+  safety:
+    - "Does it still include limitations even in plain language?"
+    - "Does it avoid overstating the findings?"
+  actionable:
+    - "Does the recommendations section provide concrete next steps?"
+    - "Is the executive summary a clear bottom-line statement?"

@@ -1,0 +1,38 @@
+name: workflow_auditor_to_report
+description: Full chain — planner to DiD to auditor to report. Report should reference all upstream artifacts.
+layer: 5
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+steps:
+  - skill: causal-did
+    scenario: |
+      I have panel data for 100 stores over 24 months. Half got a new checkout
+      system at month 12. I want to estimate the effect on sales using DiD. I use Python.
+      Walk me through the full analysis and save the artifacts.
+    references:
+      - references/assumptions/did.md
+      - references/method-registry.md
+      - references/lessons.md
+  - skill: causal-auditor
+    input_from: step_1
+    scenario: |
+      Please audit the analysis above. Save the audit report.
+    references:
+      - references/assumptions/did.md
+      - references/method-registry.md
+      - references/lessons.md
+  - skill: causal-report
+    input_from: step_2
+    scenario: |
+      Now write a hybrid report compiling everything from this analysis.
+    references:
+      - references/method-registry.md
+      - references/lessons.md
+rubric:
+  - "Does the report reference specific findings from the DiD analysis (actual estimates, not generic)?"
+  - "Does the report incorporate audit findings into the Limitations section?"
+  - "Does the report avoid repeating the full analysis — it compiles, not re-does?"
+  - "Are all 9 sections present and populated?"
+  - "Is the full chain coherent — could someone read just the report and understand the analysis?"

@@ -1,0 +1,7 @@
+name: trigger_report_paraphrase_1
+description: Report should trigger on "summarize my analysis into a document"
+layer: 0
+skill: causal-report
+user_message: "I finished the analysis. Can you summarize what I did into a document I can share with my team?"
+expected:
+  should_trigger: true

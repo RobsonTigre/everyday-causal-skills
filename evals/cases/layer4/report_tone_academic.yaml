@@ -1,0 +1,22 @@
+name: report_tone_academic
+description: Same analysis in academic mode — formal notation, full tables
+layer: 4
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We ran a DiD comparing 12 stores that got a loyalty program to 38 that didn't.
+  The program increased repeat purchases by 12% (95% CI: 8%-16%). Parallel trends
+  held. No fatal audit findings. Write an academic report for a working paper.
+rubric:
+  pedagogy:
+    - "Does the report include formal estimand notation (ATT)?"
+    - "Does it describe the identification strategy precisely?"
+    - "Does it include a full regression table with standard errors?"
+  safety:
+    - "Does it discuss threats to internal and external validity systematically?"
+    - "Does it acknowledge the small number of treated units?"
+  actionable:
+    - "Does the appendix include full estimation code?"
+    - "Does it reference the parallel trends assumption formally?"

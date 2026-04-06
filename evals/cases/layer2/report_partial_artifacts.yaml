@@ -1,0 +1,22 @@
+name: report_partial_artifacts
+description: Report with only implementation.md — should identify missing pieces and recommend skills
+layer: 2
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I ran a matching analysis but only saved the implementation notes.
+  There's an implementation.md in docs/causal-plans/2026-03-20-hiring-bias/
+  but nothing else. Can you write a business report?
+expected:
+  must_flag:
+    - missing_plan
+    - missing_audit
+  must_recommend:
+    - causal-planner
+    - causal-auditor
+rubric:
+  - "Does the report skill identify that plan.md and audit.md are missing?"
+  - "Does it recommend specific skills to fill the gaps?"
+  - "Does it still produce a report from what's available, with caveats about missing sections?"

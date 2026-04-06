@@ -1,0 +1,28 @@
+name: report_full_artifacts
+description: Report with full artifact folder — all 9 sections should be complete
+layer: 2
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I've completed a DiD analysis of our loyalty program. The project folder
+  at docs/causal-plans/2026-03-15-loyalty-program/ has plan.md, implementation.md,
+  analysis.py, and audit.md. Please write a hybrid-mode report.
+expected:
+  must_include:
+    - executive_summary
+    - question_and_design
+    - data_description
+    - assumptions_and_threats
+    - results
+    - robustness_checks
+    - limitations
+    - recommendations
+    - appendix
+  must_not_include:
+    - fabricated_estimates
+rubric:
+  - "Does the report include all 9 sections?"
+  - "Does the report pull specific details from the artifacts (not generic method descriptions)?"
+  - "Is the tone consistent with hybrid mode (accessible but rigorous)?"

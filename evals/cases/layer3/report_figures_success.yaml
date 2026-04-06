@@ -1,0 +1,22 @@
+name: report_figures_success
+description: Report figure generation succeeds — PNG files should be created and embedded
+layer: 3
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_clean.csv
+language: python
+user_message: |
+  Write a report for my DiD analysis. The data is in did_clean.csv with columns:
+  unit_id, time, treated, post, outcome. Treatment starts at time 12. Use Python
+  for figures. I want a hybrid report.
+expected:
+  must_generate:
+    - parallel_trends_figure
+    - event_study_figure
+  must_save_to: docs/causal-plans/*/figures/
+rubric:
+  - "Does the skill generate plotting code based on the DiD templates?"
+  - "Does it attempt to execute the code and save PNG files?"
+  - "Are the figures embedded in the report markdown with proper image references?"

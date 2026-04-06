@@ -1,0 +1,22 @@
+name: report_tone_hybrid
+description: Same analysis in hybrid mode — accessible with methodological rigor
+layer: 4
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We ran a DiD comparing 12 stores that got a loyalty program to 38 that didn't.
+  The program increased repeat purchases by 12% (95% CI: 8%-16%). Parallel trends
+  held. No fatal audit findings. Write a hybrid report.
+rubric:
+  pedagogy:
+    - "Does the report use plain language with formal names in parentheses?"
+    - "Does it include a summary regression table but explain it in accessible terms?"
+    - "Is it readable by a quantitatively literate non-specialist?"
+  safety:
+    - "Does it include meaningful limitations, not just a token mention?"
+    - "Does it avoid both oversimplification and unnecessary jargon?"
+  actionable:
+    - "Does it balance recommendations with caveats?"
+    - "Could both a data scientist and a product manager read this?"
