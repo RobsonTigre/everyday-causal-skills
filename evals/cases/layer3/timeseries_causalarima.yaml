@@ -1,0 +1,21 @@
+name: timeseries_causalarima
+description: CausalArima with pycausalarima — code must run and estimate correctly
+layer: 3
+skill: causal-timeseries
+references:
+  - references/assumptions/timeseries.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/timeseries_causalarima_l3.csv
+language: python
+user_message: |
+  I have daily outcome data for 100 periods. A price change intervention began at
+  period 71 (date 2023-03-12). No control series available. The data is loaded as df
+  with columns: date, outcome. Use the pycausalarima package (CausalArima class) to
+  estimate the average causal effect via ARIMA-based counterfactual projection.
+  In your code, print the main average treatment effect estimate as ESTIMATE:<value>
+  (e.g., print(f'ESTIMATE:{effect}')).
+expected:
+  true_effect: 4.0
+  tolerance: 2.5
+  must_include: [pre_treatment, confidence_interval]

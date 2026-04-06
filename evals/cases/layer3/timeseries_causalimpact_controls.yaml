@@ -1,0 +1,22 @@
+name: timeseries_causalimpact_controls
+description: CausalImpact with control series — code must run and estimate correctly
+layer: 3
+skill: causal-timeseries
+references:
+  - references/assumptions/timeseries.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/timeseries_causalimpact_controls_l3.csv
+language: python
+user_message: |
+  I have monthly outcome data for 80 periods. An intervention began at period 51
+  (date 2022-03-01). I also have two control series (control1, control2) that were
+  NOT affected by the intervention. The data is loaded as df with columns: date,
+  outcome, control1, control2. Implement a CausalImpact analysis using the
+  causalimpact Python package. Use the control series as covariates.
+  In your code, print the main average treatment effect estimate as ESTIMATE:<value>
+  (e.g., print(f'ESTIMATE:{effect}')).
+expected:
+  true_effect: 5.0
+  tolerance: 2.5
+  must_include: [pre_treatment, confidence_interval]
