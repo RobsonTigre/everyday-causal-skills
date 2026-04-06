@@ -137,7 +137,7 @@ def run_case_cli(case: dict, config: dict, runs: int, debug: bool = False) -> li
                 "--no-session-persistence",
                 "--setting-sources", "local",
             ],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True, text=True, timeout=450,
         )
         if proc.returncode != 0:
             results.append({
@@ -205,7 +205,7 @@ def run_case_l5_cli(case: dict, config: dict, runs: int, debug: bool = False) ->
                     "--no-session-persistence",
                     "--setting-sources", "local",
                 ],
-                capture_output=True, text=True, timeout=300,
+                capture_output=True, text=True, timeout=450,
             )
             import os
             os.unlink(sys_file1.name)
@@ -254,7 +254,7 @@ def run_case_l5_cli(case: dict, config: dict, runs: int, debug: bool = False) ->
                     "--no-session-persistence",
                     "--setting-sources", "local",
                 ],
-                capture_output=True, text=True, timeout=300,
+                capture_output=True, text=True, timeout=450,
             )
             os.unlink(sys_file2.name)
 

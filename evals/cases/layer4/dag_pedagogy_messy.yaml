@@ -8,8 +8,12 @@ user_message: |
   both smoking behavior and cancer risk. Tar deposits are caused by smoking.
   I was going to control for everything. Help me with the DAG. I use Python.
 rubric:
-  - "Does the skill identify tar deposits as a mediator and warn against controlling for it (total effect)?"
-  - "Does it explain the difference between total effect and direct effect in context?"
-  - "Does it identify genetic predisposition as a confounder?"
-  - "Does it warn that controlling for 'everything' is not always correct?"
-  - "Is the explanation specific (smoking/cancer, not abstract)?"
+  pedagogy:
+    - "Does the skill identify tar deposits as a mediator and warn against controlling for it (total effect)?"
+    - "Does it explain the difference between total effect and direct effect in context?"
+    - "Does it identify genetic predisposition as a confounder?"
+  safety:
+    - "Does it warn that controlling for 'everything' is not always correct?"
+  actionable:
+    - "Is the explanation specific (smoking/cancer, not abstract)?"
+    - "Does it produce a concrete adjustment set recommendation?"

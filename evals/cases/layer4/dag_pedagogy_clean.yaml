@@ -7,8 +7,12 @@ user_message: |
   exercise frequency and blood pressure. Help me draw the DAG and figure out what
   to control for. I use R.
 rubric:
-  - "Does the skill explain WHY age is a confounder (not just label it)?"
-  - "Does it explain the backdoor path concept in accessible language?"
-  - "Does it justify the adjustment set (not just list it)?"
-  - "Is the explanation tailored to the user's specific context (exercise/BP, not generic)?"
-  - "Does it recommend a next step (method skill)?"
+  pedagogy:
+    - "Does the skill explain WHY age is a confounder (not just label it)?"
+    - "Does it explain the backdoor path concept in accessible language?"
+    - "Does it justify the adjustment set (not just list it)?"
+  safety:
+    - "Does it warn that the DAG encodes assumptions, not facts, and unobserved confounders could change the conclusion?"
+  actionable:
+    - "Is the explanation tailored to the user's specific context (exercise/BP, not generic)?"
+    - "Does it recommend a next step (method skill)?"
