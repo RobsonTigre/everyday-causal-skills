@@ -138,4 +138,58 @@ def generate_dag_mbias():
 
 generate_dag_mbias()
 
-print("All L2 datasets generated.")
+
+# --- Time series: CausalImpact with control series (L3) ---
+np.random.seed(2030)
+n_periods = 80
+treatment_time = 51
+true_effect = 5.0
+
+# Shared latent factor drives correlation between outcome and controls
+latent = np.cumsum(np.random.normal(0, 0.3, n_periods))
+
+# Control series: correlated with outcome via latent factor, NOT affected by treatment
+control1 = 50 + 0.8 * latent + np.random.normal(0, 1, n_periods)
+control2 = 30 + 0.5 * latent + np.random.normal(0, 0.8, n_periods)
+
+# Outcome: affected by same latent factor + treatment effect
+outcome = 100 + 1.2 * latent + true_effect * (np.arange(1, n_periods + 1) >= treatment_time) + np.random.normal(0, 1.5, n_periods)
+
+dates = pd.date_range('2018-01-01', periods=n_periods, freq='MS')
+df = pd.DataFrame({
+    "date": dates,
+    "outcome": np.round(outcome, 3),
+    "control1": np.round(control1, 3),
+    "control2": np.round(control2, 3),
+})
+df.to_csv("evals/data/timeseries_causalimpact_controls_l3.csv", index=False)
+print(f"CausalImpact controls L3: {n_periods} periods, treatment at {treatment_time}, true effect = {true_effect}")
+
+
+# --- Time series: CausalArima single series (L3) ---
+np.random.seed(2031)
+n_periods = 100
+treatment_time = 71
+true_effect = 4.0
+
+# Generate AR(1) process for pre-period structure
+ar_coef = 0.6
+noise = np.random.normal(0, 1, n_periods)
+outcome = np.zeros(n_periods)
+outcome[0] = 50 + noise[0]
+for t in range(1, n_periods):
+    outcome[t] = 50 + ar_coef * (outcome[t-1] - 50) + noise[t]
+
+# Add treatment effect
+outcome[treatment_time - 1:] += true_effect
+
+dates = pd.date_range('2023-01-01', periods=n_periods, freq='D')
+df = pd.DataFrame({
+    "date": dates,
+    "outcome": np.round(outcome, 3),
+})
+df.to_csv("evals/data/timeseries_causalarima_l3.csv", index=False)
+print(f"CausalArima L3: {n_periods} periods, treatment at {treatment_time}, true effect = {true_effect}")
+
+
+print("All datasets generated.")
