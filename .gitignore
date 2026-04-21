@@ -56,6 +56,9 @@ secrets.*
 # Manual test outputs
 tests/
 
+# Sandbox / scratch
+sandbox/
+
 # Generated docs (plans, exercises, analysis output)
 docs/
 identificacao-problemas-causais.md
