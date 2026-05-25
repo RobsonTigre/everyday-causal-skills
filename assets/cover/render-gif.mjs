@@ -4,19 +4,32 @@
 //
 // This is a real-time capture: the page animation runs at its natural
 // wall-clock speed and we screenshot as fast as Chrome can produce
-// frames. The achieved fps is logged at the end; we then encode the
-// PNG sequence with gifski at that same fps so the GIF plays back at
-// the exact same speed as the live HTML (typing cadence, cursor blink,
-// ASCII fade — all matched). This avoids the fragility of virtual-time
-// emulation and matches what a screen recording would capture.
+// frames. The achieved fps is logged to .render/fps.txt; the encode
+// step below uses that same fps so the GIF plays back at the exact
+// same speed as the live HTML (typing cadence, cursor blink, ASCII
+// fade — all matched).
 //
-// Run:
+// Frames are captured with omitBackground:true and clipped to the
+// terminal's bounding box (60,60 to 1140,500 inside the 1200x560
+// stage), so each PNG is 2160x880 with alpha=0 in the rounded-corner
+// cutouts. The encode step composites them onto the page's #0f0f10
+// background and runs ffmpeg's full-palette pipeline (which renders
+// cleanly without the ASCII "ghost" artifact gifski's frame-diff
+// optimization produces on this content).
+//
+// Run capture:
 //   node assets/cover/render-gif.mjs
 //
-// Output: assets/cover/.render/frames/frame_NNNNN.png (2400x1120 PNGs
-// at deviceScaleFactor=2). Captures exactly one full animation loop,
-// anchored on ASCII-reveal state transitions, then exits, and writes
-// the measured fps to .render/fps.txt for the encode step.
+// Then encode:
+//   cd assets/cover
+//   FPS=$(cat .render/fps.txt | tr -d '[:space:]')
+//   ffmpeg -y -framerate "$FPS" -i .render/frames/frame_%05d.png \
+//     -filter_complex "color=c=0x0f0f10:s=1080x440:r=$FPS,format=rgba[bg];\
+// [0:v]scale=1080:440:flags=lanczos[fg];\
+// [bg][fg]overlay=shortest=1:format=rgb,split[a][b];\
+// [a]palettegen=stats_mode=full:max_colors=256[p];\
+// [b][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle:new=0" \
+//     -loop 0 cover.gif
 
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -64,6 +77,16 @@ async function run() {
     await page.reload({ waitUntil: 'load' });
     await page.evaluate(() => document.fonts.ready);
 
+    // Strip the page background and the window's drop shadow so that
+    // screenshotting with omitBackground:true yields a PNG where the
+    // terminal's rounded-corner cutouts are alpha=0. This lets the GIF
+    // sit cleanly on any README background (light or dark) without a
+    // surrounding margin.
+    await page.addStyleTag({ content: `
+      html, body, .stage { background: transparent !important; }
+      .window { box-shadow: none !important; }
+    ` });
+
     // Anchor on "ASCII at full opacity (mid-hold)" for both the start
     // and the end of the capture window. The 700ms fade-in finishes
     // before the 4500ms hold begins, so opacity === '1' identifies the
@@ -90,8 +113,11 @@ async function run() {
       const buf = await page.screenshot({
         type: 'png',
         optimizeForSpeed: true,
-        omitBackground: false,
-        clip: { x: 0, y: 0, width: 1200, height: 560 },
+        omitBackground: true,
+        // Crop to the .window element's bounding box inside the stage
+        // (1080x440 centered in 1200x560). Rounded-corner pixels outside
+        // the window's silhouette become alpha=0 in the PNG.
+        clip: { x: 60, y: 60, width: 1080, height: 440 },
       });
       const name = `frame_${String(frameIdx).padStart(5, '0')}.png`;
       await writeFile(resolve(FRAMES_DIR, name), buf);
