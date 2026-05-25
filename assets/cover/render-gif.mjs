@@ -10,8 +10,8 @@
 // fade — all matched).
 //
 // Frames are captured with omitBackground:true and clipped to the
-// terminal's bounding box (60,60 to 1140,500 inside the 1200x560
-// stage), so each PNG is 2160x880 with alpha=0 in the rounded-corner
+// terminal's bounding box (60,60 to 1140,340 inside the 1200x400
+// stage), so each PNG is 2160x560 with alpha=0 in the rounded-corner
 // cutouts. The encode step composites them onto the page's #0f0f10
 // background and runs ffmpeg's full-palette pipeline (which renders
 // cleanly without the ASCII "ghost" artifact gifski's frame-diff
@@ -24,8 +24,8 @@
 //   cd assets/cover
 //   FPS=$(cat .render/fps.txt | tr -d '[:space:]')
 //   ffmpeg -y -framerate "$FPS" -i .render/frames/frame_%05d.png \
-//     -filter_complex "color=c=0x0f0f10:s=1080x440:r=$FPS,format=rgba[bg];\
-// [0:v]scale=1080:440:flags=lanczos[fg];\
+//     -filter_complex "color=c=0x0f0f10:s=1080x280:r=$FPS,format=rgba[bg];\
+// [0:v]scale=1080:280:flags=lanczos[fg];\
 // [bg][fg]overlay=shortest=1:format=rgb,split[a][b];\
 // [a]palettegen=stats_mode=full:max_colors=256[p];\
 // [b][p]paletteuse=dither=sierra2_4a:diff_mode=rectangle:new=0" \
@@ -56,7 +56,7 @@ async function run() {
   const browser = await puppeteer.launch({
     executablePath: CHROME_BIN,
     headless: true,
-    defaultViewport: { width: 1200, height: 560, deviceScaleFactor: 2 },
+    defaultViewport: { width: 1200, height: 400, deviceScaleFactor: 2 },
     args: [
       '--hide-scrollbars',
       '--disable-features=PaintHolding',
@@ -115,9 +115,9 @@ async function run() {
         optimizeForSpeed: true,
         omitBackground: true,
         // Crop to the .window element's bounding box inside the stage
-        // (1080x440 centered in 1200x560). Rounded-corner pixels outside
+        // (1080x280 centered in 1200x400). Rounded-corner pixels outside
         // the window's silhouette become alpha=0 in the PNG.
-        clip: { x: 60, y: 60, width: 1080, height: 440 },
+        clip: { x: 60, y: 60, width: 1080, height: 280 },
       });
       const name = `frame_${String(frameIdx).padStart(5, '0')}.png`;
       await writeFile(resolve(FRAMES_DIR, name), buf);

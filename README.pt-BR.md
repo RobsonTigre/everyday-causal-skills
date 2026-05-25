@@ -6,9 +6,13 @@
   <img src="assets/cover/cover.gif" alt="everyday-causal-skills" width="60%" />
 </p>
 
-> Use para pensar em problemas causais, planejar sua análise e implementá-la: conceitualmente ou em R e Python.
+## A conversão subiu 12% na semana do seu lançamento. Foi o lançamento?
 
-Plugin de inferência causal para agentes de IA. Descreva um problema em linguagem natural e ele ajuda você a escolher o método, verificar premissas, escrever a análise em R ou Python e validar os resultados. Para profissionais que querem um workflow estruturado e para quem está aprendendo junto com [o livro](https://www.everydaycausal.com/).
+Ou foi a sazonalidade? A campanha que o time vizinho estava rodando? O calendário de feriados? Os dois concorrentes que ficaram fora do ar naquela semana? Enquanto você não souber responder isso, você não tem evidência. Você tem uma coincidência bem-cronometrada.
+
+Este plugin te mostra como responder isso de verdade: escolher o método, verificar as suposições, estruturar a análise em R ou Python e testar a robustez do resultado antes da reunião.
+
+Um plugin de inferência causal para agentes de IA, criado como companheiro do [livro](https://www.everydaycausal.com/).
 
 **Funciona com:** Claude Code · Gemini CLI · GitHub Copilot CLI · Codex CLI · Cursor
 

@@ -6,9 +6,13 @@
   <img src="assets/cover/cover.gif" alt="everyday-causal-skills" width="100%" />
 </p>
 
-> Use it to think through causal problems, plan your analysis, and implement it: conceptually or in R and Python.
+## Conversion went up 12% the week you launched. Was it the launch?
 
-A causal inference plugin for AI agents. Describe a problem in plain language and it helps you choose a method, check assumptions, write the analysis in R or Python, and stress-test the results. Made for practitioners who want a structured workflow and learners building intuition alongside [the book](https://www.everydaycausal.com/).
+Or was it the season? The campaign your sister team was running? The holiday calendar? The two competitors that went offline that week? Until you can answer that, you don't have evidence. You have a coincidence with good timing.
+
+This plugin walks you through how to actually answer it: pick a method, check the assumptions, structure the analysis in R or Python, and stress-test the result before the readout.
+
+A causal inference plugin for AI agents, built as a companion to [the book](https://www.everydaycausal.com/).
 
 **Works with:** Claude Code · Gemini CLI · GitHub Copilot CLI · Codex CLI · Cursor
 
