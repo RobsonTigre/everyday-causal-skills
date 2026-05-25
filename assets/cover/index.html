@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>everyday-causal-skills — animated cover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-page:    #0f0f10;
+    --bg-window:  #181819;
+    --bg-chrome:  #1f1f21;
+    --border:     #2a2a2c;
+    --text:       #ececec;
+    --muted:      #8a8a8e;
+    --accent:     #d97757;  /* Anthropic warm coral */
+    --accent-dim: #b15f47;
+  }
+
+  html, body {
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background: var(--bg-page);
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, Consolas, monospace;
+    -webkit-font-smoothing: antialiased;
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  .stage {
+    width: 1200px; height: 560px;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .window {
+    width: 1080px; height: 440px;
+    background: var(--bg-window);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.02);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chrome {
+    height: 44px;
+    background: var(--bg-chrome);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .traffic {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+  }
+  .tl {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.25);
+  }
+  .tl-red    { background: #ff5f57; }
+  .tl-yellow { background: #febc2e; }
+  .tl-green  { background: #28c840; }
+
+  .content {
+    flex: 1;
+    padding: 40px 44px;
+    font-size: 20px;
+    line-height: 1.55;
+    position: relative;
+  }
+
+  .prompt-line {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .prompt-arrow {
+    color: var(--accent);
+    margin-right: 12px;
+    font-weight: 700;
+  }
+  .cmd  { color: var(--accent); font-weight: 500; }
+  .text { color: var(--text); }
+  .cursor {
+    display: inline-block;
+    width: 0.55em; height: 1.05em;
+    background: var(--accent);
+    margin-left: 2px;
+    vertical-align: text-bottom;
+    animation: blink 1s steps(2, start) infinite;
+  }
+  @keyframes blink { to { visibility: hidden; } }
+
+  .ascii {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 700ms ease-in;
+    pointer-events: none;
+  }
+  .ascii.show { opacity: 1; }
+  .content:has(.ascii.show) .prompt-line { visibility: hidden; }
+  .ascii pre {
+    margin: 0;
+    color: var(--accent);
+    font-size: 12px;
+    line-height: 1.0;
+    letter-spacing: 0;
+    text-shadow: 0 0 18px rgba(217, 119, 87, 0.25);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+  }
+  .ascii .tagline {
+    margin-top: 28px;
+    color: var(--muted);
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="window">
+      <div class="chrome">
+        <div class="traffic"><span class="tl tl-red"></span><span class="tl tl-yellow"></span><span class="tl tl-green"></span></div>
+        <span class="chrome-title">Claude Code</span>
+      </div>
+      <div class="content">
+        <div class="prompt-line"><span class="prompt-arrow">&gt;</span><span id="cmd" class="cmd"></span><span id="text" class="text"></span><span id="cursor" class="cursor"></span></div>
+        <div id="ascii" class="ascii">
+          <pre>███████╗██╗   ██╗███████╗██████╗ ██╗   ██╗██████╗  █████╗ ██╗   ██╗
+██╔════╝██║   ██║██╔════╝██╔══██╗╚██╗ ██╔╝██╔══██╗██╔══██╗╚██╗ ██╔╝
+█████╗  ██║   ██║█████╗  ██████╔╝ ╚████╔╝ ██║  ██║███████║ ╚████╔╝
+██╔══╝  ╚██╗ ██╔╝██╔══╝  ██╔══██╗  ╚██╔╝  ██║  ██║██╔══██║  ╚██╔╝
+███████╗ ╚████╔╝ ███████╗██║  ██║   ██║   ██████╔╝██║  ██║   ██║
+╚══════╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═════╝ ╚═╝  ╚═╝   ╚═╝   </pre>
+          <pre> ██████╗ █████╗ ██╗   ██╗███████╗ █████╗ ██╗      ███████╗██╗  ██╗██╗██╗     ██╗     ███████╗
+██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗██║      ██╔════╝██║ ██╔╝██║██║     ██║     ██╔════╝
+██║     ███████║██║   ██║███████╗███████║██║█████╗███████╗█████╔╝ ██║██║     ██║     ███████╗
+██║     ██╔══██║██║   ██║╚════██║██╔══██║██║╚════╝╚════██║██╔═██╗ ██║██║     ██║     ╚════██║
+╚██████╗██║  ██║╚██████╔╝███████║██║  ██║███████╗ ███████║██║  ██╗██║███████╗███████╗███████║
+ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝╚══════╝ ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚══════╝</pre>
+          <div class="tagline">plan · implement · stress-test · in R and Python</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const scenes = [
+    { cmd: '/causal-experiments', text: ' design an A/B test for the new checkout flow' },
+    { cmd: '/causal-planner',     text: " what's the right method to measure the impact of our marketing campaign?" },
+    { cmd: '/causal-hte',         text: ' which user segments responded best to the discount campaign?' },
+    { cmd: '/causal-report',      text: ' write me a one-page executive summary for the leadership readout.' },
+  ];
+
+  const TYPE_MS      = 38;   // base ms per character
+  const TYPE_JITTER  = 18;   // ±jitter
+  const PAUSE_END_MS = 1100; // pause after a scene finishes typing
+  const SCENE_GAP_MS = 350;  // pause between scenes
+  const ASCII_HOLD_MS= 4500; // hold reveal before looping
+
+  const cmdEl    = document.getElementById('cmd');
+  const textEl   = document.getElementById('text');
+  const cursorEl = document.getElementById('cursor');
+  const asciiEl  = document.getElementById('ascii');
+
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const rand  = (n) => Math.floor(Math.random() * n);
+
+  async function typeInto(el, str) {
+    for (const ch of str) {
+      el.appendChild(document.createTextNode(ch));
+      await sleep(TYPE_MS + rand(TYPE_JITTER * 2) - TYPE_JITTER);
+    }
+  }
+
+  function clearLine() {
+    cmdEl.textContent  = '';
+    textEl.textContent = '';
+  }
+
+  function showCursor(v) { cursorEl.style.visibility = v ? '' : 'hidden'; }
+
+  async function runScenes() {
+    for (const s of scenes) {
+      clearLine();
+      showCursor(true);
+      await typeInto(cmdEl,  s.cmd);
+      await typeInto(textEl, s.text);
+      await sleep(PAUSE_END_MS);
+      await sleep(SCENE_GAP_MS);
+    }
+  }
+
+  async function revealAscii() {
+    clearLine();
+    showCursor(false);
+    asciiEl.classList.add('show');
+    await sleep(ASCII_HOLD_MS);
+    asciiEl.classList.remove('show');
+    await sleep(400);
+    showCursor(true);
+  }
+
+  (async function loop() {
+    while (true) {
+      await revealAscii();
+      await runScenes();
+    }
+  })();
+</script>
+</body>
+</html>

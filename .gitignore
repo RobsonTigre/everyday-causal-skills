@@ -58,7 +58,12 @@ tests/
 
 # Sandbox / scratch
 sandbox/
+tasks/
+assets/cover/.render/
 
 # Generated docs (plans, exercises, analysis output)
 docs/
 identificacao-problemas-causais.md
+
+# Superseded by assets/cover/cover.gif
+repo-cover.png

@@ -3,7 +3,7 @@
 # everyday-causal-skills
 
 <p align="center">
-  <img src="repo-cover.png" alt="everyday-causal-skills" width="60%" />
+  <img src="assets/cover/cover.gif" alt="everyday-causal-skills" width="60%" />
 </p>
 
 > Use para pensar em problemas causais, planejar sua análise e implementá-la: conceitualmente ou em R e Python.
