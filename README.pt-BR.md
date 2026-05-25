@@ -3,20 +3,20 @@
 # everyday-causal-skills
 
 <p align="center">
-  <img src="assets/cover/cover.gif" alt="everyday-causal-skills" width="60%" />
+  <img src="assets/cover/cover.gif" alt="everyday-causal-skills" width="100%" />
 </p>
 
-## A conversão subiu 12% na semana do seu lançamento. Foi o lançamento?
+## Funcionou mesmo, ou você só teve sorte?
 
-Ou foi a sazonalidade? A campanha que o time vizinho estava rodando? O calendário de feriados? Os dois concorrentes que ficaram fora do ar naquela semana? Enquanto você não souber responder isso, você não tem evidência. Você tem uma coincidência bem-cronometrada.
+A conversão subiu 12% na semana em que você lançou o novo checkout. Foi o checkout, o tráfego de feriado, ou seu concorrente subindo preços na mesma semana? Enquanto você não souber responder essa pergunta, você não pode dizer de verdade que sua mudança "funcionou."
 
-Este plugin te mostra como responder isso de verdade: escolher o método, verificar as suposições, estruturar a análise em R ou Python e testar a robustez do resultado antes da reunião.
+Este plugin dá ao seu agente de código o workflow que eu uso: escolher o método certo para os dados que você tem, verificar as suposições antes de confiar na resposta, escrever a análise em R ou Python e testar a robustez do resultado.
 
-Um plugin de inferência causal para agentes de IA, criado como companheiro do [livro](https://www.everydaycausal.com/).
+É um plugin de inferência causal para agentes de IA, criado como companheiro do [Everyday Causal Inference](https://www.everydaycausal.com/).
 
 **Funciona com:** Claude Code · Gemini CLI · GitHub Copilot CLI · Codex CLI · Cursor
 
-**Para quem é:** Qualquer pessoa que precise medir se algo realmente funcionou, como times de Marketing e growth; Product managers e analistas de BI; Cientistas de dados; Times de revenue e operações; Pesquisadores de políticas públicas; Estudantes e autodidatas.
+**Para quem é:** qualquer pessoa que precisa tomar decisões baseadas em evidência. Marketing e growth, produto, BI, ciência de dados, revenue e ops, pesquisadores de políticas públicas e estudantes.
 
 ## O que este plugin faz por você
 
