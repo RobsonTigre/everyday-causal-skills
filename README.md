@@ -6,17 +6,17 @@
   <img src="assets/cover/cover.gif" alt="everyday-causal-skills" width="100%" />
 </p>
 
-## Conversion went up 12% the week you launched. Was it the launch?
+## Did it actually work, or did you just get lucky?
 
-Or was it the season? The campaign your sister team was running? The holiday calendar? The two competitors that went offline that week? Until you can answer that, you don't have evidence. You have a coincidence with good timing.
+Conversion jumped 12% the week you shipped the new checkout. Was it the checkout, the holiday traffic, or your competitor raising prices the same week? Until you can answer that question, you can't really say your change "worked."
 
-This plugin walks you through how to actually answer it: pick a method, check the assumptions, structure the analysis in R or Python, and stress-test the result before the readout.
+This plugin gives your coding agent the workflow I use: pick the right method for the data you have, check the assumptions before you trust the answer, write the analysis in R or Python, and stress-test the result.
 
-A causal inference plugin for AI agents, built as a companion to [the book](https://www.everydaycausal.com/).
+It's a causal inference plugin for AI agents, built as a companion to [Everyday Causal Inference](https://www.everydaycausal.com/).
 
 **Works with:** Claude Code · Gemini CLI · GitHub Copilot CLI · Codex CLI · Cursor
 
-**Who this is for:** Anyone who needs to measure whether something actually worked, such as Marketing and growth teams; Product managers and BI analysts; Data scientists; Revenue and operations teams; Policy researchers; Students and self-taught practitioners.
+**Built for:** anyone who needs to make evidence-based decisions. Marketing and growth, product, BI, data science, revenue and ops, policy researchers, and students.
 
 ## What you get from this plugin
 

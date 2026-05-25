@@ -67,3 +67,7 @@ identificacao-problemas-causais.md
 
 # Superseded by assets/cover/cover.gif
 repo-cover.png
+
+# Quarto render output of README.md
+README.html
+README_files/
