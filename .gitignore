@@ -60,6 +60,7 @@ tests/
 sandbox/
 tasks/
 assets/cover/.render/
+assets/cover/linkedin/
 
 # Generated docs (plans, exercises, analysis output)
 docs/
