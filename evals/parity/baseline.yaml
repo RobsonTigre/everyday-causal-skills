@@ -1,0 +1,3 @@
+# Known R<->Python disparities pending fix. Gate is green-on-known, red-on-new.
+# Each entry: {method, backlog_id, dimension: [..], summary}. Populated by the audit (Phase D).
+known_disparities: []

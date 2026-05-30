@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from run_parity import (parse_estimands, compare_estimands,  # noqa: E402
-                        extract_code, assert_contains)
+                        extract_code, assert_contains, classify)
 
 
 def test_parse_basic():
@@ -63,6 +63,32 @@ def test_assert_contains_absent():
 def test_assert_contains_case_insensitive():
     res = assert_contains("uses ATT_GT here", ["att_gt"])
     assert res == {"att_gt": True}, res
+
+
+def test_classify_pass():
+    cmps = [{"name": "ATT", "agree": True}]
+    assert classify(cmps, [], in_baseline=False) == "PASS"
+
+
+def test_classify_new_failure():
+    cmps = [{"name": "ATT", "agree": False}]
+    assert classify(cmps, [], in_baseline=False) == "FAIL"
+
+
+def test_classify_known_disparity():
+    cmps = [{"name": "ATT", "agree": False}]
+    assert classify(cmps, [], in_baseline=True) == "KNOWN_DISPARITY"
+
+
+def test_classify_assertion_failure_is_fail():
+    cmps = [{"name": "ATT", "agree": True}]
+    assert classify(cmps, ["python template missing 'CallawaySantAnna'"], in_baseline=False) == "FAIL"
+
+
+def test_classify_known_passes_now_is_pass():
+    # A baseline-listed method that now agrees should report PASS (stale baseline).
+    cmps = [{"name": "ATT", "agree": True}]
+    assert classify(cmps, [], in_baseline=True) == "PASS"
 
 
 def _run_all():

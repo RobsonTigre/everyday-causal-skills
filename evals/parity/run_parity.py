@@ -66,3 +66,20 @@ def assert_contains(text: str, terms: list) -> dict:
     """{term: term-appears-in-text} (case-insensitive substring)."""
     low = (text or "").lower()
     return {t: (t.lower() in low) for t in (terms or [])}
+
+
+def classify(comparisons: list, assertion_failures: list, in_baseline: bool) -> str:
+    """PASS if everything agrees; else KNOWN_DISPARITY when baselined, FAIL when new."""
+    failed = any(not c["agree"] for c in comparisons) or bool(assertion_failures)
+    if not failed:
+        return "PASS"  # passing while baselined => stale baseline entry (still PASS)
+    return "KNOWN_DISPARITY" if in_baseline else "FAIL"
+
+
+def load_baseline(path: str) -> dict:
+    """Map method -> baseline entry from baseline.yaml (empty if file/key absent)."""
+    if not path or not os.path.exists(path):
+        return {}
+    with open(path) as fh:
+        data = yaml.safe_load(fh) or {}
+    return {e["method"]: e for e in (data.get("known_disparities") or [])}
