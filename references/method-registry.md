@@ -40,7 +40,7 @@ Single source of truth for all causal inference methods supported by this plugin
 
 **R packages**: `fixest` (feols, sunab for staggered), `did` (Callaway-Sant'Anna att_gt), `etwfe` (extended TWFE)
 
-**Python packages**: `linearmodels` (PanelOLS), `differences` (att_gt), `csdid`
+**Python packages**: `diff-diff` (`CallawaySantAnna` — staggered, R-parity with `did`), `linearmodels` (PanelOLS — classic 2×2 / TWFE only). Note: `csdid` is broken for this project — do not use it.
 
 **Key diagnostics**: Pre-trends test / event study plot, parallel trends visualization, balance checks.
 
