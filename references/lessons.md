@@ -63,3 +63,31 @@ Format:
 **Mistake**: Allowing post-treatment variables (mediators, descendants, colliders downstream of treatment) in the adjustment set
 **Rule**: Any variable that is a descendant of D should not be in the adjustment set when the target is the total effect. Check `nx.descendants(G, treatment)` (Python) or `dagitty::descendants(dag, "D")` (R) before accepting controls. This includes mediators, colliders, and any other post-treatment variables.
 **Source**: Design decision (Pearl 2009, Rosenbaum 1984), 2026-04-05
+
+### DiD: Python staggered DiD must use diff-diff CallawaySantAnna
+**Layer**: L3
+**Trigger**: Generating Python code for a staggered rollout (units treated at different times)
+**Mistake**: Hand-rolling a per-cohort PanelOLS TWFE loop, which is biased when effects vary over time
+**Rule**: Use `diff_diff.CallawaySantAnna` (R-parity with `did::att_gt`) with `control_group="never_treated"` (or `"not_yet_treated"` when no never-treated units exist) and `base_period="universal"`. Classic single-date 2×2 stays on `PanelOLS` — do not reach for CallawaySantAnna there. `csdid` is broken for this project.
+**Source**: Eval failure (did_staggered_*), 2026-05-30
+
+### DiD: diff-diff signatures must come from introspection, not the docs
+**Layer**: L3
+**Trigger**: Writing or editing `diff_diff` calls
+**Mistake**: Copying signatures from the readthedocs prose, which conflicts with the installed package
+**Rule**: Introspect with `inspect.signature`. Verified facts: `fit(aggregate=...)` accepts `"simple"|"event_study"|"group"|"all"` (NOT `"event"`); results expose `.overall_att/.overall_se/.overall_conf_int`; `event_study_effects`/`group_time_effects` are dicts whose value key is `'effect'`.
+**Source**: Design decision, 2026-05-30
+
+### DiD: generate_staggered_data emits `period`, not `time`
+**Layer**: L3
+**Trigger**: Building fixtures with `diff_diff.generate_staggered_data`
+**Mistake**: Leaving the `period` column, which the template and cases expect to be `time`
+**Rule**: Rename `period` → `time`, and drop ground-truth columns (`true_effect`, `treated`, `treat`) before committing a fixture so the model cannot read the answer.
+**Source**: Design decision, 2026-05-30
+
+### DiD: first_treat encodes never-treated as 0
+**Layer**: L3
+**Trigger**: Preparing data for CallawaySantAnna or did::att_gt
+**Mistake**: Using NaN/other sentinels for never-treated units
+**Rule**: `first_treat` (Python) / `gname` (R) is the first treated period; never-treated units must be coded `0`.
+**Source**: Design decision, 2026-05-30
