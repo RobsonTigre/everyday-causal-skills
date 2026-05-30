@@ -17,3 +17,4 @@ expected:
   true_effect: 5.0
   tolerance: 1.0
   must_include: [parallel_trends, confidence_interval, clustered_standard_errors]
+  must_not_include: [CallawaySantAnna, diff_diff]
