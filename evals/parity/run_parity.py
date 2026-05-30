@@ -54,3 +54,15 @@ def compare_estimands(r_vals: dict, py_vals: dict, estimands: list) -> list:
                         "agree": agree,
                         "reason": "" if agree else f"|delta|={adiff:.6g} exceeds tolerance"})
     return results
+
+
+def extract_code(markdown: str) -> str:
+    """Concatenate the contents of fenced code blocks (python/r/R or bare)."""
+    blocks = re.findall(r"```(?:python|r|R)?\n(.*?)```", markdown or "", re.DOTALL)
+    return "\n".join(blocks)
+
+
+def assert_contains(text: str, terms: list) -> dict:
+    """{term: term-appears-in-text} (case-insensitive substring)."""
+    low = (text or "").lower()
+    return {t: (t.lower() in low) for t in (terms or [])}
