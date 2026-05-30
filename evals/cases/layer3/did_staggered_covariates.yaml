@@ -1,0 +1,24 @@
+name: did_staggered_covariates
+description: Conditional parallel trends — covariate adjustment via CallawaySantAnna recovers the ATT
+layer: 3
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_staggered_covariates.csv
+language: python
+requires: [diff_diff]
+user_message: |
+  I have staggered-rollout panel data for 250 units over 8 periods. Parallel
+  trends only holds AFTER adjusting for the unit characteristic `X` (units with
+  higher X were treated earlier and were already on steeper trends). `first_treat`
+  is each unit's first treated period (0 = never treated). Estimate the overall ATT,
+  adjusting for X. The data is loaded as df. Use Python.
+  In your code, print the main treatment effect estimate as ESTIMATE:<value>
+  (e.g., print(f'ESTIMATE:{att}')).
+expected:
+  true_effect: 4.0
+  tolerance: 0.6
+  must_include: [confidence_interval]
+  must_include_code: [CallawaySantAnna, covariates]
