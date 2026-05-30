@@ -1,0 +1,22 @@
+name: did_staggered_parity_r
+description: R did::att_gt on the same fixture as 1a — establishes R/Python parity
+layer: 3
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_staggered_smoke.csv
+language: r
+requires: [did]
+user_message: |
+  I have panel data for 200 units over 8 periods with a staggered rollout.
+  `first_treat` is each unit's first treated period (0 = never treated).
+  Estimate the overall ATT. The data is loaded as df. Use R.
+  Print the overall ATT on its own line in the exact form ESTIMATE:<value>,
+  e.g. cat(sprintf("ESTIMATE:%f\n", att)).
+expected:
+  true_effect: 5.0
+  tolerance: 0.5
+  must_include: [att_gt]
+  must_include_code: [att_gt]
