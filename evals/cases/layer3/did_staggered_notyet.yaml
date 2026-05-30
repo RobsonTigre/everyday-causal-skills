@@ -1,0 +1,23 @@
+name: did_staggered_notyet
+description: Every unit is eventually treated — must use the not-yet-treated control group
+layer: 3
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_staggered_notyet.csv
+language: python
+requires: [diff_diff]
+user_message: |
+  I have staggered-rollout panel data for 300 units over 9 periods. Every unit is
+  eventually treated — there are NO never-treated units. `first_treat` is each unit's
+  first treated period. Estimate the overall ATT on the treated.
+  The data is loaded as df. Use Python.
+  In your code, print the main treatment effect estimate as ESTIMATE:<value>
+  (e.g., print(f'ESTIMATE:{att}')).
+expected:
+  true_effect: 5.0
+  tolerance: 0.6
+  must_include: [confidence_interval]
+  must_include_code: [CallawaySantAnna, not_yet_treated]
