@@ -1,0 +1,23 @@
+name: did_staggered_smoke
+description: Staggered rollout — Python path must use diff-diff CallawaySantAnna and recover the ATT
+layer: 3
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_staggered_smoke.csv
+language: python
+requires: [diff_diff]
+user_message: |
+  I have panel data for 200 units over 8 periods. Units adopted a new policy at
+  different times (a staggered rollout). The column `first_treat` is each unit's
+  first treated period, with 0 meaning never treated. Estimate the overall ATT.
+  The data is loaded as df. Use Python.
+  In your code, print the main treatment effect estimate as ESTIMATE:<value>
+  (e.g., print(f'ESTIMATE:{att}')).
+expected:
+  true_effect: 5.0
+  tolerance: 0.5
+  must_include: [confidence_interval, event study]
+  must_include_code: [CallawaySantAnna]
