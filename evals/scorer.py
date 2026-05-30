@@ -540,11 +540,31 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     }
 
 
-def _execute_code(code: str, language: str = "python", dataset_path: str | None = None) -> dict:
+def _execute_code(code: str, language: str = "python", dataset_path: str | None = None,
+                  requires: list | None = None) -> dict:
     """Execute generated code in a subprocess and capture results."""
+    import os
     import tempfile
 
     result = {"ran": False, "error": None, "estimate": None}
+
+    # Configurable interpreters (default to current behavior).
+    py_interp = os.environ.get("EVAL_PYTHON", "python3")
+    r_interp = os.environ.get("EVAL_RSCRIPT", "Rscript")
+
+    # Preflight: required packages must import under the chosen interpreter.
+    for mod in (requires or []):
+        if language == "python":
+            chk = subprocess.run([py_interp, "-c", f"import {mod}"],
+                                 capture_output=True, text=True)
+            interp = py_interp
+        else:
+            chk = subprocess.run([r_interp, "-e", f"library({mod})"],
+                                 capture_output=True, text=True)
+            interp = r_interp
+        if chk.returncode != 0:
+            result["error"] = f"Required package '{mod}' not importable under {interp}"
+            return result
 
     # Prepend dataset loading if dataset provided
     if dataset_path:
@@ -567,7 +587,7 @@ def _execute_code(code: str, language: str = "python", dataset_path: str | None 
             break  # Only need one makedirs preamble
 
     suffix = ".py" if language == "python" else ".R"
-    cmd = ["python3"] if language == "python" else ["Rscript"]
+    cmd = [py_interp] if language == "python" else [r_interp]
 
     try:
         with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as f:
