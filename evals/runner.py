@@ -439,10 +439,12 @@ def aggregate(runs: list[dict], case: dict) -> dict:
         ran = sum(1 for r in runs if r["scores"].get("runs_without_error"))
         accurate = sum(1 for r in runs if r["scores"].get("estimation_accurate") is True)
         diag = sum(r["scores"].get("diagnostic_coverage", 0) for r in runs) / n
+        guard = sum(1 for r in runs if r["scores"].get("guard_passed", True))
         return {
             "runs_without_error": f"{ran}/{n}",
             "estimation_accuracy": f"{accurate}/{n}",
             "diagnostic_coverage": f"{diag:.0%}",
+            "guard_pass_rate": f"{guard}/{n}",
             "rate": ran / n,
         }
     elif layer == 4:
