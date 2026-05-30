@@ -62,10 +62,13 @@ def make_covariates(seed=7):
     # Conditional parallel trends: a covariate X drives a differential time trend
     # AND treatment timing -> unconditional CS is biased; covariates=["X"] recovers tau.
     rng = np.random.default_rng(seed)
-    n_units, n_periods, tau, trend_by_x = 250, 8, 4.0, 0.6
+    n_units, n_periods, tau, trend_by_x = 250, 8, 4.0, 1.2
     X = rng.normal(0, 1, n_units)
-    u = X + rng.normal(0, 0.5, n_units)
-    first_treat = np.where(u > 0.8, 3, np.where(u > -0.2, 5, 0))  # 0 = never treated
+    # Weak X->timing coupling (extra noise) keeps cohorts overlapping in X, so the
+    # propensity model has good overlap and the doubly-robust adjustment is reliable.
+    # The larger trend_by_x keeps the UNCONDITIONAL estimate clearly biased.
+    u = 0.7 * X + rng.normal(0, 1.2, n_units)
+    first_treat = np.where(u > 0.7, 3, np.where(u > -0.5, 5, 0))  # 0 = never treated
     unit_fe = rng.normal(0, 1.0, n_units)
     rows = []
     for i in range(n_units):
