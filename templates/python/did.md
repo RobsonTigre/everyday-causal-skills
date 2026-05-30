@@ -4,7 +4,7 @@
 
 ```python
 # Install (if needed)
-# pip install pandas numpy matplotlib seaborn linearmodels statsmodels
+# pip install pandas numpy matplotlib seaborn linearmodels statsmodels diff-diff
 
 # Import
 import pandas as pd
@@ -81,37 +81,47 @@ result_es = model_es.fit(cov_type="clustered", cluster_entity=True)
 print(result_es.summary)
 ```
 
-## Estimation — Staggered DiD (Cohort-Specific ATTs)
+## Estimation — Staggered DiD (Callaway & Sant'Anna via diff-diff)
 
 ```python
-# Manual cohort-specific estimation for staggered adoption designs
-# Group units by their treatment_time (cohort)
-df_stag = df.reset_index()
-cohorts = df_stag.loc[df_stag["treatment_group"] == 1, "treatment_time"].unique()
+# Python parity with R's did::att_gt(): use diff-diff's CallawaySantAnna.
+# Do NOT hand-roll a per-cohort TWFE loop — it is biased when effects vary over time.
+# Data must be a long panel: columns unit, time, outcome, first_treat (0 = never treated).
+# (If you synthesized data with diff_diff.generate_staggered_data, rename its
+#  `period` column to `time` first.)
+from diff_diff import CallawaySantAnna
 
-cohort_atts = []
-for cohort in sorted(cohorts):
-    # Subset: units in this cohort + never-treated controls
-    mask = (df_stag["treatment_time"] == cohort) | (df_stag["treatment_group"] == 0)
-    sub = df_stag[mask].copy()
-    sub["post_cohort"] = (sub["time"] >= cohort).astype(int)
-    sub["treat_post"] = sub["treatment_group"] * sub["post_cohort"]
-    sub = sub.set_index(["unit", "time"])
+df_stag = df.reset_index() if df.index.names != [None] else df
 
-    mod = PanelOLS.from_formula(
-        "outcome ~ treat_post + EntityEffects + TimeEffects", data=sub
-    )
-    res = mod.fit(cov_type="clustered", cluster_entity=True)
-    cohort_atts.append({
-        "cohort": cohort,
-        "att": res.params["treat_post"],
-        "se": res.std_errors["treat_post"],
-    })
+cs = CallawaySantAnna(
+    control_group="never_treated",   # use "not_yet_treated" if NO never-treated units exist
+    base_period="universal",          # match the R path's did configuration
+)
+res = cs.fit(
+    df_stag, outcome="outcome", unit="unit", time="time",
+    first_treat="first_treat", aggregate="all",   # overall ATT + event study + cohort
+)
 
-cohort_df = pd.DataFrame(cohort_atts)
-# Aggregate: weighted average across cohorts (weight by cohort size)
-print(cohort_df.to_string(index=False))
+att = res.overall_att
+print(f"ATT: {att:.4f}  SE: {res.overall_se:.4f}")
+print(f"95% CI: {res.overall_conf_int}")
+print(f"ESTIMATE:{att}")             # eval harness reads this exact line
+
+# Event study (dynamic effects relative to adoption); pre-period effects should be ~0
+print("Event study (relative period -> effect):")
+for e in sorted(res.event_study_effects):
+    eff = res.event_study_effects[e]
+    print(f"  e={e:>3}  effect={eff['effect']:.4f}  se={eff['se']:.4f}")
+
+# Doubly-robust covariate adjustment (conditional parallel trends): pass covariates=[...]
+# res_dr = cs.fit(df_stag, outcome="outcome", unit="unit", time="time",
+#                 first_treat="first_treat", covariates=["X1", "X2"], aggregate="simple")
+# print(f"ESTIMATE:{res_dr.overall_att}")
 ```
+
+> Note: `diff-diff` may print a harmless numpy `RuntimeWarning` (divide-by-zero/overflow
+> in a matmul) during event-study aggregation. It is non-fatal — the ATT, event study,
+> and confidence bands are still computed correctly.
 
 ## Diagnostics — Pre-Trends Test
 
