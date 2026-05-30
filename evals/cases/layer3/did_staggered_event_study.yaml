@@ -1,0 +1,24 @@
+name: did_staggered_event_study
+description: Event study via CallawaySantAnna — pre-treatment effects must be ~0
+layer: 3
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_staggered_dynamic.csv
+language: python
+requires: [diff_diff]
+user_message: |
+  I have staggered-rollout panel data for 300 units over 10 periods. `first_treat`
+  is each unit's first treated period (0 = never treated). Produce an event study
+  (dynamic effects relative to adoption) and check for pre-trends.
+  The data is loaded as df. Use Python.
+  After fitting, take the event-study effects for relative periods BEFORE treatment
+  (relative time < 0), compute the LARGEST ABSOLUTE pre-treatment effect, and print
+  it as ESTIMATE:<value> (e.g., print(f'ESTIMATE:{max_abs_pre}')). It should be near 0.
+expected:
+  true_effect: 0.0
+  tolerance: 0.5
+  must_include: [event study, pre-trends]
+  must_include_code: [CallawaySantAnna, event_study]
