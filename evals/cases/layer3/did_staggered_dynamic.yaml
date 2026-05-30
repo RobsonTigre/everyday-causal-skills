@@ -1,0 +1,23 @@
+name: did_staggered_dynamic
+description: Effects grow over time — naive TWFE is biased; CallawaySantAnna recovers the true ATT
+layer: 3
+skill: causal-did
+references:
+  - references/assumptions/did.md
+  - references/method-registry.md
+  - references/lessons.md
+dataset: evals/data/did_staggered_dynamic.csv
+language: python
+requires: [diff_diff]
+user_message: |
+  I have panel data for 300 units over 10 periods with a staggered rollout; the
+  treatment effect changes over time. `first_treat` is each unit's first treated
+  period (0 = never treated). Estimate the overall ATT on the treated.
+  The data is loaded as df. Use Python.
+  In your code, print the main treatment effect estimate as ESTIMATE:<value>
+  (e.g., print(f'ESTIMATE:{att}')).
+expected:
+  true_effect: 9.170
+  tolerance: 0.5
+  must_include: [event study]
+  must_include_code: [CallawaySantAnna]
