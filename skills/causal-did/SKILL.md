@@ -42,7 +42,7 @@ You guide users through a complete difference-in-differences analysis following 
 **Determine variant**:
 - Single treatment date, 2 groups → Classic 2x2 DiD
 - Single date, panel → TWFE with unit + time FE
-- Staggered dates → Staggered DiD (Callaway-Sant'Anna or Sun-Abraham)
+- Staggered dates → Staggered DiD: R `did::att_gt()` / Python `diff_diff.CallawaySantAnna` (Callaway-Sant'Anna). Not naive TWFE.
 - Want dynamics → Event study
 
 ## Stage 2: Assumptions
@@ -66,7 +66,7 @@ For each assumption:
 
 4. **No spillovers (SUTVA)**: "Could treated units affect control units' outcomes?"
 
-5. **Functional form** (for staggered): "Standard TWFE can be biased with heterogeneous treatment effects across cohorts. I'll use a robust estimator."
+5. **Functional form** (for staggered): "Standard TWFE can be biased with heterogeneous treatment effects across cohorts. I'll use a robust estimator — `did::att_gt()` in R or `diff_diff.CallawaySantAnna` in Python. (Classic single-date 2×2 does not need this; plain TWFE/PanelOLS is correct there.)"
 
 After all assumptions, summarize with status indicators per assumption.
 
@@ -123,6 +123,18 @@ mod = PanelOLS.from_formula('outcome ~ treated_post + EntityEffects + TimeEffect
 res = mod.fit(cov_type='clustered', cluster_entity=True)
 print(res)
 ```
+
+**For staggered DiD (Python)** — parity with R's `did::att_gt()`; do NOT hand-roll a per-cohort TWFE loop:
+```python
+from diff_diff import CallawaySantAnna
+
+cs = CallawaySantAnna(control_group="never_treated", base_period="universal")
+res = cs.fit(df, outcome="outcome", unit="unit", time="time",
+             first_treat="first_treat", aggregate="all")
+print(res.overall_att, res.overall_se, res.overall_conf_int)
+```
+Use `control_group="not_yet_treated"` when there are no never-treated units, and
+`covariates=[...]` for conditional parallel trends. `csdid` is broken for this project — do not use it.
 
 Adapt code to the user's variable names and data structure.
 
@@ -186,7 +198,7 @@ Use only **FATAL** and **SERIOUS** severity labels. Do not invent additional tie
 | "The sample is too small for formal tests" | Small samples need more caution, not less. Flag the limitation explicitly. |
 | "Parallel trends look close enough" | "Close" isn't a statistical concept. Run the formal pre-test and report the result. |
 | "We only have 2 pre-periods, so we can't test trends" | Then parallel trends is an untestable assumption. Say so clearly -- don't skip it. |
-| "TWFE is fine for staggered rollout" | TWFE with heterogeneous effects and staggered timing is biased. Use Callaway-Sant'Anna or Sun-Abraham. |
+| "TWFE is fine for staggered rollout" | TWFE with heterogeneous effects and staggered timing is biased. Use Callaway-Sant'Anna — `did::att_gt()` (R) or `diff_diff.CallawaySantAnna` (Python). |
 
 ## Stage 5: Interpretation
 
