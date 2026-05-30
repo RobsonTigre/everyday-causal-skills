@@ -489,6 +489,14 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     must_include = expected.get("must_include", [])
     included = {c: c.lower().replace("_", " ") in response.lower() for c in must_include}
 
+    # Code-scoped guard: match only inside fenced code blocks, not prose.
+    code_text = "\n".join(code_blocks).lower()
+    must_not_include = expected.get("must_not_include", [])
+    must_include_code = expected.get("must_include_code", [])
+    must_not_results = {t: (t.lower() in code_text) for t in must_not_include}   # True = violation
+    code_presence = {t: (t.lower() in code_text) for t in must_include_code}      # False = missing
+    guard_passed = (not any(must_not_results.values())) and all(code_presence.values())
+
     true_effect = expected.get("true_effect")
     is_exercise = true_effect is None and any("ESTIMATE:" in cb for cb in code_blocks)
 
@@ -501,15 +509,15 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
             exec_result = _execute_code(
                 dgp_block,
                 language=case.get("language", "python"),
+                requires=case.get("requires"),
             )
-            # DGP's ESTIMATE: output IS the ground truth — record it but don't grade accuracy
-            # (there's no student analysis code to compare against)
     elif code_blocks and (case.get("dataset") or expected.get("code_runs")):
         # Standard L3 case or dataset-free case (e.g., DAG structural code)
         exec_result = _execute_code(
             code_blocks[0],
             language=case.get("language", "python"),
             dataset_path=case.get("dataset"),
+            requires=case.get("requires"),
         )
 
     # Check estimation accuracy if ground truth provided (non-exercise cases only)
@@ -526,6 +534,9 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
         "estimation_accurate": estimate_ok,
         "diagnostic_coverage": sum(included.values()) / len(included) if included else 1.0,
         "must_include_results": included,
+        "guard_passed": guard_passed,
+        "must_not_include_results": must_not_results,
+        "must_include_code_results": code_presence,
     }
 
 
