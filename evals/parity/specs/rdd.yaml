@@ -1,0 +1,26 @@
+method: rdd
+fixture: evals/parity/fixtures/rdd_parity.csv
+reference:
+  r: evals/parity/reference/rdd.R
+  python: evals/parity/reference/rdd.py
+requires:
+  r: [rdrobust, rddensity]
+  python: [rdrobust, rddensity]
+estimands:
+  # Point estimate, bandwidth, and density-test statistic are deterministic given the
+  # kernel + bandwidth selector; R rdrobust 3.0.0 and Python rdrobust 1.3.0 agree to ~1e-5.
+  - { name: RD_EST,    tol_abs: 0.001, tol_rel: 0.001 }
+  - { name: SE_ROBUST, tol_abs: 0.001, tol_rel: 0.01 }
+  - { name: CI_LO,     tol_abs: 0.001, tol_rel: 0.01 }
+  - { name: CI_HI,     tol_abs: 0.001, tol_rel: 0.01 }
+  - { name: BW,        tol_abs: 0.001, tol_rel: 0.01 }
+  - { name: DENSITY_T, tol_abs: 0.001, tol_rel: 0.01 }
+capability_assertions:
+  template_must_use:
+    r: [rdrobust, rddensity]
+    python: [rdrobust, rddensity]
+  template_must_mention:
+    both: ["bandwidth", "manipulation", "bias-corrected"]
+  registry_currency:
+    - rdrobust
+    - rddensity
