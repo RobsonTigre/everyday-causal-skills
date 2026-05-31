@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from run_parity import (parse_estimands, compare_estimands,  # noqa: E402
                         extract_code, assert_contains, classify, changed_methods,
-                        run_recipe, run_method)
+                        run_recipe, run_method, summarize_exit_code, select_spec_paths)
 
 
 def test_parse_basic():
@@ -223,6 +223,26 @@ def test_run_method_mention_both_missing_one_fails():
         res = run_method(spec, repo_root=tmp, baseline={})
         assert res["verdict"] == "FAIL", res
         assert any("att_gt" in f and "mention" in f for f in res["assertion_failures"]), res
+
+
+def test_summarize_exit_zero_when_no_fail():
+    results = [{"method": "a", "verdict": "PASS"}, {"method": "b", "verdict": "KNOWN_DISPARITY"}]
+    assert summarize_exit_code(results) == 0
+
+
+def test_summarize_exit_nonzero_on_fail():
+    results = [{"method": "a", "verdict": "PASS"}, {"method": "b", "verdict": "FAIL"}]
+    assert summarize_exit_code(results) == 1
+
+
+def test_select_specs_by_method(tmp_path=None):
+    import tempfile as _t
+    with _t.TemporaryDirectory() as tmp:
+        os.makedirs(os.path.join(tmp, "specs"))
+        for m in ["did", "iv"]:
+            _write(os.path.join(tmp, "specs"), f"{m}.yaml", f"method: {m}\n")
+        got = sorted(os.path.basename(p) for p in select_spec_paths(os.path.join(tmp, "specs"), methods={"iv"}))
+        assert got == ["iv.yaml"], got
 
 
 def _run_all():

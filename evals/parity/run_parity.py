@@ -218,3 +218,75 @@ def run_method(spec: dict, repo_root: str = ".", baseline: dict = None) -> dict:
     return {"method": method, "verdict": verdict, "comparisons": comparisons,
             "assertion_failures": all_fail,
             "baseline_id": baseline.get(method, {}).get("backlog_id")}
+
+
+def select_spec_paths(specs_dir: str, methods: set = None) -> list:
+    if not os.path.isdir(specs_dir):
+        return []
+    paths = []
+    for fn in sorted(os.listdir(specs_dir)):
+        if not fn.endswith(".yaml"):
+            continue
+        method = fn[:-5]
+        if methods is None or method in methods:
+            paths.append(os.path.join(specs_dir, fn))
+    return paths
+
+
+def summarize_exit_code(results: list) -> int:
+    return 1 if any(r["verdict"] == "FAIL" for r in results) else 0
+
+
+def _git_changed_paths(repo_root: str) -> list:
+    out = subprocess.run(["git", "-C", repo_root, "diff", "--name-only", "HEAD"],
+                         capture_output=True, text=True)
+    staged = subprocess.run(["git", "-C", repo_root, "diff", "--name-only", "--cached"],
+                            capture_output=True, text=True)
+    return [p for p in (out.stdout + staged.stdout).splitlines() if p.strip()]
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="R<->Python parity gate")
+    ap.add_argument("--method", action="append", default=[], help="method name (repeatable)")
+    ap.add_argument("--all", action="store_true", help="run every spec")
+    ap.add_argument("--changed", action="store_true", help="only methods touched vs HEAD")
+    ap.add_argument("--repo-root", default=".")
+    args = ap.parse_args(argv)
+
+    root = args.repo_root
+    specs_dir = os.path.join(root, "evals/parity/specs")
+    baseline = load_baseline(os.path.join(root, "evals/parity/baseline.yaml"))
+
+    methods = None
+    if args.method:
+        methods = set(args.method)
+    elif args.changed:
+        methods = changed_methods(_git_changed_paths(root))
+        if not methods:
+            print("parity: no method-affecting changes detected — nothing to check.")
+            return 0
+    elif not args.all:
+        ap.error("specify --all, --changed, or --method M")
+
+    results = []
+    for sp in select_spec_paths(specs_dir, methods):
+        res = run_method(load_spec(sp), repo_root=root, baseline=baseline)
+        results.append(res)
+        flag = {"PASS": "ok", "KNOWN_DISPARITY": "known", "FAIL": "FAIL"}[res["verdict"]]
+        print(f"[{flag:>5}] {res['method']}")
+        for f in res["assertion_failures"]:
+            print(f"          - {f}")
+        for c in res["comparisons"]:
+            if not c["agree"]:
+                print(f"          - estimand {c['name']}: {c['reason']} (R={c['r']} Py={c['python']})")
+    if not results:
+        print("parity: no specs found for the selection.")
+    code = summarize_exit_code(results)
+    print(f"\nparity: {sum(r['verdict']=='PASS' for r in results)} pass, "
+          f"{sum(r['verdict']=='KNOWN_DISPARITY' for r in results)} known, "
+          f"{sum(r['verdict']=='FAIL' for r in results)} FAIL -> exit {code}")
+    return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())
