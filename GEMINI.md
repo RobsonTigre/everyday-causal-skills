@@ -46,3 +46,11 @@ The plugin works in six stages. Start from any step. Stages marked (optional) ca
 | `causal-auditor` | Stress-test a completed analysis |
 | `causal-report` | Compile analysis into a structured report (business, academic, hybrid) |
 | `causal-exercises` | Practice with simulated data |
+
+## R↔Python parity gate (mandatory)
+
+After editing any file under `skills/` or `templates/`, run `python3 evals/parity/run_parity.py --changed`
+from the repo root and resolve every `FAIL` before committing or pushing. A `FAIL` means that method's
+R and Python implementations now disagree (numerically or in capability). Never ship a skill whose two
+language paths disagree. See `evals/parity/README.md`. (`.claude/CLAUDE.md` is git-ignored, so this tracked
+instruction lives here.)
