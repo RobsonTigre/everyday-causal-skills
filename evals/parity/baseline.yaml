@@ -10,3 +10,13 @@ known_disparities:
       conditioning on a collider opens a spurious path; the Python template
       omits colliders entirely (only backdoor/front-door covered). Numerical
       estimands (front-door point estimate, both OLS stages) agree to 6+ dp.
+  - method: sc
+    backlog_id: PARITY-SC-001
+    dimension: [api_feature, numerical]
+    summary: >-
+      Python sc template ships no in-space/in-time placebo inference, while the R
+      template has a full placebo section plus a Fisher's exact p-value. Separately,
+      classic SCM donor weights are not uniquely identified across optimizers
+      (R Synth nested V-optimization vs Python scpi simplex QP), so per-donor
+      weights disagree (W_DONOR1 R=0.53 Py=0.62) even though the ATT functional
+      agrees to ~0.01. ATT (tol_abs 0.05) and pre-fit RMSPE agree within tolerance.

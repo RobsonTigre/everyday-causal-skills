@@ -1,0 +1,32 @@
+method: sc
+fixture: evals/parity/fixtures/sc_parity.csv
+reference:
+  r: evals/parity/reference/sc.R
+  python: evals/parity/reference/sc.py
+requires:
+  r: [Synth]
+  python: [scpi_pkg]
+# Single treated unit, 8 donors, 12 pre / 8 post periods, known additive
+# TRUE_ATT=6.0. Classic simplex-constrained SCM (Abadie) in both languages:
+# R Synth::synth (nested V-optimization) vs Python scpi_pkg simplex QP.
+estimands:
+  # ATT (mean post gap) is the primary estimand and agrees tightly across the
+  # two optimizers despite different weight paths.
+  - { name: ATT, kind: point, tol_abs: 0.05, tol_rel: 0.02 }
+  # Pre-treatment fit quality. Both achieve near-perfect fit; loose because the
+  # two optimizers reach slightly different SSR minima.
+  - { name: RMSPE_PRE, kind: point, tol_abs: 0.05 }
+  # Weight on the dominant donor. NOTE: classic SCM weights are not uniquely
+  # identified across optimizers when pre-fit is near-perfect; this estimand is
+  # expected to DISAGREE and is recorded in baseline.yaml (SC-001).
+  - { name: W_DONOR1, kind: point, tol_abs: 0.02 }
+stochastic: false
+capability_assertions:
+  template_must_use:
+    r: [synthetic_control]      # tidysynth pipeline entrypoint
+    python: [scest]             # scpi_pkg point estimator
+  template_must_mention:
+    both: ["RMSPE", "placebo"]  # core SC diagnostics in both language templates
+  registry_currency:
+    - tidysynth
+    - scpi
