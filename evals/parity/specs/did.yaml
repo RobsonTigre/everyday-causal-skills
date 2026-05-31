@@ -1,0 +1,17 @@
+method: did
+fixture: evals/data/did_staggered_smoke.csv
+reference:
+  r: evals/parity/reference/did.R
+  python: evals/parity/reference/did.py
+requires:
+  r: [did]
+  python: [diff_diff]
+estimands:
+  - { name: ATT, tol_abs: 0.05, tol_rel: 0.01 }
+capability_assertions:
+  template_must_use:
+    r: [att_gt]
+    python: [CallawaySantAnna]
+  registry_currency:
+    - diff-diff
+    - did
