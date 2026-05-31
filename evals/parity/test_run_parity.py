@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from run_parity import (parse_estimands, compare_estimands,  # noqa: E402
                         extract_code, assert_contains, classify, changed_methods,
-                        run_recipe)
+                        run_recipe, run_method)
 
 
 def test_parse_basic():
@@ -148,6 +148,81 @@ def test_run_recipe_python_error_captured():
         out = run_recipe(rec, csv, "python")
         assert out["ran"] is False
         assert "boom" in (out["error"] or "")
+
+
+def _mini_repo(tmp, py_att, r_att, py_uses="CallawaySantAnna", r_uses="att_gt"):
+    """Build a minimal repo tree with templates, recipes, fixture, and a spec dict."""
+    os.makedirs(os.path.join(tmp, "templates/python"))
+    os.makedirs(os.path.join(tmp, "templates/r"))
+    os.makedirs(os.path.join(tmp, "evals/parity/reference"))
+    os.makedirs(os.path.join(tmp, "references"))
+    _write(tmp, "templates/python/m.md", f"```python\n{py_uses}()\n```")
+    _write(tmp, "templates/r/m.md", f"```r\n{r_uses}()\n```")
+    _write(tmp, "references/method-registry.md", "pkgs: foo-py, foo-r")
+    _write(tmp, "evals/parity/fixture.csv", "x\n1\n")
+    _write(tmp, "evals/parity/reference/m.py", f"print('ATT:{py_att}')")
+    _write(tmp, "evals/parity/reference/m.R", f'cat(sprintf("ATT:%f\\n", {r_att}))')
+    spec = {
+        "method": "m", "fixture": "evals/parity/fixture.csv",
+        "reference": {"python": "evals/parity/reference/m.py",
+                      "r": "evals/parity/reference/m.R"},
+        "estimands": [{"name": "ATT", "tol_abs": 0.5}],
+        "capability_assertions": {
+            "template_must_use": {"python": ["CallawaySantAnna"], "r": ["att_gt"]},
+            "registry_currency": ["foo-py", "foo-r"],
+        },
+        "template_paths": {"python": "templates/python/m.md", "r": "templates/r/m.md"},
+    }
+    return spec
+
+
+def test_run_method_agree_pass():
+    with _tf.TemporaryDirectory() as tmp:
+        spec = _mini_repo(tmp, py_att=5.0, r_att=5.05)
+        res = run_method(spec, repo_root=tmp, baseline={})
+        assert res["verdict"] == "PASS", res
+
+
+def test_run_method_numeric_disagree_fail():
+    with _tf.TemporaryDirectory() as tmp:
+        spec = _mini_repo(tmp, py_att=5.0, r_att=9.0)
+        res = run_method(spec, repo_root=tmp, baseline={})
+        assert res["verdict"] == "FAIL", res
+
+
+def test_run_method_disagree_known():
+    with _tf.TemporaryDirectory() as tmp:
+        spec = _mini_repo(tmp, py_att=5.0, r_att=9.0)
+        res = run_method(spec, repo_root=tmp, baseline={"m": {"backlog_id": "X-1"}})
+        assert res["verdict"] == "KNOWN_DISPARITY", res
+
+
+def test_run_method_capability_gap_fail():
+    with _tf.TemporaryDirectory() as tmp:
+        spec = _mini_repo(tmp, py_att=5.0, r_att=5.0, py_uses="PanelOLS")  # missing canonical fn
+        res = run_method(spec, repo_root=tmp, baseline={})
+        assert res["verdict"] == "FAIL", res
+        assert any("CallawaySantAnna" in f for f in res["assertion_failures"]), res
+
+
+def test_run_method_mention_both_present_passes():
+    with _tf.TemporaryDirectory() as tmp:
+        spec = _mini_repo(tmp, py_att=5.0, r_att=5.0)
+        # "()" appears in both the python and r templates -> mention satisfied in each
+        spec["capability_assertions"]["template_must_mention"] = {"both": ["()"]}
+        res = run_method(spec, repo_root=tmp, baseline={})
+        assert res["verdict"] == "PASS", res
+
+
+def test_run_method_mention_both_missing_one_fails():
+    with _tf.TemporaryDirectory() as tmp:
+        spec = _mini_repo(tmp, py_att=5.0, r_att=5.0)
+        # "att_gt" is only in the R template, not the python template;
+        # require it in BOTH -> must FAIL (each template must mention it).
+        spec["capability_assertions"]["template_must_mention"] = {"both": ["att_gt"]}
+        res = run_method(spec, repo_root=tmp, baseline={})
+        assert res["verdict"] == "FAIL", res
+        assert any("att_gt" in f and "mention" in f for f in res["assertion_failures"]), res
 
 
 def _run_all():

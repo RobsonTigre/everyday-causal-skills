@@ -154,3 +154,67 @@ def run_recipe(recipe_path: str, fixture_path: str, language: str,
     finally:
         if tmp and os.path.exists(tmp):
             os.unlink(tmp)
+
+
+def load_spec(path: str) -> dict:
+    with open(path) as fh:
+        return yaml.safe_load(fh)
+
+
+def _read(repo_root: str, rel: str) -> str:
+    p = os.path.join(repo_root, rel)
+    if not os.path.exists(p):
+        return ""
+    with open(p) as fh:
+        return fh.read()
+
+
+def _default_template_paths(method: str) -> dict:
+    return {"python": f"templates/python/{method}.md", "r": f"templates/r/{method}.md"}
+
+
+def run_method(spec: dict, repo_root: str = ".", baseline: dict = None) -> dict:
+    """Run one method's parity check; return verdict + details."""
+    baseline = baseline or {}
+    method = spec["method"]
+    fixture = os.path.join(repo_root, spec["fixture"])
+    ref, req = spec["reference"], spec.get("requires", {}) or {}
+
+    r_res = run_recipe(os.path.join(repo_root, ref["r"]), fixture, "r", req.get("r"))
+    py_res = run_recipe(os.path.join(repo_root, ref["python"]), fixture, "python", req.get("python"))
+
+    exec_failures = []
+    if not r_res["ran"]:
+        exec_failures.append(f"R recipe failed: {r_res['error']}")
+    if not py_res["ran"]:
+        exec_failures.append(f"Python recipe failed: {py_res['error']}")
+
+    comparisons = compare_estimands(parse_estimands(r_res["stdout"]),
+                                    parse_estimands(py_res["stdout"]),
+                                    spec.get("estimands", []))
+
+    caps = spec.get("capability_assertions", {}) or {}
+    tpl_paths = spec.get("template_paths") or _default_template_paths(method)
+    assertion_failures = []
+    for lang, terms in (caps.get("template_must_use") or {}).items():
+        for term, ok in assert_contains(extract_code(_read(repo_root, tpl_paths[lang])), terms).items():
+            if not ok:
+                assertion_failures.append(f"{lang} template missing canonical '{term}'")
+    for lang, terms in (caps.get("template_must_mention") or {}).items():
+        paths = ([tpl_paths["python"], tpl_paths["r"]] if lang == "both" else [tpl_paths[lang]])
+        texts = [_read(repo_root, p) for p in paths]
+        for term in terms:
+            if not all(assert_contains(t, [term])[term] for t in texts):
+                assertion_failures.append(f"{lang} template missing mention '{term}'")
+    reg_pkgs = caps.get("registry_currency") or []
+    if reg_pkgs:
+        reg = _read(repo_root, "references/method-registry.md")
+        for pkg, ok in assert_contains(reg, reg_pkgs).items():
+            if not ok:
+                assertion_failures.append(f"method-registry missing current package '{pkg}'")
+
+    all_fail = assertion_failures + exec_failures
+    verdict = classify(comparisons, all_fail, in_baseline=(method in baseline))
+    return {"method": method, "verdict": verdict, "comparisons": comparisons,
+            "assertion_failures": all_fail,
+            "baseline_id": baseline.get(method, {}).get("backlog_id")}
