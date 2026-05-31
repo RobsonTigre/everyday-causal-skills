@@ -111,3 +111,46 @@ def changed_methods(paths: list) -> set:
         if m and m.group(1) in METHODS:
             found.add(m.group(1))
     return found
+
+
+def run_recipe(recipe_path: str, fixture_path: str, language: str,
+               requires: list = None, timeout: int = 180) -> dict:
+    """Run a reference recipe with `df` preloaded from the fixture; capture stdout."""
+    py = os.environ.get("EVAL_PYTHON", "python3")
+    rsc = os.environ.get("EVAL_RSCRIPT", "Rscript")
+    interp = py if language == "python" else rsc
+
+    for mod in (requires or []):
+        if language == "python":
+            chk = subprocess.run([py, "-c", f"import {mod}"], capture_output=True, text=True)
+        else:
+            chk = subprocess.run([rsc, "-e", f"library({mod})"], capture_output=True, text=True)
+        if chk.returncode != 0:
+            return {"ran": False, "error": f"package '{mod}' not importable under {interp}",
+                    "stdout": ""}
+
+    with open(recipe_path) as f:
+        code = f.read()
+    if language == "python":
+        preamble = ("import matplotlib\nmatplotlib.use('Agg')\nimport pandas as pd\n"
+                    f"df = pd.read_csv({fixture_path!r})\n")
+        suffix = ".py"
+    else:
+        _r_path = fixture_path.replace("\\", "\\\\").replace("'", "\\'")
+        preamble = f"options(warn=1)\ndf <- read.csv('{_r_path}')\n"
+        suffix = ".R"
+
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False) as tf:
+            tf.write(preamble + code)
+            tmp = tf.name
+        proc = subprocess.run([interp, tmp], capture_output=True, text=True, timeout=timeout)
+        return {"ran": proc.returncode == 0,
+                "error": None if proc.returncode == 0 else (proc.stderr or "")[-2000:],
+                "stdout": proc.stdout or ""}
+    except subprocess.TimeoutExpired:
+        return {"ran": False, "error": f"timeout after {timeout}s", "stdout": ""}
+    finally:
+        if tmp and os.path.exists(tmp):
+            os.unlink(tmp)

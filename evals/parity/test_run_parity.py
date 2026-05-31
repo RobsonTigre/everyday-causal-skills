@@ -6,7 +6,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from run_parity import (parse_estimands, compare_estimands,  # noqa: E402
-                        extract_code, assert_contains, classify, changed_methods)
+                        extract_code, assert_contains, classify, changed_methods,
+                        run_recipe)
 
 
 def test_parse_basic():
@@ -110,6 +111,43 @@ def test_changed_parity_files():
 
 def test_changed_ignores_unrelated():
     assert changed_methods(["README.md", "evals/scorer.py"]) == set()
+
+
+import tempfile as _tf  # noqa: E402
+
+
+def _write(tmp, name, content):
+    p = os.path.join(tmp, name)
+    with open(p, "w") as f:
+        f.write(content)
+    return p
+
+
+def test_run_recipe_python_reads_df_and_prints():
+    with _tf.TemporaryDirectory() as tmp:
+        csv = _write(tmp, "f.csv", "a,b\n1,2\n3,4\n")
+        rec = _write(tmp, "r.py", "print(f'SUM:{df[\"a\"].sum()}')\n")
+        out = run_recipe(rec, csv, "python")
+        assert out["ran"] is True, out
+        assert parse_estimands(out["stdout"]) == {"SUM": 4.0}, out
+
+
+def test_run_recipe_missing_requires():
+    with _tf.TemporaryDirectory() as tmp:
+        csv = _write(tmp, "f.csv", "a\n1\n")
+        rec = _write(tmp, "r.py", "print('X:1')\n")
+        out = run_recipe(rec, csv, "python", requires=["no_such_pkg_zzz"])
+        assert out["ran"] is False
+        assert "not importable" in out["error"]
+
+
+def test_run_recipe_python_error_captured():
+    with _tf.TemporaryDirectory() as tmp:
+        csv = _write(tmp, "f.csv", "a\n1\n")
+        rec = _write(tmp, "r.py", "raise ValueError('boom')\n")
+        out = run_recipe(rec, csv, "python")
+        assert out["ran"] is False
+        assert "boom" in (out["error"] or "")
 
 
 def _run_all():
