@@ -1,0 +1,31 @@
+method: report-figures
+fixture: evals/parity/fixtures/report_figures_parity.csv
+reference:
+  r: evals/parity/reference/report-figures.R
+  python: evals/parity/reference/report-figures.py
+requires:
+  r: []
+  python: [numpy]
+# NUMERICAL PROBE NOTE: report-figures is a COMPILATION method -- the templates
+# ship plotting code, not estimators. The probe therefore compares the figure-
+# DATA quantities both templates derive before drawing, computed with the SAME
+# operations each template uses (per-group means, lm()/np.polyfit deg-1 slope,
+# mean(CATE)). These agree exactly across languages. The RDD-scatter smoother
+# is intentionally NOT probed: the R template draws geom_smooth(loess) while the
+# Python template draws a degree-2 np.polyfit -- different curves by construction,
+# recorded as a known numerical/api_feature disparity rather than gated here.
+estimands:
+  - { name: PT_TREATED_T0, kind: point, tol_abs: 0.001, tol_rel: 0.0001 }  # treated mean at treatment time
+  - { name: PT_CONTROL_T0, kind: point, tol_abs: 0.001, tol_rel: 0.0001 }  # control mean at treatment time
+  - { name: FS_SLOPE,      kind: point, tol_abs: 0.001, tol_rel: 0.0001 }  # first-stage OLS slope
+  - { name: CATE_ATE,      kind: point, tol_abs: 0.001, tol_rel: 0.0001 }  # ATE = mean(CATE) annotation
+stochastic: false
+capability_assertions:
+  template_must_use:
+    r: [ggplot, ggsave]          # canonical R plotting backbone present in the template
+    python: [matplotlib, savefig]  # canonical Python plotting backbone present in the template
+  template_must_mention:
+    both: [Parallel Trends, Event Study, First Stage, Love Plot, CATE]  # figure menu both must ship
+  registry_currency:
+    - ggplot2
+    - matplotlib
