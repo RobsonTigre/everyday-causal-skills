@@ -1,3 +1,12 @@
 # Known R<->Python disparities pending fix. Gate is green-on-known, red-on-new.
 # Each entry: {method, backlog_id, dimension: [..], summary}. Populated by the audit (Phase D).
-known_disparities: []
+known_disparities:
+  - method: dag
+    backlog_id: PARITY-DAG-001
+    dimension: [coverage, api_feature]
+    summary: >-
+      Python DAG template has no collider-detection section. The R template
+      ships an explicit collider step (ggdag_collider) explaining that
+      conditioning on a collider opens a spurious path; the Python template
+      omits colliders entirely (only backdoor/front-door covered). Numerical
+      estimands (front-door point estimate, both OLS stages) agree to 6+ dp.
