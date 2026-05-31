@@ -83,3 +83,31 @@ def load_baseline(path: str) -> dict:
     with open(path) as fh:
         data = yaml.safe_load(fh) or {}
     return {e["method"]: e for e in (data.get("known_disparities") or [])}
+
+
+METHODS = ["did", "iv", "rdd", "matching", "sc", "timeseries", "hte",
+           "experiments", "dag", "report-figures", "exercises"]
+
+SKILL_TO_METHOD = {
+    "causal-did": "did", "causal-iv": "iv", "causal-rdd": "rdd",
+    "causal-matching": "matching", "causal-sc": "sc", "causal-timeseries": "timeseries",
+    "causal-hte": "hte", "causal-experiments": "experiments", "causal-dag": "dag",
+    "causal-report": "report-figures", "causal-exercises": "exercises",
+}
+
+
+def changed_methods(paths: list) -> set:
+    """Map changed git paths to affected method names."""
+    found = set()
+    for raw in paths or []:
+        p = raw.strip()
+        m = re.search(r'templates/(?:r|python)/([a-z-]+)\.md', p)
+        if m and m.group(1) in METHODS:
+            found.add(m.group(1))
+        m = re.search(r'skills/(causal-[a-z]+)/', p)
+        if m and m.group(1) in SKILL_TO_METHOD:
+            found.add(SKILL_TO_METHOD[m.group(1)])
+        m = re.search(r'evals/parity/(?:reference|specs)/([a-z-]+)', p)
+        if m and m.group(1) in METHODS:
+            found.add(m.group(1))
+    return found

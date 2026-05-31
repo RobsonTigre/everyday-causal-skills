@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from run_parity import (parse_estimands, compare_estimands,  # noqa: E402
-                        extract_code, assert_contains, classify)
+                        extract_code, assert_contains, classify, changed_methods)
 
 
 def test_parse_basic():
@@ -89,6 +89,27 @@ def test_classify_known_passes_now_is_pass():
     # A baseline-listed method that now agrees should report PASS (stale baseline).
     cmps = [{"name": "ATT", "agree": True}]
     assert classify(cmps, [], in_baseline=True) == "PASS"
+
+
+def test_changed_template():
+    assert changed_methods(["templates/python/iv.md"]) == {"iv"}
+
+
+def test_changed_skill_dir():
+    assert changed_methods(["skills/causal-rdd/SKILL.md"]) == {"rdd"}
+
+
+def test_changed_report_hyphen():
+    assert changed_methods(["templates/r/report-figures.md"]) == {"report-figures"}
+
+
+def test_changed_parity_files():
+    got = changed_methods(["evals/parity/reference/sc.py", "evals/parity/specs/hte.yaml"])
+    assert got == {"sc", "hte"}, got
+
+
+def test_changed_ignores_unrelated():
+    assert changed_methods(["README.md", "evals/scorer.py"]) == set()
 
 
 def _run_all():
