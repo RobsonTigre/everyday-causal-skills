@@ -1,0 +1,27 @@
+method: timeseries
+fixture: evals/parity/fixtures/timeseries_parity.csv
+reference:
+  r: evals/parity/reference/timeseries.R
+  python: evals/parity/reference/timeseries.py
+requires:
+  r: [sandwich]
+  python: [statsmodels]
+# NUMERICAL PROBE NOTE: the recipes run the *shared runnable* estimator --
+# classical segmented-regression ITS with Newey-West (HAC) SEs. The templates'
+# recommended BSTS estimators (R CausalImpact / Python causalimpact) are NOT
+# cross-comparable: the Python BSTS port does not import under python3
+# (causalimpact 0.2.6 -> pymc/arviz/scipy.signal.gaussian ImportError), so the
+# BSTS coverage/robustness gap is recorded as a known disparity, not probed here.
+estimands:
+  - { name: LEVEL,    kind: point, tol_abs: 0.01, tol_rel: 0.001 }   # immediate level shift
+  - { name: TREND,    kind: point, tol_abs: 0.01, tol_rel: 0.001 }   # post-intervention slope change
+  - { name: SE_LEVEL, kind: se,    tol_rel: 0.02, note: "HAC/Newey-West, lag=4, no prewhitening, both langs" }
+stochastic: false
+capability_assertions:
+  template_must_use:
+    r: [CausalImpact]
+    python: [CausalImpact]
+  template_must_mention:
+    both: [MAPE, counterfactual]
+  registry_currency:
+    - CausalImpact
