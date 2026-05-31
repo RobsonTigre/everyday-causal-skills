@@ -1,0 +1,33 @@
+method: iv
+fixture: evals/parity/fixtures/iv_parity.csv
+reference:
+  r: evals/parity/reference/iv.R
+  python: evals/parity/reference/iv.py
+requires:
+  r: [fixest]
+  python: [linearmodels]
+stochastic: false
+estimands:
+  # 2SLS point estimate on the endogenous regressor: identical math in both
+  # languages, so a tight tolerance is appropriate.
+  - { name: ATE, tol_abs: 0.001, tol_rel: 0.001 }
+  # Classic homoskedastic first-stage partial F. Python computes it via
+  # statsmodels f_test (NOT linearmodels' first_stage.diagnostics, which uses a
+  # different df adjustment ~0.8% off -- recorded as iv-fstat-df disparity), so
+  # it matches fixest's Wald F exactly.
+  - { name: FIRST_STAGE_F, tol_abs: 0.01, tol_rel: 0.001 }
+  # Reduced-form coefficient of the instrument on the outcome.
+  - { name: REDUCED_FORM, tol_abs: 0.001, tol_rel: 0.001 }
+capability_assertions:
+  template_must_use:
+    r: [feols, fixest]
+    python: [IV2SLS]
+  template_must_mention:
+    both: [first stage, weak instrument]
+  registry_currency:
+    - fixest
+    - linearmodels
+# NOTE: known disparities (effective F / Anderson-Rubin / tF; linearmodels
+# first-stage F df gap; R-side CI reporting) are tracked in baseline.yaml, not
+# here. Recommendations citing Montiel Olea & Pflueger (2013) / Andrews, Stock &
+# Sun (2019) / ivmodels(.py) / ivmodel(R) DEPEND ON UNAPPROVED SOURCES.
