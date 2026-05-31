@@ -1,0 +1,24 @@
+method: experiments
+fixture: evals/parity/fixtures/experiments_parity.csv
+reference:
+  r: evals/parity/reference/experiments.R
+  python: evals/parity/reference/experiments.py
+requires:
+  r: [estimatr]
+  python: [statsmodels]
+stochastic: false
+estimands:
+  # Unadjusted difference-in-means ATE, HC2 SE (lm_robust vs OLS HC2).
+  - { name: ATE, kind: point, tol_abs: 0.001, tol_rel: 0.001 }
+  - { name: SE, kind: se, tol_abs: 0.001, tol_rel: 0.005, note: "HC2 only" }
+  # Lin (2013) covariate-adjusted ATE, HC2 SE (lm_lin vs centered-interacted OLS HC2).
+  - { name: ATE_ADJ, kind: point, tol_abs: 0.001, tol_rel: 0.001 }
+  - { name: SE_ADJ, kind: se, tol_abs: 0.001, tol_rel: 0.005, note: "HC2 only" }
+capability_assertions:
+  template_must_use:
+    python: [HC2]
+  template_must_mention:
+    both: [Lin]
+  registry_currency:
+    - pwr
+    - statsmodels
