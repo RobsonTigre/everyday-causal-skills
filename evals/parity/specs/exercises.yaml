@@ -1,0 +1,48 @@
+method: exercises
+# The "fixture" for exercises is the DGP SPECIFICATION (one row of parameters),
+# not a dataset: the exercises skill GENERATES data from a known DGP rather than
+# estimating from a fixed one. Both recipes read these params as `df`, draw their
+# own data with the language-native RNG, and report the declared truth + the
+# recovered effect. Mirrors DGP-03 (Classic 2x2 DiD, true ATT = 5.0).
+fixture: evals/parity/fixtures/exercises_parity.csv
+reference:
+  r: evals/parity/reference/exercises.R
+  python: evals/parity/reference/exercises.py
+requires:
+  r: []          # base R `stats` only (rnorm) — no add-on packages
+  python: []     # numpy + pandas (always available) — no add-on packages
+stochastic: true # cross-language RNGs differ from the same seed, so RECOVERED_ATT
+                 # is only equal up to Monte-Carlo sampling error (see baseline.yaml
+                 # PARITY-EXERCISES-001). TRUE_ATT is deterministic and exact.
+estimands:
+  # Declared ground truth the student must recover. Deterministic in both
+  # languages (read straight from the DGP spec), so it must match exactly.
+  - { name: TRUE_ATT, tol_abs: 0.0000001, tol_rel: 0.0 }
+  # Effect recovered by the canonical 2x2 DiD means-of-means on the GENERATED
+  # data. R Mersenne-Twister vs NumPy PCG64 draw different noise from the same
+  # seed, so this agrees only within MC error (observed R=5.072, Py=4.853,
+  # |delta|~0.22). Tolerance is set to the spread of recovered estimates around
+  # the true 5.0, NOT to byte-level RNG parity (which is unattainable).
+  - { name: RECOVERED_ATT, tol_abs: 0.40, tol_rel: 0.10 }
+# Exercises has no templates/{r,python}/exercises.md — its dual-code DGP
+# generators live in references/dgp-library.md. Override the default template
+# paths (top-level key, read by run_parity.run_method) so the static capability
+# checks inspect the right file.
+template_paths:
+  python: references/dgp-library.md
+  r: references/dgp-library.md
+capability_assertions:
+  template_must_use:
+    r: [set.seed]          # every R DGP block must fix a seed for reproducibility
+    python: [np.random.seed] # every Python DGP block must fix a seed
+  template_must_mention:
+    both: [True ATT]        # DGPs must declare a known true effect (ADEMP estimand)
+  # NOTE: no registry_currency assertion — references/method-registry.md has NO
+  # exercises/DGP section at all (it stops at the per-method estimator entries),
+  # so there is no current "package" string to assert. That missing registry
+  # entry is itself recorded as a coverage disparity in the audit finding.
+# NOTE: the structural fact that R and Python cannot produce byte-identical data
+# from the same seed (different PRNG algorithms) is recorded as a known disparity
+# in baseline.yaml (PARITY-EXERCISES-001), not failed here. Best-practice DGP
+# design (ADEMP: Morris, White & Crowther 2019) and the matched-DGP-spec vs
+# matched-RNG question DEPEND ON UNAPPROVED SOURCES — see proposed_sources.

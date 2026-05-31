@@ -20,3 +20,17 @@ known_disparities:
       (R Synth nested V-optimization vs Python scpi simplex QP), so per-donor
       weights disagree (W_DONOR1 R=0.53 Py=0.62) even though the ATT functional
       agrees to ~0.01. ATT (tol_abs 0.05) and pre-fit RMSPE agree within tolerance.
+  - method: exercises
+    backlog_id: PARITY-EXERCISES-001
+    dimension: [robustness, api_feature]
+    summary: >-
+      The R and Python DGP generators in references/dgp-library.md cannot produce
+      byte-identical datasets from the same seed: R uses Mersenne-Twister while
+      NumPy uses PCG64, so rnorm/np.random.normal draw different noise streams.
+      The declared ground truth (TRUE_ATT) is deterministic and matches exactly,
+      and the recovered effect from the appropriate estimator agrees within
+      Monte-Carlo error (RECOVERED_ATT R=5.072, Py=4.853 for DGP-03, true=5.0).
+      But there is no mechanism guaranteeing a student gets the same SAMPLE in
+      both languages, and the DGPs ship no per-DGP recovery/Monte-Carlo-SE check
+      asserting the generated data actually recovers the stated truth. Matched
+      DGP-spec parity holds; matched-RNG (identical-sample) parity does not.

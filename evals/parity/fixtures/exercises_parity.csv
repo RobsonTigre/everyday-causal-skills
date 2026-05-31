@@ -1,0 +1,2 @@
+dgp_id,seed,n_stores,n_months,treat_month,true_att,base,store_fe_sd,time_trend,noise_sd
+DGP-03,303,100,24,13,5.0,50.0,3.0,0.2,2.0
