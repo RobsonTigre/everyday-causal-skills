@@ -1,0 +1,29 @@
+method: hte
+fixture: evals/parity/fixtures/hte_parity.csv
+reference:
+  r: evals/parity/reference/hte.R
+  python: evals/parity/reference/hte.py
+requires:
+  r: [grf]
+  python: [econml, statsmodels]
+stochastic: true   # causal forest / DML — RNGs differ across languages; compare
+                   # only RNG-stable summary estimands with widened tolerances.
+estimands:
+  # Overall ATE (grf AIPW average_treatment_effect vs econml CausalForestDML.ate).
+  # True ATE ~= 3.99; observed R=4.047, Py=4.074 (|delta| ~ 0.027).
+  - { name: ATE, tol_abs: 0.20, tol_rel: 0.05 }
+  # Best-linear-projection slope of the CATE on centered age (the dominant
+  # modifier): grf best_linear_projection vs econml LinearDML.coef_. Apples-to-
+  # apples orthogonal-moment linear projection. True slope 0.20; R=0.1999,
+  # Py=0.2034 (|delta| ~ 0.0035).
+  - { name: BLP_AGE, tol_abs: 0.03, tol_rel: 0.10 }
+capability_assertions:
+  template_must_use:
+    r: [causal_forest, best_linear_projection]
+    python: [CausalForestDML, LinearDML]
+  template_must_mention:
+    both: [GATES, CLAN, policy]
+  registry_currency:
+    - grf
+    - policytree
+    - econml
