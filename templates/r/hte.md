@@ -167,10 +167,27 @@ print(clan)
 ```r
 # If I treat only the top k% by predicted CATE, how much do I gain?
 # This measures the practical value of targeting.
-rate <- rank_average_treatment_effect(cf)
+#
+# CRITICAL: the priorities used to rank units must be built on data the
+# EVALUATION forest never saw. grf's docs warn that priorities "should be
+# constructed independently from the evaluation forest training data." The
+# all-in-one shortcut rank_average_treatment_effect(cf) grades a forest with
+# its own predictions — its symmetric 95% CI is anti-conservative (grf's
+# rate_cv vignette shows that shortcut rejecting a true null ~30% of the time
+# at a nominal 5% level). priorities is also a REQUIRED argument in current grf.
+#
+# Fix: rank on one half of the data, evaluate on the other.
+set.seed(42)
+idx_tr   <- sample(nrow(X), nrow(X) / 2)
+cf_rank  <- causal_forest(X[idx_tr, ], Y[idx_tr], W[idx_tr],
+                          num.trees = 2000, honesty = TRUE, seed = 42)
+priority <- predict(cf_rank, X[-idx_tr, ])$predictions
+cf_eval  <- causal_forest(X[-idx_tr, ], Y[-idx_tr], W[-idx_tr],
+                          num.trees = 2000, honesty = TRUE, seed = 42)
+rate <- rank_average_treatment_effect(cf_eval, priority)  # priorities REQUIRED
 print(rate)
 plot(rate, main = "TOC: Targeting Operator Characteristic")
-# AUTOC > 0 with confidence means targeting adds value over treating everyone.
+# AUTOC > 0 with a CI clear of 0 = ranking by CATE beats treating everyone.
 ```
 
 ### Step 3f: Stability check

@@ -178,7 +178,51 @@ clan = pd.DataFrame({
 print(clan)
 ```
 
-### Step 3d: Stability check
+### Step 3d: TOC / RATE (targeting value)
+```python
+# econml has no direct RATE/AUTOC — there is no equivalent to grf's
+# rank_average_treatment_effect(). Measure targeting value with a held-out gains
+# curve under the SAME independence rule grf requires: rank units with a model
+# the evaluation data never trained on, then read realized uplift on that holdout.
+# (Ranking and scoring with one force-fit forest would grade it with its own
+# predictions — the same self-grading bug that inflates grf's all-in-one CI.)
+from sklearn.model_selection import train_test_split
+
+rank_idx, eval_idx = train_test_split(np.arange(len(Y)), test_size=0.5,
+                                      random_state=42)
+
+# Rank: fit on the ranking half only, then score the evaluation half.
+est_rank = CausalForestDML(
+    model_y=GradientBoostingRegressor(n_estimators=200, max_depth=3),
+    model_t=GradientBoostingClassifier(n_estimators=200, max_depth=3),
+    n_estimators=2000, cv=5, random_state=42,
+)
+est_rank.fit(Y[rank_idx], T[rank_idx], X=X[rank_idx], W=W[rank_idx])
+priority = est_rank.effect(X[eval_idx])      # built independently of the eval set
+
+# Evaluate: realized treated-minus-control uplift among the top-k% by priority,
+# on the holdout. (Valid for randomized treatment; for observational data use
+# doubly-robust scores instead of raw treated-minus-control means.)
+Ye, Te = Y[eval_idx], T[eval_idx]
+order = np.argsort(priority)[::-1]           # highest predicted CATE first
+fracs, gains = np.linspace(0.1, 1.0, 10), []
+for f in fracs:
+    top = order[: max(1, int(f * len(order)))]
+    gains.append(Ye[top][Te[top] == 1].mean() - Ye[top][Te[top] == 0].mean())
+ate_all = Ye[Te == 1].mean() - Ye[Te == 0].mean()
+
+plt.plot(fracs, gains, marker='o', label='uplift among targeted')
+plt.axhline(y=ate_all, color='red', linestyle='--', label='treat-everyone ATE')
+plt.xlabel("Fraction targeted (highest predicted CATE first)")
+plt.ylabel("Realized uplift")
+plt.title("Held-out gains curve (RATE analogue)")
+plt.legend()
+plt.show()
+# Gains above the ATE line at small fractions = targeting the top by CATE beats
+# treating everyone. The ranking was built on data the evaluation set never saw.
+```
+
+### Step 3e: Stability check
 ```python
 # Re-run with different seed. Check if variable importance is stable.
 est_check = CausalForestDML(

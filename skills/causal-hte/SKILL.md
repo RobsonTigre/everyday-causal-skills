@@ -137,9 +137,17 @@ Generate validation code from templates. Full sequence:
    - Compare covariate means between top and bottom CATE quintiles
    - Identifies WHO the high/low effect groups are
 
-4. **TOC/RATE** (R: `rank_average_treatment_effect()`):
+4. **TOC/RATE** (R: `rank_average_treatment_effect(eval_forest, priorities)`):
    - Measures practical value of targeting vs treating everyone
-   - AUTOC > 0 means targeting adds value
+   - AUTOC > 0 (with a CI clear of 0) means targeting adds value
+   - **Rank on data the evaluation forest never trained on.** Build the
+     priorities from a forest fit on one half of the data, then evaluate on the
+     other half. The shortcut `rank_average_treatment_effect(cf)` grades the
+     forest with its own predictions; its symmetric CI is anti-conservative
+     (grf rejects a true null ~30% of the time that way). `priorities` is a
+     required argument in current grf.
+   - Python: econml has no direct RATE — use a held-out gains/Qini curve that
+     ranks on one fold and evaluates on another (same independence rule)
 
 5. **Stability check**:
    - Re-run forest with different seed
