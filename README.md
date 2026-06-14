@@ -62,6 +62,10 @@ Once you have the estimate, `/causal-auditor` stress-tests the analysis: could s
 
 ## Skills
 
+<p align="center">
+  <img src="assets/flowchart.png" alt="everyday-causal-skills workflow" width="100%" />
+</p>
+
 | Skill | Purpose |
 |---|---|
 | `/causal-planner` | Describe a causal question in plain language and get a method recommendation with an analysis plan |
