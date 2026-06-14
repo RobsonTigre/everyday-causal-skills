@@ -181,6 +181,13 @@ cp -r everyday-causal-skills/skills/* ~/.agents/skills/
 
 Then restart Codex.
 
+To update, pull the latest from the clone you made above and re-copy, then restart Codex:
+
+```bash
+cd everyday-causal-skills && git pull
+cp -r skills/* ~/.agents/skills/
+```
+
 </details>
 
 <details>
@@ -192,6 +199,12 @@ git clone https://github.com/RobsonTigre/everyday-causal-skills.git ~/.cursor/pl
 ```
 
 Then restart Cursor.
+
+To update, pull the latest and restart Cursor:
+
+```bash
+cd ~/.cursor/plugins/local/everyday-causal-skills && git pull
+```
 
 </details>
 
