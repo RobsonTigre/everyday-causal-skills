@@ -62,6 +62,10 @@ Com a estimativa em mãos, `/causal-auditor` submete a análise a um stress-test
 
 ## Skills
 
+<p align="center">
+  <img src="assets/flowchart.png" alt="fluxo de trabalho do everyday-causal-skills" width="100%" />
+</p>
+
 | Skill | Finalidade |
 |---|---|
 | `/causal-planner` | Descreva uma questão causal em linguagem natural e receba uma recomendação de método com plano de análise |
