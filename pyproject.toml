@@ -1,8 +1,12 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "everyday-causal-skills-evals"
 version = "0.3.2"
 description = "Eval framework for everyday-causal-skills plugin"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "anthropic>=0.40.0",
     "pyyaml>=6.0",
@@ -13,3 +17,27 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.8",
 ]
+parity = [
+    # Python packages the parity reference recipes import (evals/parity/reference/*.py).
+    # Kept in sync with each spec's `requires.python` by evals/parity/test_parity_deps.py.
+    # Pins on the numerically-sensitive RDD/SC packages reflect the versions verified green.
+    "rdrobust>=2.0.0",
+    "rddensity>=2.4.6",
+    "scpi-pkg>=3.0.1",
+    "diff-diff",
+    "econml",
+    "linearmodels",
+    "statsmodels",
+    "networkx",
+    "numpy",
+    "pandas",
+    "matplotlib",
+    "seaborn",
+]
+
+[tool.setuptools]
+# This project is a dependency manifest for the eval/parity harness, not an
+# importable library. Install zero modules so `pip install -e ".[parity]"`
+# resolves the deps without setuptools flat-layout auto-discovery choking on
+# the repo's many top-level dirs (assets/, docs/, skills/, …).
+py-modules = []

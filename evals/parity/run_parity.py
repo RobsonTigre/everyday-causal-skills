@@ -116,7 +116,7 @@ def changed_methods(paths: list) -> set:
 def run_recipe(recipe_path: str, fixture_path: str, language: str,
                requires: list = None, timeout: int = 180) -> dict:
     """Run a reference recipe with `df` preloaded from the fixture; capture stdout."""
-    py = os.environ.get("EVAL_PYTHON", "python3")
+    py = os.environ.get("EVAL_PYTHON") or sys.executable
     rsc = os.environ.get("EVAL_RSCRIPT", "Rscript")
     interp = py if language == "python" else rsc
 
