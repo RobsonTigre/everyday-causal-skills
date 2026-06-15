@@ -3,7 +3,7 @@ name: causal-dag
 description: Guides DAG construction and causal identification through structured conversation. Generates dagitty (R) or DoWhy (Python) code for adjustment sets, testable implications, and visualization. Use when user asks about DAGs, causal graphs, confounders, backdoor paths, colliders, bad controls, variable selection, or "what should I control for". Not for estimating causal effects (hand off to method skills).
 metadata:
   author: Robson Tigre
-  version: 0.3.2
+  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 
@@ -120,6 +120,8 @@ These three rules, applied to every node on every path, determine which paths ar
 ## Stage 4: Generate Code
 
 Read the appropriate template from `templates/r/dag.md` or `templates/python/dag.md`.
+
+**Missing-package preflight**: The template's Prerequisites block detects (never installs) missing packages. Follow `references/preflight.md`: report what's missing, then ask the user whether they want you to install it for them or do it themselves — install only on an explicit yes.
 
 **IMPORTANT — Template adherence**: Copy the code pattern from the template exactly, then adapt only variable names. Do not restructure the code or improvise.
 

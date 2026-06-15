@@ -2,9 +2,29 @@
 
 ## Prerequisites
 
+> Missing packages? See `references/preflight.md`: the snippet below only *detects* what's
+> missing — then the agent offers to install it for you. Nothing is installed without your okay.
+
 ```python
-# Install (if needed)
-# pip install pandas numpy matplotlib seaborn dowhy econml statsmodels scikit-learn
+# --- Preflight: detect missing packages (does NOT install) ---
+import importlib.util
+
+# import-name -> pip-name (they match unless noted)
+required = {
+    "pandas": "pandas",
+    "numpy": "numpy",
+    "matplotlib": "matplotlib",
+    "seaborn": "seaborn",
+    "sklearn": "scikit-learn",
+    "statsmodels": "statsmodels",
+}
+missing = [pip for mod, pip in required.items()
+           if importlib.util.find_spec(mod) is None]
+if missing:
+    print("Missing Python packages:", ", ".join(missing))
+    print("Install with: pip install " + " ".join(missing))
+else:
+    print("All required Python packages are installed.")
 
 # Import
 import pandas as pd

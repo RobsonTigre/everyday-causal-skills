@@ -3,7 +3,7 @@ name: causal-sc
 description: Builds synthetic control counterfactuals in R or Python with donor weighting, pre-treatment fit diagnostics, and placebo tests. Use when user mentions synthetic control, single treated unit, comparative case study, or donor pool. Not for settings with many treated units.
 metadata:
   author: Robson Tigre
-  version: 0.3.2
+  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 
@@ -83,6 +83,8 @@ If you cannot yet confirm the violation (because the user hasn't run diagnostic 
 ## Stage 3: Implementation
 
 Generate complete analysis code. Read the appropriate template from `templates/r/sc.md` or `templates/python/sc.md` for code patterns.
+
+**Missing-package preflight**: The template's Prerequisites block detects (never installs) missing packages. Follow `references/preflight.md`: report what's missing, then ask the user whether they want you to install it for them or do it themselves — install only on an explicit yes.
 
 **IMPORTANT — Template adherence**: Copy the code pattern from the appropriate template (`templates/r/sc.md` or `templates/python/sc.md`) exactly, then adapt only variable names to match the user's data. Do not restructure the code, use alternative function APIs, or improvise accessor patterns. The templates have been tested; deviations introduce bugs.
 

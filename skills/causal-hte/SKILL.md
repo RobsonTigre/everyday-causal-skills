@@ -3,7 +3,7 @@ name: causal-hte
 description: Estimates heterogeneous treatment effects using Causal Forest and DML with validation (BLP/GATES/CLAN/TOC) and policy learning (policytree). Use when user asks about CATE, who benefits, subgroup effects, personalization, targeting, treatment effect heterogeneity, or causal forest.
 metadata:
   author: Robson Tigre
-  version: 0.1.0
+  version: 0.1.1
   compatibility: "R (>= 4.0) with grf, policytree. Python (>= 3.9) with econml."
 ---
 
@@ -93,6 +93,8 @@ After all assumptions, summarize with status indicators per assumption.
 ## Stage 3: Implementation
 
 Generate complete analysis code. Read the appropriate template from `templates/r/hte.md` or `templates/python/hte.md` for code patterns.
+
+**Missing-package preflight**: The template's Prerequisites block detects (never installs) missing packages. Follow `references/preflight.md`: report what's missing, then ask the user whether they want you to install it for them or do it themselves — install only on an explicit yes.
 
 **IMPORTANT — Template adherence**: Copy the code pattern from the appropriate template exactly, then adapt only variable names to match the user's data. Do not restructure the code, use alternative function APIs, or improvise. The templates have been tested; deviations introduce bugs.
 

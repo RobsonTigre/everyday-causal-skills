@@ -3,7 +3,7 @@ name: causal-report
 description: Compiles a causal analysis into a structured report with tables, figures, and method summaries. Use when user says "write a report", "summarize my analysis", "create a report", "publication-ready", "write up the results", "executive summary", "causal report", or "document my analysis". Not for running the analysis itself (use method skills) or stress-testing validity (use /causal-auditor).
 metadata:
   author: Robson Tigre
-  version: 0.3.2
+  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 
@@ -195,7 +195,7 @@ For each figure:
 
 > I couldn't render this figure: [specific error message]. Would you like me to help set up your [R/Python] environment so I can generate it?
 
-If user accepts → help install missing packages, fix paths, retry.
+If user accepts → follow `references/preflight.md`: detect what's missing, show the exact install command, and install on the user's behalf only after they say yes (never silently); then fix paths and retry.
 If user declines → move on with code block in report.
 
 **Figure naming convention**: `figures/fig_01_parallel_trends.png`, `figures/fig_02_event_study.png`, etc.

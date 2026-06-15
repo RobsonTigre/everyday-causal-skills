@@ -3,7 +3,7 @@ name: causal-auditor
 description: Stress-tests any causal analysis for threats to validity across 5 categories identification, statistical, data quality, interpretation, and external validity. Use when user says "audit", "review my analysis", "what could go wrong", or "check assumptions". Not for implementing fixes.
 metadata:
   author: Robson Tigre
-  version: 0.3.2
+  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 
@@ -35,6 +35,8 @@ Review five categories in order. For each threat found:
 - Rate severity: **Fatal** (invalidates the analysis) / **Serious** (biases substantially) / **Minor** (worth noting, manageable)
 - Suggest a fix or diagnostic
 - Generate code when possible
+
+If diagnostic code you run needs a package the user may not have, follow `references/preflight.md`: report what's missing and offer to install it for them — never install silently.
 
 ### Category 1: Assumption Violations (Most Important)
 

@@ -3,7 +3,7 @@ name: causal-exercises
 description: Generates practice exercises with simulated data and known ground truth across all causal inference methods. Use when user says "practice", "exercise", "simulate", "learn causal inference", or "test my skills". Not for real data analysis.
 metadata:
   author: Robson Tigre
-  version: 0.3.2
+  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 
@@ -50,7 +50,7 @@ Select a DGP from `references/dgp-library.md` matching the difficulty and method
 
 ### Step 3: Create and Save Data
 
-Run the DGP code (using Bash tool) to generate the dataset. Save files:
+Run the DGP code (using Bash tool) to generate the dataset. If it needs a package the user may not have, follow `references/preflight.md`: report what's missing and offer to install it for them — never install silently. Save files:
 - `docs/causal-exercises/YYYY-MM-DD-<exercise>/data.csv` — the dataset
 - `docs/causal-exercises/YYYY-MM-DD-<exercise>/dgp.[R|py]` — the DGP code (DO NOT show to user yet)
 - `docs/causal-exercises/YYYY-MM-DD-<exercise>/solution.md` — true effect and method (DO NOT show yet)

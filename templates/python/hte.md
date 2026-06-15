@@ -2,8 +2,30 @@
 
 ## Prerequisites
 
+> Missing packages? See `references/preflight.md`: the snippet below only *detects* what's
+> missing — then the agent offers to install it for you. Nothing is installed without your okay.
+
 ```python
-# pip install econml scikit-learn matplotlib numpy pandas
+# --- Preflight: detect missing packages (does NOT install) ---
+import importlib.util
+
+# import-name -> pip-name (they match unless noted)
+required = {
+    "econml": "econml",
+    "sklearn": "scikit-learn",    # import name != pip name
+    "numpy": "numpy",
+    "pandas": "pandas",
+    "matplotlib": "matplotlib",
+}
+missing = [pip for mod, pip in required.items()
+           if importlib.util.find_spec(mod) is None]
+if missing:
+    print("Missing Python packages:", ", ".join(missing))
+    print("Install with: pip install " + " ".join(missing))
+else:
+    print("All required Python packages are installed.")
+
+# Import
 from econml.dml import CausalForestDML, LinearDML
 from econml.policy import DRPolicyTree
 from sklearn.ensemble import GradientBoostingClassifier, GradientBoostingRegressor
