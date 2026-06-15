@@ -2,8 +2,22 @@
 
 ## Prerequisites
 
+> Missing packages? See `references/preflight.md`: the snippet below only *detects* what's
+> missing — then the agent offers to install it for you. Nothing is installed without your okay.
+
 ```r
-# Install if needed: install.packages(c("grf", "policytree"))
+# --- Preflight: detect missing packages (does NOT install) ---
+required <- c("grf", "policytree")
+missing  <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]
+if (length(missing) > 0) {
+  cat("Missing R packages:", paste(missing, collapse = ", "), "\n")
+  cat('Install with: install.packages(c(',
+      paste0('"', missing, '"', collapse = ", "), "))\n", sep = "")
+} else {
+  cat("All required R packages are installed.\n")
+}
+
+# Load
 library(grf)
 library(policytree)
 ```
