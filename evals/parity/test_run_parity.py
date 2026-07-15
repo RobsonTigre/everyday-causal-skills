@@ -109,6 +109,15 @@ def test_changed_parity_files():
     assert got == {"sc", "hte"}, got
 
 
+def test_changed_roi_skill_dir():
+    assert changed_methods(["skills/causal-roi/SKILL.md"]) == {"roi"}
+
+
+def test_changed_roi_templates():
+    assert changed_methods(["templates/r/roi.md"]) == {"roi"}
+    assert changed_methods(["templates/python/roi.md"]) == {"roi"}
+
+
 def test_changed_ignores_unrelated():
     assert changed_methods(["README.md", "evals/scorer.py"]) == set()
 

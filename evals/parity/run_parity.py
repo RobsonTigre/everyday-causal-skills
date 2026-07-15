@@ -86,13 +86,14 @@ def load_baseline(path: str) -> dict:
 
 
 METHODS = ["did", "iv", "rdd", "matching", "sc", "timeseries", "hte",
-           "experiments", "dag", "report-figures", "exercises"]
+           "experiments", "dag", "report-figures", "exercises", "roi"]
 
 SKILL_TO_METHOD = {
     "causal-did": "did", "causal-iv": "iv", "causal-rdd": "rdd",
     "causal-matching": "matching", "causal-sc": "sc", "causal-timeseries": "timeseries",
     "causal-hte": "hte", "causal-experiments": "experiments", "causal-dag": "dag",
     "causal-report": "report-figures", "causal-exercises": "exercises",
+    "causal-roi": "roi",
 }
 
 
