@@ -39,9 +39,8 @@ All notable changes to this plugin are documented here. The format is based on
   figures. It quotes money numbers from the ROI artifact or explicit user
   input but never derives ROI, breakeven, financial ranges, or rollout
   verdicts itself — the ROI artifact is the single financial source of truth.
-- `assets/flowchart.png` is now generated from a committed source
-  (`assets/flowchart.html` + render script) and includes the new Translate
-  stage.
+- The workflow flowchart (`assets/flowchart.png`) gained the **Translate**
+  stage (`/causal-roi`) between Stress-test and Report.
 
 ## [0.5.0] - 2026-07-14
 
