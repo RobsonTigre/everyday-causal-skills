@@ -227,14 +227,18 @@ This is the **weakest identification strategy**. Must explicitly warn the user.
 
 ---
 
-## After Analysis: Report Generation
+## After Analysis: ROI Translation & Report Generation
 
-After completing any analysis path above and optionally running `/causal-auditor`, the user can compile their findings:
+After completing any analysis path above and optionally running `/causal-auditor`, two compilation skills finish the workflow:
 
-→ **`/causal-report`** — Compiles all artifacts (plan, implementation, audit) into a structured report with tables, figures, and method summaries. Three modes: business, academic, hybrid.
+→ **`/causal-roi`** — Translates the effect estimate into financial value: normalization gate, estimand-aware scaling, projection waterfall, incremental ROI with uncertainty, pipeline-consistent breakeven, and a ship/kill/size verdict. Writes `roi.md` + `roi-results.csv`.
 
-This is the terminal step in the full workflow:
+→ **`/causal-report`** — Compiles all artifacts (plan, implementation, audit, roi) into a structured report with tables, figures, and method summaries. Three modes: business, academic, hybrid. It quotes monetary results from `roi.md`/user input but never derives them itself.
+
+The full workflow:
 
 ```
-/causal-planner → /causal-[method] → /causal-auditor → /causal-report
+/causal-planner → /causal-[method] → /causal-auditor → /causal-roi → /causal-report
 ```
+
+Both compilation skills also work standalone via interview, but `/causal-roi` always requires an existing effect estimate.

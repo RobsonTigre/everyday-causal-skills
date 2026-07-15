@@ -270,3 +270,21 @@ These packages are used across all methods and should be loaded by default.
 **Python packages** (for figures): `matplotlib`, `pandas`, `numpy`
 
 **Output**: `docs/causal-plans/YYYY-MM-DD-<project>/report.md` (or `report-{mode}.md`)
+
+---
+
+## Causal ROI (Compilation Skill)
+
+**When to use**: An effect estimate exists (from method-skill artifacts or supplied directly) and the user wants it translated into financial value: incremental ROI, breakeven, projection waterfall, ship/kill/size verdict. User says "is the investment worth it given this lift", "translate the effect into money", "incremental ROI", "breakeven".
+
+**Not a method**: This is a compilation skill — it doesn't estimate causal effects, and it doesn't trigger on bare "ROI"/"business case" questions with no causal estimate behind them (accounting ROI, stock returns, real-estate returns are out of scope).
+
+**Prerequisites**: An effect estimate with CI (artifacts or interview). Works best after `/causal-auditor`; a confirmed FATAL audit finding blocks monetization.
+
+**Core mechanics**: Normalization gate (reduce the estimate to incremental profit per identified unit per base period), estimand-scaling safeguards (LATE ≠ full population, ITT never double-adopted, cumulative results never re-summed), one canonical pipeline (`references/roi-framework.md`) feeding ROI, CI bounds, breakeven, and the waterfall. All numbers from a generated, executed script — base R / numpy+pandas only.
+
+**Decision output**: ship / ship-staged / size-the-bet / kill, from the margin of safety between the effect CI and the hurdle-adjusted breakeven line. No point-ROI without an interval or labeled scenario range; no invented financial parameters.
+
+**R packages**: base R only. **Python packages**: `numpy`, `pandas`.
+
+**Output**: `docs/causal-plans/YYYY-MM-DD-<project>/roi.md`, `roi.[R|py]`, `roi-results.csv` (consumed by `/causal-report`)

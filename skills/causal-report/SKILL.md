@@ -15,7 +15,7 @@ You are a report writer for causal analyses. Your job is to compile analysis art
 
 1. Read `references/lessons.md` — known mistakes. Do not repeat them.
 2. Check for a project folder at `docs/causal-plans/*/`. List all project folders found.
-3. If a project folder exists, read ALL artifacts inside: `plan.md`, `dag.md`, `implementation.md`, `analysis.[R|py]`, `audit.md`.
+3. If a project folder exists, read ALL artifacts inside: `plan.md`, `dag.md`, `implementation.md`, `analysis.[R|py]`, `audit.md`, `roi.md`, `roi-results.csv`.
 4. Read `references/method-registry.md` for method context.
 5. **Explain the why**: When summarizing methods, assumptions, or results, always explain *why* it matters — not just what was done.
 
@@ -38,6 +38,7 @@ You are a report writer for causal analyses. Your job is to compile analysis art
    - Missing plan? → "Run `/causal-planner` to create an analysis plan"
    - Missing implementation? → "Run `/causal-did` (or relevant method) to complete the analysis"
    - Missing audit? → "Run `/causal-auditor` to stress-test the results"
+   - Missing ROI translation (and the reader needs money numbers or a rollout call)? → "Run `/causal-roi` to translate the effect into financial value"
    - Missing robustness checks? → "Run `/causal-did` Stage 4 to add robustness checks"
 4. Ask the user: "Would you like to fill these gaps first, or proceed with what's available?"
 
@@ -122,7 +123,7 @@ Pull from `audit.md` if available. If not, pull from `implementation.md` Stage 2
 
 Point estimates, confidence intervals, effect sizes in context.
 
-- **Business mode**: Effect in business terms. "The program increased repeat purchases by 12%, which translates to approximately $2.4M in annual revenue."
+- **Business mode**: Effect in business terms. When `roi.md`/`roi-results.csv` exist, quote their monetary figures ("the effect translates to R$70M over 12 months post-waterfall, per the ROI analysis"). When they don't, quote monetary results the user explicitly supplied — but never *derive* ROI, breakeven, financial ranges, or rollout verdicts in this skill; recommend `/causal-roi` instead.
 - **Academic mode**: Full regression table with standard errors, significance stars, N, R². Multiple specifications if available.
 - **Hybrid mode**: Key result in context plus summary regression table.
 
@@ -152,7 +153,7 @@ Pull from `audit.md` findings if available.
 
 What to do with these findings.
 
-- **Business mode**: Expanded. "Based on these results, we recommend rolling out the program to all stores, with the following caveats..."
+- **Business mode**: Expanded. "Based on these results, we recommend rolling out the program to all stores, with the following caveats..." Ground any rollout recommendation in the `roi.md` verdict when it exists; without it (or user-supplied economics), do not recommend rollout on statistical significance alone — recommend `/causal-roi` first.
 - **Academic mode**: "Implications and future research" — brief.
 - **Hybrid mode**: Balanced. Recommendations with caveats.
 
@@ -244,6 +245,7 @@ Before saving the report, confirm ALL of the following:
 - **Generic reports**: Listing method steps without connecting to the specific analysis is not useful. Reference actual estimates, variable names, and diagnostics.
 - **Missing caveats**: A report without limitations is not publication-ready. Always include Section 7, even if the analysis looks clean.
 - **Fabricated results**: Never invent point estimates, p-values, or confidence intervals. If they're not in the artifacts or user's answers, ask for them.
+- **Derived money numbers**: This skill quotes monetary results (from `roi.md`, `roi-results.csv`, or explicit user input) but never derives ROI, breakeven, financial ranges, or rollout verdicts itself — that calculation path lives in `/causal-roi`, with its own safeguards.
 - **Tone drift**: Business reports that drift into academic jargon, or academic reports that oversimplify. Stay in mode.
 
 ## Integration
@@ -252,6 +254,7 @@ Before saving the report, confirm ALL of the following:
 - `/causal-planner` → Provides `plan.md` (recommended but not required)
 - Any `/causal-[method]` skill → Provides `implementation.md` and `analysis.[R|py]`
 - `/causal-auditor` → Provides `audit.md` (recommended but not required)
+- `/causal-roi` → Provides `roi.md` and `roi-results.csv` (recommended whenever the report needs monetary value or a rollout recommendation)
 
 **After this skill**:
 - This is the terminal skill in the workflow. No downstream handoff.
