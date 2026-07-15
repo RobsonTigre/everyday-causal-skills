@@ -10,8 +10,9 @@ The plugin works in six stages. Start from any step. Stages marked (optional) ca
 2. **Structure** (optional) → `/causal-dag` maps causal relationships and identifies adjustment sets
 3. **Implement** → Method-specific skill (`/causal-did`, `/causal-iv`, `/causal-rdd`, `/causal-sc`, `/causal-matching`, `/causal-timeseries`, `/causal-experiments`, `/causal-hte`) checks assumptions and writes the analysis
 4. **Audit** → `/causal-auditor` stress-tests the completed analysis against threats to validity
-5. **Report** → `/causal-report` compiles artifacts into a structured report
-6. **Practice** → `/causal-exercises` generates exercises with known ground truth
+5. **Translate** → `/causal-roi` turns the effect estimate into money: incremental ROI, breakeven, and a ship/kill/size verdict
+6. **Report** → `/causal-report` compiles artifacts into a structured report
+7. **Practice** → `/causal-exercises` generates exercises with known ground truth
 
 ## How skills connect
 
@@ -21,7 +22,8 @@ The plugin works in six stages. Start from any step. Stages marked (optional) ca
 - When assumptions fail, method skills suggest alternatives (e.g., if parallel trends fail in DiD, suggest synthetic control).
 - `/causal-hte` follows any average treatment effect method. It estimates who benefits most and supports policy learning.
 - `/causal-auditor` should run AFTER an analysis is complete, not before.
-- `/causal-report` is the terminal skill. It reads all artifacts (plan, DAG, implementation, audit) and compiles them into a report.
+- `/causal-roi` runs after the auditor and requires an existing effect estimate. It writes `roi.md` + `roi-results.csv`; a confirmed FATAL audit finding blocks monetization.
+- `/causal-report` is the terminal skill. It reads all artifacts (plan, DAG, implementation, audit, roi) and compiles them into a report. It quotes monetary results from `roi.md` or user input but never derives them itself.
 
 ## Guardrails
 
@@ -44,6 +46,7 @@ The plugin works in six stages. Start from any step. Stages marked (optional) ca
 | `causal-timeseries` | Interrupted time series and CausalImpact |
 | `causal-hte` | Heterogeneous treatment effects, CATE, Causal Forest, policy learning |
 | `causal-auditor` | Stress-test a completed analysis |
+| `causal-roi` | Translate an estimated causal effect into money: incremental ROI, breakeven, ship/kill verdict |
 | `causal-report` | Compile analysis into a structured report (business, academic, hybrid) |
 | `causal-exercises` | Practice with simulated data |
 

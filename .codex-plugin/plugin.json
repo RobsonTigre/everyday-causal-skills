@@ -35,7 +35,11 @@
     "targeting",
     "causal-report",
     "publication-ready",
-    "executive-summary"
+    "executive-summary",
+    "causal-roi",
+    "incremental-roi",
+    "breakeven",
+    "business-case"
   ],
   "skills": "./skills/"
 }

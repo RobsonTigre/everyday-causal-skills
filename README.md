@@ -79,18 +79,30 @@ Once you have the estimate, `/causal-auditor` stress-tests the analysis: could s
 | `/causal-hte` | Heterogeneous treatment effects with Causal Forest, DML, and policy learning (policytree) |
 | `/causal-timeseries` | Interrupted time series and CausalImpact with pre-period validation |
 | `/causal-auditor` | Stress-test any completed analysis against five categories of threats to validity |
+| `/causal-roi` | Translate an estimated causal effect into money — incremental ROI, breakeven, projection waterfall, and a ship/kill/size verdict |
 | `/causal-report` | Compile your analysis into a structured report — business, academic, or hybrid mode — with tables, figures, and method summaries |
 | `/causal-exercises` | Practice on simulated data with known ground truth and get feedback on your approach |
 
 > **A note on `/causal-dag`:** This skill is fundamentally different from the others. A skill like `/causal-did` takes a well-defined estimand and generates correct estimation code — "correct" is clear. `/causal-dag` takes your domain knowledge and helps structure it into a formal graph — "correct" is much harder to define. A DAG encodes *assumptions*, not facts. Every arrow you include and every arrow you leave out is a claim you must be prepared to defend. The AI can help you organize and formalize your reasoning, but it cannot supply the subject-matter expertise that makes a DAG credible. Do not treat the output as validation of your causal model.
 
+### How ROI translation works
+
+`/causal-roi` turns an effect estimate into a decision: what the effect is worth in money, what it costs, where breakeven sits, and whether the numbers say ship, stage the rollout, size the bet, or kill.
+
+Four things to know:
+
+1. **It requires an effect estimate.** From the artifacts saved by a method skill, or supplied directly in conversation. It never estimates the effect itself, and it won't trigger on ordinary accounting ROI, stock returns, or real-estate math.
+2. **It starts with a normalization gate.** Before any money math, it pins down what your estimate measures — profit or revenue, per what unit, over what period, which costs are already inside — and which population the estimand actually covers (a per-complier effect never gets multiplied by your whole user base).
+3. **It never invents financial parameters.** Decay rates, discount rates, adoption ramps, margins, costs: they come from your data or your finance team, run as a labeled sensitivity range you approve, or the verdict is withheld. Everything is computed by a generated R/Python script you can inspect and re-run — never conversational arithmetic.
+4. **The output is a one-pager** (`roi.md` plus a machine-readable `roi-results.csv`): a projection waterfall from the naive number to the honest one, ROI as a range, breakeven from the same pipeline, the verdict, and the assumptions it all rests on.
+
 ### How reporting works
 
-`/causal-report` is the final step in the workflow. It reads the artifacts saved by other skills — plan, implementation notes, audit findings, and analysis code — and compiles them into a structured report.
+`/causal-report` is the final step in the workflow. It reads the artifacts saved by other skills — plan, implementation notes, audit findings, ROI translation, and analysis code — and compiles them into a structured report.
 
 Three things to know:
 
-1. **It works best after the full workflow** (planner → method → auditor), but it doesn't require it. If you ran your analysis outside the plugin or only used some skills, the report skill interviews you to fill the gaps.
+1. **It works best after the full workflow** (planner → method → auditor → roi), but it doesn't require it. If you ran your analysis outside the plugin or only used some skills, the report skill interviews you to fill the gaps. Monetary figures come from `/causal-roi` or from numbers you supply — the report never derives ROI on its own.
 2. **It creates the project folder if none exists.** You don't need to have run `/causal-planner` first.
 3. **Three modes.** Business (plain language, actionable), Academic (formal notation, full tables), or Hybrid (accessible with methodological rigor). You pick when the report starts.
 
@@ -243,6 +255,5 @@ This plugin helps you think through causal problems step by step, but it does no
 - [ ] **`/causal-sensitivity`**: E-values, Rosenbaum bounds, omitted variable bias (Cinelli & Hazlett)
 - [ ] **`/causal-mediation`**: direct/indirect effects, natural and controlled mediation
 - [ ] **`/causal-news`**: summaries of recent causal inference papers
-- [ ] **`/causal-roi`**: assess the ROI of an intervention by calculating causal (incremental) ROI, separating true lift from what would have happened anyway
 - [ ] **Ground skills in seminal references**: link each skill to its foundational references with key results and assumptions
 - [ ] **Token optimization**: compress SKILL.md files to reduce token cost without losing precision

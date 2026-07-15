@@ -4,6 +4,45 @@ All notable changes to this plugin are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and this project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **`/causal-roi`** — business-translation skill: turns an estimated causal
+  effect into money through one canonical pipeline (normalization gate →
+  estimand-aware scaling → projection waterfall → incremental ROI with
+  uncertainty → breakeven → ship/staged/size/kill verdict). All numbers come
+  from a generated, executed R/Python script (base R / numpy+pandas only);
+  financial parameters are never invented — sourced, run as a labeled
+  sensitivity range, or the verdict is withheld. Outputs `roi.md`, the script,
+  and a machine-readable `roi-results.csv`. Runtime rules live in
+  `references/roi-framework.md`; workflow becomes planner → method → auditor →
+  **roi** → report.
+- Estimand-scaling safeguards with severity blocks: LATE never scaled to
+  non-compliers, ITT never adoption-adjusted twice, already-cumulative DiD /
+  time-series results never re-summed, RDD verdicts limited to the identified
+  region, CATE aggregated with segment weights, matching routed by its actual
+  estimand, synthetic control monetized for the treated unit only.
+- Parity suite for the roi pipeline (fixture, R/Python reference recipes,
+  spec) plus an independent hand-derived known-answer oracle suite
+  (`evals/parity/test_roi_known_answers.py`).
+- Eval-harness extensions (backwards-compatible, unit-tested): L2 judge now
+  honors rubric questions (reviving the dormant `rubric:` fields in the
+  `report_*` cases) and L3 scoring supports named `KEY: value` outputs with
+  per-key tolerances. New L0/L2/L3/L4/L5 roi eval cases, including 5
+  ROI-specific negative triggers (accounting ROI, real-estate, stock returns,
+  attribution, method choice must NOT trigger the skill).
+
+### Changed
+
+- `/causal-report` now consumes `roi.md`/`roi-results.csv` for monetary
+  figures. It quotes money numbers from the ROI artifact or explicit user
+  input but never derives ROI, breakeven, financial ranges, or rollout
+  verdicts itself — the ROI artifact is the single financial source of truth.
+- `assets/flowchart.png` is now generated from a committed source
+  (`assets/flowchart.html` + render script) and includes the new Translate
+  stage.
+
 ## [0.5.0] - 2026-07-14
 
 ### Added
