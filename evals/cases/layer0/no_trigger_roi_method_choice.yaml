@@ -1,0 +1,7 @@
+name: no_trigger_roi_method_choice
+description: ROI must NOT trigger on method-selection questions (planner's job)
+layer: 0
+skill: causal-roi
+user_message: "Which method should I use to measure the incremental impact of our loyalty program on sales?"
+expected:
+  should_trigger: false

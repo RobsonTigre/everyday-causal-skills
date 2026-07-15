@@ -430,11 +430,17 @@ def aggregate(runs: list[dict], case: dict) -> dict:
     elif layer == 2:
         detected = sum(1 for r in runs if r["scores"].get("violation_detected"))
         severity_ok = sum(1 for r in runs if r["scores"].get("severity_correct"))
-        return {
+        out = {
             "detection_rate": f"{detected}/{n}",
             "severity_accuracy": f"{severity_ok}/{n}",
             "rate": detected / n,
         }
+        # Rubric coverage (informational): only present for rubric-bearing cases.
+        rubric_vals = [r["scores"]["rubric_coverage"] for r in runs
+                       if r["scores"].get("rubric_coverage") is not None]
+        if rubric_vals:
+            out["rubric_coverage"] = f"{sum(rubric_vals) / len(rubric_vals):.0%}"
+        return out
     elif layer == 3:
         ran = sum(1 for r in runs if r["scores"].get("runs_without_error"))
         accurate = sum(1 for r in runs if r["scores"].get("estimation_accurate") is True)

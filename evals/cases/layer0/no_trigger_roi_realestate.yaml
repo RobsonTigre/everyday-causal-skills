@@ -1,0 +1,7 @@
+name: no_trigger_roi_realestate
+description: ROI must NOT trigger on real-estate investment return questions
+layer: 0
+skill: causal-roi
+user_message: "I bought an apartment for R$800k and rent it out at R$4k a month. What's my ROI and when do I break even?"
+expected:
+  should_trigger: false

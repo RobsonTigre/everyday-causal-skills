@@ -1,0 +1,7 @@
+name: no_trigger_roi_accounting
+description: ROI must NOT trigger on ordinary accounting ROI from observed revenue and cost (no causal estimate)
+layer: 0
+skill: causal-roi
+user_message: "Our marketing spend was R$2M last quarter and revenue came in at R$10M. What was the ROI of our marketing?"
+expected:
+  should_trigger: false

@@ -1,0 +1,7 @@
+name: trigger_roi_explicit_2
+description: ROI should trigger on "incremental ROI and breakeven" for a measured lift
+layer: 0
+skill: causal-roi
+user_message: "Compute the incremental ROI and breakeven for the lift my experiment measured: +1.8 orders per customer per month, 95% CI [1.1, 2.5]."
+expected:
+  should_trigger: true

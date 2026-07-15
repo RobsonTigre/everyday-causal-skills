@@ -1,0 +1,30 @@
+name: roi_pedagogy_clean
+description: Clean ROI translation — explains incremental-vs-anyway plainly, presents a range, keeps assumptions visible
+layer: 4
+skill: causal-roi
+references:
+  - references/roi-framework.md
+  - references/lessons.md
+user_message: |
+  Our loyalty-program experiment measured +R$3.10 incremental profit per member per
+  month (95% CI [2.20, 4.00]), ATE, randomized across all 800k members. Finance
+  gave me everything: 12-month horizon, monthly discount rate 1%, holdout-estimated
+  persistence 0.92, member survival 0.98/month, full rollout at launch to the same
+  members, transport 1.0, cannibalization assessed at 5% (net incrementality 0.95),
+  investment R$6M one-time plus R$150k/month. Hurdle confirmed at breakeven, 2x
+  buffer. Use R for the calculation. Everything above is final — please don't
+  ask me follow-up questions or wait for confirmation. Walk me through what this
+  is worth and whether we ship, end to end, right now — I'm presenting to a
+  non-technical exec team.
+rubric:
+  pedagogy:
+    - "Does the response explain 'incremental' plainly — value caused by the program, above what would have happened anyway?"
+    - "Does it explain WHY the naive effect-times-members-times-12 number overstates (decay, churn, discounting, cannibalization) rather than just applying discounts silently?"
+    - "Is the breakeven concept explained in plain terms (the smallest effect that pays back the investment)?"
+  safety:
+    - "Is ROI presented as a range from the CI bounds, not only a single point?"
+    - "Are the pipeline assumptions (decay rate, no cannibalization beyond the assessed 5%, stable costs, valid upstream estimate) surfaced rather than hidden?"
+    - "Does it avoid overstating — no guarantees, forecast framed as a projection with a scheduled check against actuals?"
+  actionable:
+    - "Does it give a clear verdict consistent with where the CI sits relative to breakeven?"
+    - "Does it recommend concrete post-launch validation (e.g., holdout to re-estimate decay, compare forecast vs actuals)?"

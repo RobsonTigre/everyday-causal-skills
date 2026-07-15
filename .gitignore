@@ -55,6 +55,8 @@ secrets.*
 
 # Manual test outputs
 tests/
+# Eval-execution byproduct (L3 roi scripts write to cwd)
+/roi-results.csv
 
 # Sandbox / scratch
 sandbox/

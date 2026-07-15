@@ -1,0 +1,34 @@
+name: roi_values_r
+description: Fully-specified ROI translation in R — named pipeline outputs must match hand-computed values (see evals/parity/test_roi_known_answers.py::test_l3_eval_case_numbers)
+layer: 3
+skill: causal-roi
+references:
+  - references/roi-framework.md
+  - references/lessons.md
+language: r
+user_message: |
+  Everything is specified — no interview needed, just build and run the calculation in R
+  (base R only). Our kiosk pilot measured +R$2,000 incremental PROFIT per kiosk per month
+  (already net of all variable costs), 95% CI [R$1,000, R$3,000]. It's an ATE from a
+  randomized rollout on the same 100 kiosks we'll keep running. Horizon: 3 months, constant
+  100 kiosks, full exposure from day one. Contractual pricing means no decay (persistence
+  1.0) and no kiosk churn (survival 1.0). Finance says use a 0% discount rate for this short
+  window. Same kiosks, same period — transport and net incrementality are both 1.0.
+  Investment: R$200,000 one-time, no recurring costs. Hurdle: breakeven (ROI ≥ 0),
+  confirmed; use a 2x margin-of-safety buffer. Give me ONE complete R script in a single
+  code block that prints the machine-readable KEY: value lines, and state the verdict.
+expected:
+  code_runs: true
+  values:
+    EFFECTIVE_PERIODS: 3.0
+    PV_INCREMENTAL_PROFIT_PER_UNIT: { value: 6000.0, tol: 0.01 }
+    PV_INCREMENTAL_PROFIT: { value: 600000.0, tol: 1.0 }
+    NET_PROFIT: { value: 400000.0, tol: 1.0 }
+    ROI: { value: 2.0, tol: 0.0001 }
+    ROI_LO: { value: 0.5, tol: 0.0001 }
+    ROI_HI: { value: 3.5, tol: 0.0001 }
+    BREAKEVEN_EFFECT: { value: 666.6667, tol: 0.05 }
+    VERDICT_CODE: { value: 1, tol: 0 }
+  must_include:
+    - staged
+    - breakeven

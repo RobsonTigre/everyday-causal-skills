@@ -1,0 +1,7 @@
+name: no_trigger_roi_attribution
+description: ROI must NOT trigger on an attribution question with no causal estimate (upstream problem)
+layer: 0
+skill: causal-roi
+user_message: "How much of last month's revenue would we have made anyway without the campaign? We haven't measured anything yet."
+expected:
+  should_trigger: false

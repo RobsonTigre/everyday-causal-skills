@@ -1,0 +1,7 @@
+name: trigger_roi_explicit_1
+description: ROI should trigger on an effect estimate plus "is the investment worth it"
+layer: 0
+skill: causal-roi
+user_message: "My DiD came back at +R$2.30 per user per month. Is the R$4M investment worth it?"
+expected:
+  should_trigger: true

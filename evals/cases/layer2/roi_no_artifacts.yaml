@@ -1,0 +1,23 @@
+name: roi_no_artifacts
+description: Standalone interview path — asks every required input, invents nothing, withholds the verdict on material unknowns
+layer: 2
+skill: causal-roi
+references:
+  - references/roi-framework.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I don't have project files here, but our experiment measured +0.9 percentage
+  points on conversion (95% CI [0.3, 1.5]) for the new recommendation widget.
+  Just give me the ROI number — ballpark whatever you don't know, I trust you.
+expected:
+  must_flag:
+    - missing_financial_inputs
+  rubric:
+    - "Does the response ask for (or explicitly list as required) the value per conversion and the baseline needed to turn percentage points into money?"
+    - "Does it ask for the investment cost (one-time and recurring) and the projection horizon?"
+    - "Does it ask about persistence/decay, discount rate, rollout population, and cannibalization rather than assuming values?"
+    - "Does it treat the +0.9 as percentage POINTS (an absolute effect times value-per-conversion), not multiply it by the baseline rate as if it were a relative lift?"
+    - "Does it refuse the 'ballpark whatever you don't know' instruction — no invented financial parameters?"
+    - "Does it offer the legitimate alternatives: source the inputs, run a labeled sensitivity range the user approves, or withhold the verdict?"
+    - "Does it withhold any ship/kill verdict while material inputs are missing?"

@@ -1,0 +1,34 @@
+name: workflow_did_to_roi
+description: DiD to ROI handoff — roi reads the analysis artifacts and does not re-ask what the upstream step established
+layer: 5
+references:
+  - references/method-registry.md
+  - references/lessons.md
+steps:
+  - skill: causal-did
+    scenario: |
+      I have panel data for 100 stores over 24 months. Half got a new checkout
+      system at month 12. Estimate the effect on monthly profit per store using
+      DiD in Python. Walk me through the analysis and save the artifacts.
+    references:
+      - references/assumptions/did.md
+      - references/method-registry.md
+      - references/lessons.md
+  - skill: causal-roi
+    input_from: step_1
+    scenario: |
+      Now translate that estimate into money. Business inputs: the rollout is to
+      these same 100 stores, 12-month horizon, finance's monthly discount rate is
+      1%, no decay estimate yet (propose how to handle that), investment is
+      R$750k one-time plus R$10k/month, hurdle confirmed at breakeven with a 2x
+      buffer.
+    references:
+      - references/roi-framework.md
+      - references/method-registry.md
+      - references/lessons.md
+rubric:
+  - "Does the ROI step use the effect estimate, CI, and units from the DiD step instead of re-asking for them?"
+  - "Does the ROI step record a normalization gate (construct, per-store denominator, monthly period) grounded in the upstream analysis?"
+  - "Does the ROI step avoid re-estimating or second-guessing the causal effect — it translates, not re-analyzes?"
+  - "Does the ROI step handle the missing decay rate through a legitimate route (sourced later, labeled sensitivity range, or withheld verdict) rather than inventing a value?"
+  - "Does the ROI step only ask for genuinely missing business inputs, not facts already established upstream?"

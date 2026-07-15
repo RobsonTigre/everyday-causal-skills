@@ -196,6 +196,28 @@ def test_nonzero_hurdle_shifts_line_not_breakeven():
     _close(r2["vals"].get("VERDICT_CODE"), 2.0, name="VERDICT_CODE")
 
 
+def test_l3_eval_case_numbers():
+    # The exact input set used by the L3 eval cases (roi_values_python/r):
+    # 100 kiosks, effect R$2000 profit/kiosk/month, CI [1000, 3000], T=3,
+    # lambda=s=1, r=0, full rollout, no haircuts, INV = 200k one-time.
+    # Hand math: PV = 2000*3*100 = 600000; NET = 400000; ROI = 2
+    #   ROI_LO = (1000*300-200000)/200000 = 0.5; ROI_HI = (3000*300-200000)/200000 = 3.5
+    #   BREAKEVEN = 200000/300 = 2000/3; line = 2000/3: lo=1000 in [line, 2*line) -> staged (1)
+    r = _run_roi(effect_raw=2000.0, ci_lo_raw=1000.0, ci_hi_raw=3000.0,
+                 one_time=200000.0)
+    assert r["ran"], r["error"]
+    v = r["vals"]
+    _close(v.get("EFFECTIVE_PERIODS"), 3.0, name="EFFECTIVE_PERIODS")
+    _close(v.get("PV_INCREMENTAL_PROFIT_PER_UNIT"), 6000.0, name="PV_PER_UNIT")
+    _close(v.get("PV_INCREMENTAL_PROFIT"), 600000.0, name="PV")
+    _close(v.get("NET_PROFIT"), 400000.0, name="NET_PROFIT")
+    _close(v.get("ROI"), 2.0, name="ROI")
+    _close(v.get("ROI_LO"), 0.5, name="ROI_LO")
+    _close(v.get("ROI_HI"), 3.5, name="ROI_HI")
+    _close(v.get("BREAKEVEN_EFFECT"), 2000.0 / 3.0, tol=1e-6, name="BREAKEVEN")
+    _close(v.get("VERDICT_CODE"), 1.0, name="VERDICT_CODE")
+
+
 def test_invalid_inputs_rejected():
     # Growing effect (lambda > 1) is rejected in v1.
     r = _run_roi(persistence=1.5)

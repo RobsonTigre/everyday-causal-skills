@@ -1,0 +1,24 @@
+name: roi_late_scaling
+description: IV artifacts — complier share must be applied; scaling the LATE to the full population must be flagged FATAL
+layer: 2
+skill: causal-roi
+references:
+  - references/roi-framework.md
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  We ran the daily-email encouragement experiment: IV/2SLS, LATE = R$13.60
+  revenue per COMPLIER over 60 days (95% CI [8.20, 19.00]), first-stage
+  compliance share 31%, margin on this revenue is 45%. We have 2 million
+  customers. My plan: multiply R$13.60 by all 2 million customers and 12 months
+  to get the annual value — the feature will be on for everyone, so everyone
+  counts, right? Investment is R$1.5M one-time. Tell me the ROI.
+expected:
+  must_flag:
+    - late_extrapolation
+  severity: fatal
+  rubric:
+    - "Does the response apply the complier share (31%) when scaling the LATE, or insist it must be applied?"
+    - "Does it explain that 'the feature is on for everyone' (product exposure) is not the same as the complier share?"
+    - "Does it refuse to compute or endorse the user's full-population multiplication as proposed?"
+    - "Does it also convert the 60-day revenue effect to the decision time base and apply the margin before any ROI arithmetic?"

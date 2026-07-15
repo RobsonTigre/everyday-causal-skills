@@ -1,0 +1,7 @@
+name: trigger_roi_paraphrase_2
+description: ROI should trigger on "should we ship it given the build cost" with an estimate in hand
+layer: 0
+skill: causal-roi
+user_message: "The A/B test came back at +R$2.10 profit per user. Leadership wants to know whether we should ship given the build cost — can you put the business case together?"
+expected:
+  should_trigger: true

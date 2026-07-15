@@ -1,0 +1,7 @@
+name: trigger_roi_paraphrase_1
+description: ROI should trigger on "translate the lift into money for the CFO"
+layer: 0
+skill: causal-roi
+user_message: "The experiment's lift is solid. Can you translate it into money terms for the CFO meeting?"
+expected:
+  should_trigger: true

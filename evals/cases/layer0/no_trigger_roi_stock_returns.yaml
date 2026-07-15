@@ -1,0 +1,7 @@
+name: no_trigger_roi_stock_returns
+description: ROI must NOT trigger on stock portfolio return analysis
+layer: 0
+skill: causal-roi
+user_message: "What's the annualized return on my portfolio? I invested R$50k in 2020 and it's worth R$95k today."
+expected:
+  should_trigger: false

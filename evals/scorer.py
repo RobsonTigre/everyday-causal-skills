@@ -149,7 +149,10 @@ def score_response(case: dict, response: str, config: dict | None = None, debug:
     elif layer == 1:
         return _score_layer1(response, expected, config, debug)
     elif layer == 2:
-        return _score_layer2(response, expected, config, debug)
+        # Rubric questions may live under expected.rubric or at case level
+        # (the report_* cases carry a top-level rubric).
+        rubric = expected.get("rubric") or case.get("rubric") or []
+        return _score_layer2(response, expected, config, debug, rubric=rubric)
     elif layer == 3:
         return _score_layer3(response, expected, case)
     elif layer == 4:
@@ -265,10 +268,18 @@ def _check_severity_patterns(response: str, expected_severity: str) -> bool:
     return any(re.search(p, text) for p in patterns)
 
 
-def _judge_l2(response: str, case_expected: dict, config: dict | None = None, debug: bool = False) -> dict:
-    """Use LLM judge with binary rubric questions for L2 scoring."""
+def _judge_l2(response: str, case_expected: dict, config: dict | None = None, debug: bool = False,
+              rubric: list | None = None) -> dict:
+    """Use LLM judge with binary rubric questions for L2 scoring.
+
+    `rubric` is an optional list of extra judge questions (from expected.rubric
+    or the case-level rubric field). Rubric questions are appended AFTER the
+    flag/severity questions so existing answer indices are unchanged; their
+    pass fraction is returned as `rubric_coverage` (absent when no rubric).
+    """
     must_flag = case_expected.get("must_flag", [])
     severity = case_expected.get("severity", "")
+    rubric = rubric or []
 
     # Clean cases with no expected flags
     if not must_flag:
@@ -292,6 +303,9 @@ def _judge_l2(response: str, case_expected: dict, config: dict | None = None, de
             "exclusion": "a concern about the exclusion restriction — the instrument may affect the outcome through channels other than the treatment",
             "post_treatment": "controlling for a post-treatment variable (mediator or collider) that was measured after treatment and could introduce bias",
             "structural_break": "a structural break or regime change in the pre-treatment period that invalidates the counterfactual projection",
+            "late_extrapolation": "the problem of scaling a complier-specific (LATE) effect to non-compliers or the full population without justification",
+            "audit_carryover": "the upstream audit's non-fatal finding carried forward as a named risk or caveat (without converting it into a numeric adjustment)",
+            "missing_financial_inputs": "that required financial or business inputs are missing and must be provided (or explicitly ranged) before a final verdict",
         }
         for flag in must_flag:
             desc = flag_descriptions.get(flag, flag.replace("_", " "))
@@ -305,6 +319,10 @@ def _judge_l2(response: str, case_expected: dict, config: dict | None = None, de
             }
             questions.append(severity_q.get(severity, f"Does this response convey {severity}-level concern? Answer YES or NO."))
         rubric_type = "violation"
+
+    # Optional rubric questions go LAST so flag/severity answer indices stay stable.
+    rubric_start = len(questions)
+    questions.extend(rubric)
 
     numbered = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
     prompt = f"""You are evaluating a causal inference assistant's response. Read the response carefully, then answer each question.
@@ -323,12 +341,18 @@ Questions:
     try:
         answers = _call_judge(prompt, len(questions), config, debug, label="JUDGE")
 
+        rubric_answers = answers[rubric_start:] if rubric else []
+        rubric_extra = (
+            {"rubric_coverage": sum(rubric_answers) / len(rubric_answers)} if rubric else {}
+        )
+
         if rubric_type == "clean":
             false_alarm = answers[0]
             return {
                 "violation_detected": not false_alarm,
                 "flags_coverage": 1.0 if not false_alarm else 0.0,
                 "severity_correct": not false_alarm,
+                **rubric_extra,
             }
         else:
             flag_answers = answers[:len(must_flag)]
@@ -340,6 +364,7 @@ Questions:
                 "violation_detected": any(flag_answers),
                 "flags_coverage": sum(flag_answers) / len(flag_answers) if flag_answers else 1.0,
                 "severity_correct": severity_answer,
+                **rubric_extra,
             }
     except Exception as e:
         # Fallback to string matching if CLI unavailable
@@ -361,9 +386,10 @@ def _score_layer2_string(response: str, expected: dict) -> dict:
     }
 
 
-def _score_layer2(response: str, expected: dict, config: dict | None = None, debug: bool = False) -> dict:
+def _score_layer2(response: str, expected: dict, config: dict | None = None, debug: bool = False,
+                  rubric: list | None = None) -> dict:
     """Score assumption checking — uses LLM judge, falls back to string matching."""
-    return _judge_l2(response, expected, config, debug)
+    return _judge_l2(response, expected, config, debug, rubric=rubric)
 
 
 def _judge_l4(response: str, case: dict, config: dict | None = None, debug: bool = False) -> dict:
@@ -498,7 +524,9 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     guard_passed = (not any(must_not_results.values())) and all(code_presence.values())
 
     true_effect = expected.get("true_effect")
-    is_exercise = true_effect is None and any("ESTIMATE:" in cb for cb in code_blocks)
+    expected_values = expected.get("values") or {}
+    is_exercise = (true_effect is None and not expected_values
+                   and any("ESTIMATE:" in cb for cb in code_blocks))
 
     exec_result = {"ran": False, "error": None, "estimate": None}
 
@@ -526,6 +554,24 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
         tolerance = expected.get("tolerance", 1.0)
         estimate_ok = abs(exec_result["estimate"] - true_effect) <= tolerance
 
+    # Named-value accuracy: expected.values maps KEY -> number or
+    # KEY -> {value, tol}. Values are parsed from KEY:<float> lines in the
+    # executed output. Feeds the existing estimation_accurate metric ONLY when
+    # no true_effect is set — the single-true_effect path is untouched.
+    values_results = {}
+    if expected_values:
+        got = exec_result.get("values") or {}
+        default_tol = expected.get("values_tolerance", 1e-6)
+        for key, spec in expected_values.items():
+            if isinstance(spec, dict):
+                want, tol = float(spec["value"]), float(spec.get("tol", default_tol))
+            else:
+                want, tol = float(spec), default_tol
+            have = got.get(key)
+            values_results[key] = (have is not None) and (abs(have - want) <= tol)
+        if true_effect is None:
+            estimate_ok = all(values_results.values())
+
     return {
         "has_code": len(code_blocks) > 0,
         "runs_without_error": exec_result["ran"],
@@ -537,6 +583,7 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
         "guard_passed": guard_passed,
         "must_not_include_results": must_not_results,
         "must_include_code_results": code_presence,
+        "values_results": values_results,
     }
 
 
@@ -546,7 +593,7 @@ def _execute_code(code: str, language: str = "python", dataset_path: str | None 
     import os
     import tempfile
 
-    result = {"ran": False, "error": None, "estimate": None}
+    result = {"ran": False, "error": None, "estimate": None, "values": {}}
 
     # Configurable interpreters (default to current behavior).
     py_interp = os.environ.get("EVAL_PYTHON", "python3")
@@ -603,6 +650,16 @@ def _execute_code(code: str, language: str = "python", dataset_path: str | None 
                     result["estimate"] = float(line.split(":")[1].strip())
                 except ValueError:
                     pass
+
+        # Extract all named KEY:<float> outputs (uppercase keys) for
+        # expected.values scoring — same convention as the parity runner.
+        for m in re.finditer(
+                r'^([A-Z][A-Z0-9_]*)\s*:\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s*$',
+                proc.stdout, re.MULTILINE):
+            try:
+                result["values"][m.group(1)] = float(m.group(2))
+            except ValueError:
+                pass
 
         # Success = clean exit OR produced an estimate despite warnings
         result["ran"] = proc.returncode == 0 or result["estimate"] is not None

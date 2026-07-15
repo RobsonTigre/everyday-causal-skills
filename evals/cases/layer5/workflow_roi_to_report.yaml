@@ -1,0 +1,34 @@
+name: workflow_roi_to_report
+description: ROI to report handoff — report consumes the ROI artifact and does not re-derive money numbers
+layer: 5
+references:
+  - references/method-registry.md
+  - references/lessons.md
+steps:
+  - skill: causal-roi
+    scenario: |
+      Translate this into ROI. Estimate: +R$1.50 incremental profit per customer
+      per month (95% CI [0.90, 2.10]), ATE from a randomized experiment on our
+      full base of 300k customers. Horizon 12 months, holdout-estimated
+      persistence 0.9, survival 0.97/month, discount 1%/month, full rollout at
+      launch, transport 1.0, cannibalization assessed at 3% (net incrementality
+      0.97). Investment: R$1.2M one-time + R$30k/month. Hurdle confirmed at
+      breakeven, 2x buffer. Run the numbers and give the verdict.
+    references:
+      - references/roi-framework.md
+      - references/method-registry.md
+      - references/lessons.md
+  - skill: causal-report
+    input_from: step_1
+    scenario: |
+      Now write a business-mode report for the leadership team compiling this
+      analysis and its financial translation.
+    references:
+      - references/method-registry.md
+      - references/lessons.md
+rubric:
+  - "Does the report quote the ROI, breakeven, and financial range from the ROI step instead of re-deriving or recomputing them?"
+  - "Is the report's rollout recommendation grounded in the ROI step's verdict (not statistical significance alone)?"
+  - "Does the report avoid inventing any monetary figure that the ROI step did not produce?"
+  - "Does the report carry the ROI step's assumptions and risks (decay, cannibalization, cost stability) into its limitations section?"
+  - "Is the chain coherent — could a leader read only the report and correctly understand both the effect and the investment case?"
