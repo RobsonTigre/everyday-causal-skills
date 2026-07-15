@@ -130,6 +130,7 @@ Para atualizar:
 
 ```bash
 /plugin marketplace update everyday-causal-skills
+/plugin update everyday-causal-skills@everyday-causal-skills
 /reload-plugins
 ```
 
