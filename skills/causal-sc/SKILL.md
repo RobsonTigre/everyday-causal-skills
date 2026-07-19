@@ -3,7 +3,6 @@ name: causal-sc
 description: Builds synthetic control counterfactuals in R or Python with donor weighting, pre-treatment fit diagnostics, and placebo tests. Use when user mentions synthetic control, single treated unit, comparative case study, or donor pool. Not for settings with many treated units.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

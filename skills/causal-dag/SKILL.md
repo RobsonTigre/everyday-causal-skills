@@ -3,7 +3,6 @@ name: causal-dag
 description: Guides DAG construction and causal identification through structured conversation. Generates dagitty (R) or DoWhy (Python) code for adjustment sets, testable implications, and visualization. Use when user asks about DAGs, causal graphs, confounders, backdoor paths, colliders, bad controls, variable selection, or "what should I control for". Not for estimating causal effects (hand off to method skills).
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

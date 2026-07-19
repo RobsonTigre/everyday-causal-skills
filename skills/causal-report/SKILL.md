@@ -3,7 +3,6 @@ name: causal-report
 description: Compiles a causal analysis into a structured report with tables, figures, and method summaries. Use when user says "write a report", "summarize my analysis", "create a report", "publication-ready", "write up the results", "executive summary", "causal report", or "document my analysis". Not for running the analysis itself (use method skills) or stress-testing validity (use /causal-auditor).
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

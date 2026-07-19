@@ -3,7 +3,6 @@ name: causal-rdd
 description: Implements sharp and fuzzy regression discontinuity designs in R or Python with bandwidth selection, manipulation testing, and sensitivity analysis. Use when user mentions RDD, cutoff, threshold, running variable, or discontinuity. Not for arbitrary subgroup comparisons.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

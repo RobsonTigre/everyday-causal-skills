@@ -3,7 +3,6 @@ name: causal-did
 description: Implements difference-in-differences in R or Python with parallel trends testing, robustness checks, and plain-language interpretation. Use when user asks about DiD, staggered rollout, TWFE, event study, or parallel trends. Not for simple pre/post without a control group.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

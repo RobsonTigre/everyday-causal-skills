@@ -3,7 +3,6 @@ name: causal-hte
 description: Estimates heterogeneous treatment effects using Causal Forest and DML with validation (BLP/GATES/CLAN/TOC) and policy learning (policytree). Use when user asks about CATE, who benefits, subgroup effects, personalization, targeting, treatment effect heterogeneity, or causal forest.
 metadata:
   author: Robson Tigre
-  version: 0.1.1
   compatibility: "R (>= 4.0) with grf, policytree. Python (>= 3.9) with econml."
 ---
 

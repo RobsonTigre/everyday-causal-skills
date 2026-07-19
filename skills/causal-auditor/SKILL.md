@@ -3,7 +3,6 @@ name: causal-auditor
 description: Stress-tests any causal analysis for threats to validity across 5 categories identification, statistical, data quality, interpretation, and external validity. Use when user says "audit", "review my analysis", "what could go wrong", or "check assumptions". Not for implementing fixes.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

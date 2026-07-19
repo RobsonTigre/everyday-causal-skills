@@ -3,7 +3,6 @@ name: causal-timeseries
 description: Implements interrupted time series and CausalImpact in R or Python with pre-period fit checks, stationarity testing, and placebo validation. Use when user mentions ITS, CausalImpact, time series intervention, or pre/post with no control group. Not for panel data with multiple units.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

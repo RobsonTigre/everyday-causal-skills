@@ -3,7 +3,6 @@ name: causal-roi
 description: Translates an estimated causal effect into financial value — incremental ROI, breakeven, projection waterfall, and a ship/kill/size verdict. Use when the user already has an effect estimate (from project artifacts or supplied directly) and asks to turn it into money, e.g. "is the investment worth it given this lift", "translate my experiment's effect into money for the CFO", "what's the incremental ROI of this estimate", "breakeven for this effect", "build the business case from my DiD result". Requires an existing causal/incremental effect estimate. Not for estimating the effect itself (use method skills), choosing a method (use /causal-planner), ordinary accounting/financial ROI with no causal estimate, or stock/real-estate returns.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Base R and numpy/pandas only — no additional packages.
 ---
 
