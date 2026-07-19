@@ -6,6 +6,8 @@ All notable changes to this plugin are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-19
+
 ### Added
 
 - **`/causal-roi`** — business-translation skill: turns an estimated causal
@@ -32,6 +34,11 @@ All notable changes to this plugin are documented here. The format is based on
   per-key tolerances. New L0/L2/L3/L4/L5 roi eval cases, including 5
   ROI-specific negative triggers (accounting ROI, real-estate, stock returns,
   attribution, method choice must NOT trigger the skill).
+- A tracked release-sweep configuration and a provenance fingerprint covering
+  cases, skills, references, templates, fixtures, manifests, dependency
+  versions, and the actual execution interpreter. Release verdict mode now
+  rejects dirty or untracked measurement inputs and records measurement and
+  gate digests separately.
 
 ### Changed
 
@@ -41,6 +48,24 @@ All notable changes to this plugin are documented here. The format is based on
   verdicts itself — the ROI artifact is the single financial source of truth.
 - The workflow flowchart (`assets/flowchart.png`) gained the **Translate**
   stage (`/causal-roi`) between Stress-test and Report.
+- Plugin versioning now has one enforced policy: the six user-facing manifests
+  carry version `0.6.0`, while per-skill `metadata.version` fields are removed.
+  Git tags and this changelog provide skill provenance until skills are ever
+  distributed independently.
+
+### Fixed
+
+- Eval gates now require successful process exit, apply floating-point
+  tolerance consistently, use one shared gate implementation for verdicts and
+  history, report empty executions explicitly, retry bounded rate-limit
+  failures, and validate that case fields are actually consumed by each layer.
+- Parity baselines now excuse only the named known disparities; execution
+  failures always fail. Python DAG code works across NetworkX's
+  `d_separated`/`is_d_separator` API change, and shipped API references are
+  checked against installed libraries.
+- Python template dependency and API mismatches were corrected for
+  `pycausalimpact`, CausalImpact summaries and plots, ROI preflight mappings,
+  and the current time-series parity contract.
 
 ## [0.5.0] - 2026-07-14
 
@@ -79,5 +104,6 @@ All notable changes to this plugin are documented here. The format is based on
 - Added a workflow flowchart to the README (English and Portuguese).
 - Documented `git pull`-based update paths for Codex CLI and Cursor installs.
 
+[0.6.0]: https://github.com/RobsonTigre/everyday-causal-skills/releases/tag/v0.6.0
 [0.5.0]: https://github.com/RobsonTigre/everyday-causal-skills/releases/tag/v0.5.0
 [0.4.1]: https://github.com/RobsonTigre/everyday-causal-skills/releases/tag/v0.4.1
