@@ -4,9 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "everyday-causal-skills-evals"
+# Versions the eval framework, NOT the plugin. The plugin's version lives in the six
+# manifests (currently 0.6.0) and is enforced by evals/test_manifests.py. These two
+# numbers are independent by design — do not "sync" them.
 version = "0.3.2"
 description = "Eval framework for everyday-causal-skills plugin"
-requires-python = ">=3.9"
+# The eval ENVIRONMENT needs 3.10+ (pycausalarima), enforced by sweep._MIN_EVAL_PYTHON.
+# This is not the plugin's own floor: skills/*/SKILL.md compatibility describes what a
+# plugin user needs to run the templates, which is a different environment.
+requires-python = ">=3.10"
 dependencies = [
     "anthropic>=0.40.0",
     "pyyaml>=6.0",
@@ -33,6 +39,23 @@ parity = [
     "pandas",
     "matplotlib",
     "seaborn",
+]
+evals = [
+    # Everything the eval harness executes: the parity recipes, plus the full
+    # Python dependency set the shipped templates import. Anchored on the book's
+    # requirements.txt (Desktop/everyday-ci/requirements.txt) because the templates
+    # ship code the book runs — the two must not drift.
+    "everyday-causal-skills-evals[parity]",
+    "pandas<3",         # pycausalimpact uses pandas APIs removed in 3.x
+    "scipy",
+    "scikit-learn",
+    "mcf",
+    # Imports as `causalimpact`. NOT the unrelated `causalimpact` distribution,
+    # which has a different API and inverted effect-bound labels.
+    "pycausalimpact",
+    "pycausalarima; python_version >= '3.10'",
+    # Repo-only, absent from the book's list:
+    "dowhy",            # evals/cases/layer3/dag_dowhy_python.yaml
 ]
 
 [tool.setuptools]

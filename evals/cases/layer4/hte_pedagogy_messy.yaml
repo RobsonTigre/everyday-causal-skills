@@ -10,12 +10,17 @@ user_message: |
   doctors chose based on severity). Outcome is binary (recovered/not). I want to
   find which patients benefit most. My variables are: age, severity score,
   insurance type, and "number of follow-up visits after starting treatment."
-  I use Python.
-expected:
-  rubric:
-    - "Does it flag 'number of follow-up visits' as a post-treatment variable (FATAL)?"
-    - "Does it warn about small sample size (n=800 < 2000) as SERIOUS?"
+  I'd guess severity score and age are the likeliest effect modifiers, and I'm
+  exploring rather than testing pre-specified subgroups. I use Python.
+
+  That's everything I have — please go ahead and run the full analysis.
+rubric:
+  pedagogy:
     - "Does it note binary outcome and warn about boundary issues?"
     - "Does it emphasize that observational data means unconfoundedness is required?"
-    - "Does it recommend LinearDML over causal forest given the small sample?"
+  safety:
+    - "Does it flag 'number of follow-up visits' as a post-treatment variable (FATAL)?"
+    - "Does it warn about small sample size (n=800 < 2000) as SERIOUS?"
     - "Does it NOT proceed to policytree given the FATAL and multiple SERIOUS flags?"
+  actionable:
+    - "Does it recommend LinearDML over causal forest given the small sample?"

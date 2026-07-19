@@ -113,6 +113,10 @@ Python:
 import networkx as nx
 from itertools import combinations
 
+# networkx renamed d_separated -> is_d_separator in 3.3 and removed the old name
+# in 3.5; same arguments, same semantics.
+d_separated = getattr(nx, "is_d_separator", None) or nx.d_separated
+
 # Check d-separation implications against data
 # If two variables are d-separated in the graph but correlated
 # in data, a common cause may be missing
@@ -125,7 +129,7 @@ G.add_edges_from([("X", "D"), ("X", "Y"), ("D", "Y")])
 # Two nodes with no directed path can still be d-connected via a common cause,
 # so we must use d-separation, not path reachability.
 for v1, v2 in combinations(G.nodes(), 2):
-    if nx.d_separated(G, {v1}, {v2}, set()):
+    if d_separated(G, {v1}, {v2}, set()):
         print(f"{v1} and {v2} should be marginally independent — check in data")
         # If they're correlated in data, you may be missing a common cause
 ```
@@ -174,6 +178,10 @@ Python:
 ```python
 import networkx as nx
 
+# networkx renamed d_separated -> is_d_separator in 3.3 and removed the old name
+# in 3.5; same arguments, same semantics.
+d_separated = getattr(nx, "is_d_separator", None) or nx.d_separated
+
 # The CMC implies: each node is independent of its non-descendants given its parents.
 # Verify this structurally by checking d-separation for each node:
 G = nx.DiGraph()
@@ -187,7 +195,7 @@ for node in G.nodes():
     for nd in non_descendants:
         if nd not in parents:
             # CMC implies: node ⊥ nd | parents
-            is_sep = nx.d_separated(G, {node}, {nd}, parents)
+            is_sep = d_separated(G, {node}, {nd}, parents)
             print(f"CMC check: {node} ⊥ {nd} | {parents} → d-separated: {is_sep}")
 ```
 

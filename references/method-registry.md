@@ -150,7 +150,7 @@ Single source of truth for all causal inference methods supported by this plugin
 
 **R packages**: `CausalImpact` (Bayesian structural time series), `CausalArima` (ARIMA-based)
 
-**Python packages**: `causalimpact` (Python port of CausalImpact), `pycausalarima`
+**Python packages**: `pycausalimpact` (Python port of CausalImpact — installs as `pycausalimpact`, imports as `causalimpact`; not the unrelated `causalimpact` distribution), `pycausalarima`
 
 **Key diagnostics**: Pre-period fit (MAPE), residual diagnostics (autocorrelation, normality), Ljung-Box test, comparison with placebo intervention dates, comparison with control series.
 

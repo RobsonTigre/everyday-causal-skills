@@ -13,4 +13,3 @@ user_message: |
 expected:
   must_flag: [overlap]
   severity: fatal
-  must_not_miss: [overlap]

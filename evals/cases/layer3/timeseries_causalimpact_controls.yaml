@@ -8,6 +8,8 @@ references:
   - references/lessons.md
 dataset: evals/data/timeseries_causalimpact_controls_l3.csv
 language: python
+# Import name: the distribution is pycausalimpact (see evals/README.md).
+requires: [causalimpact]
 user_message: |
   I have monthly outcome data for 80 periods. An intervention began at period 51
   (date 2022-03-01). I also have two control series (control1, control2) that were

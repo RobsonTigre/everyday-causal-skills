@@ -1,0 +1,23 @@
+name: report_standalone
+description: Report skill with no prior artifacts — should build from the user's figures alone, without inventing detail
+layer: 4
+skill: causal-report
+references:
+  - references/method-registry.md
+  - references/lessons.md
+user_message: |
+  I ran an IV analysis outside this plugin. Distance to college was the instrument,
+  years of education was the treatment, and earnings was the outcome. The first-stage
+  F-statistic was 28. The LATE was $1,200 per year (SE: $400). The exclusion
+  restriction is debatable — distance might affect earnings through channels other
+  than education. Write a business report.
+rubric:
+  pedagogy:
+    - "Is a business tone maintained throughout, rather than lapsing into academic prose?"
+    - "Does the report explain in plain language what the LATE represents and whom it applies to?"
+  safety:
+    - "Does the report build only on the figures the user supplied, without inventing estimates, sample sizes, or diagnostics that were never provided?"
+    - "Does it flag the exclusion restriction concern in the Limitations section?"
+  actionable:
+    - "Does the report skill create a project folder and report artifact without requiring a prior skill to have run?"
+    - "Does the Recommendations section suggest running /causal-auditor for a deeper review?"

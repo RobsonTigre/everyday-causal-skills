@@ -68,12 +68,49 @@ def assert_contains(text: str, terms: list) -> dict:
     return {t: (t.lower() in low) for t in (terms or [])}
 
 
-def classify(comparisons: list, assertion_failures: list, in_baseline: bool) -> str:
-    """PASS if everything agrees; else KNOWN_DISPARITY when baselined, FAIL when new."""
-    failed = any(not c["agree"] for c in comparisons) or bool(assertion_failures)
-    if not failed:
+def classify(comparisons: list, assertion_failures: list, in_baseline: bool,
+             exec_failures: list = None, baseline_entry: dict = None) -> str:
+    """PASS if everything agrees; KNOWN_DISPARITY only for what the baseline actually
+    documents; FAIL otherwise.
+
+    Matching used to be by method NAME alone, so one documented gap excused every future
+    failure in that method. That masked a live regression: the Python DAG recipe began
+    crashing on `nx.d_separated` (removed in networkx 3.5), all three estimands went
+    missing, and the gate still printed `0 FAIL` — under a baseline entry whose own
+    summary claimed those estimands "agree to 6+ dp".
+    """
+    exec_failures = list(exec_failures or [])
+    entry = baseline_entry or {}
+    covers = [str(c).lower() for c in (entry.get("covers") or [])]
+
+    failed_estimands = [c["name"] for c in comparisons if not c["agree"]]
+    problems = list(assertion_failures) + failed_estimands
+
+    if not problems and not exec_failures:
         return "PASS"  # passing while baselined => stale baseline entry (still PASS)
-    return "KNOWN_DISPARITY" if in_baseline else "FAIL"
+    if not in_baseline:
+        return "FAIL"
+
+    # An execution failure is ALWAYS a FAIL, with no baseline escape. A crash means the
+    # recipe did not run, so nothing was compared and every estimand is trivially
+    # "missing" — a numerical baseline cannot speak to that.
+    #
+    # An earlier version allowed a `dimension: [execution]` exemption, but the crash text
+    # was never matched against `covers:`, so any crash was excused once that dimension
+    # was declared. Rather than teach the matcher about execution text, the exemption is
+    # gone: a known parity disparity requires BOTH implementations to actually execute.
+    # If execution baselining is ever genuinely needed, add a dedicated field matching
+    # normalized exception signatures — do not widen this one.
+    if exec_failures:
+        return "FAIL"
+
+    # A baseline excuses only the failures it names. No `covers:` means it names none.
+    if not covers:
+        return "FAIL"
+    for item in problems:
+        if not any(c in str(item).lower() for c in covers):
+            return "FAIL"
+    return "KNOWN_DISPARITY"
 
 
 def load_baseline(path: str) -> dict:
@@ -215,7 +252,10 @@ def run_method(spec: dict, repo_root: str = ".", baseline: dict = None) -> dict:
                 assertion_failures.append(f"method-registry missing current package '{pkg}'")
 
     all_fail = assertion_failures + exec_failures
-    verdict = classify(comparisons, all_fail, in_baseline=(method in baseline))
+    verdict = classify(comparisons, assertion_failures,
+                       in_baseline=(method in baseline),
+                       exec_failures=exec_failures,
+                       baseline_entry=baseline.get(method))
     return {"method": method, "verdict": verdict, "comparisons": comparisons,
             "assertion_failures": all_fail,
             "baseline_id": baseline.get(method, {}).get("backlog_id")}

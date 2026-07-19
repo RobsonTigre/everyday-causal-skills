@@ -14,8 +14,8 @@ published number comes from executing this script — never from mental math.
 # --- Preflight: detect missing packages (does NOT install) ---
 import importlib.util
 
-required = {"numpy": "numpy", "pandas": "pandas"}  # pip name -> import name
-missing = [pip for pip, mod in required.items() if importlib.util.find_spec(mod) is None]
+required = {"numpy": "numpy", "pandas": "pandas"}  # import-name -> pip-name (they match unless noted)
+missing = [pip for mod, pip in required.items() if importlib.util.find_spec(mod) is None]
 if missing:
     print("Missing Python packages:", ", ".join(missing))
     print("Install with: pip install " + " ".join(missing))

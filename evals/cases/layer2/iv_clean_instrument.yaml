@@ -1,4 +1,4 @@
-name: iv_strong_instrument
+name: iv_clean_instrument
 description: IV with strong instrument F > 50 — no violations
 layer: 2
 skill: causal-iv

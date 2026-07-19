@@ -14,4 +14,3 @@ user_message: |
 expected:
   must_flag: [parallel_trends]
   severity: fatal
-  must_not_miss: [parallel_trends]

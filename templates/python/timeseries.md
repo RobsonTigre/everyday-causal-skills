@@ -17,7 +17,7 @@ required = {
     "seaborn": "seaborn",
     "statsmodels": "statsmodels",
     "scipy": "scipy",
-    "causalimpact": "causalimpact",  # used in the CausalImpact estimation block
+    "causalimpact": "pycausalimpact",  # import name != pip name; NOT the `causalimpact` distribution
 }
 missing = [pip for mod, pip in required.items()
            if importlib.util.find_spec(mod) is None]
@@ -85,7 +85,7 @@ point_effect = ci.summary_data["average"]["abs_effect"]
 ci_lower = ci.summary_data["average"]["abs_effect_lower"]
 ci_upper = ci.summary_data["average"]["abs_effect_upper"]
 cum_effect = ci.summary_data["cumulative"]["abs_effect"]
-p_value = ci.summary_data["average"]["p"]
+p_value = ci.p_value  # public attribute; summary_data has no "p" row
 
 print(f"\n=== Key Results ===")
 print(f"Average causal effect: {point_effect:.4f}")
@@ -189,14 +189,29 @@ print(results_table.to_string(index=False, float_format="%.4f"))
 ```python
 fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
-# --- Panel 1: CausalImpact plot (manual reconstruction) ---
-ax = axes[0, 0]
-ci.plot(panels=["original"], ax=ax)
-ax.set_title("CausalImpact: Observed vs. Predicted")
+# ci.plot() takes only (panels, figsize) and always draws its own figure — it accepts
+# no `ax`, so panels are rebuilt from ci.inferences to fit this 2x2 grid.
+inf = ci.inferences
+observed = ci.data.iloc[:, 0]          # outcome is the first column by convention
 
-# --- Panel 2: CausalImpact point effects ---
+# --- Panel 1: observed vs. predicted counterfactual ---
+ax = axes[0, 0]
+ax.plot(observed.index, observed, color="black", linewidth=1.2, label="Observed")
+ax.plot(inf.index, inf["preds"], color="steelblue", linestyle="--", linewidth=1.5,
+        label="Counterfactual")
+ax.fill_between(inf.index, inf["preds_lower"], inf["preds_upper"],
+                color="steelblue", alpha=0.2, label="95% CI")
+ax.axvline(pd.Timestamp(post_start), color="red", linestyle=":", linewidth=1.5)
+ax.set_title("CausalImpact: Observed vs. Predicted")
+ax.legend(fontsize=8)
+
+# --- Panel 2: pointwise effect (observed minus counterfactual) ---
 ax = axes[0, 1]
-ci.plot(panels=["pointwise"], ax=ax)
+ax.plot(inf.index, inf["point_effects"], color="darkgreen", linewidth=1.2)
+ax.fill_between(inf.index, inf["point_effects_lower"], inf["point_effects_upper"],
+                color="darkgreen", alpha=0.2)
+ax.axhline(0, color="gray", linestyle="-", linewidth=0.8)
+ax.axvline(pd.Timestamp(post_start), color="red", linestyle=":", linewidth=1.5)
 ax.set_title("CausalImpact: Pointwise Effect")
 
 # --- Panel 3: ITS segmented regression ---

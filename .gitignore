@@ -15,7 +15,17 @@ venv/
 evals/propose_lessons.py
 evals/config.yaml
 evals/results/*.md
+evals/results/*.json
 !evals/results/HISTORY.md
+# Per-sweep working dirs are local evidence; the release verdict is committed.
+# Both formats are exceptions: a verdict ships as .md for humans and .json for tooling.
+# (*.json was previously unignored here, so any stray JSON dropped in this directory
+# was silently committable.)
+evals/results/sweep-*/
+!evals/results/verdict-v*.md
+!evals/results/verdict-v*.json
+# Ad-hoc case lists passed to sweep.py --cases @file
+evals/.*-cases.txt
 
 # Internal dev notes
 references/lessons-archive.md

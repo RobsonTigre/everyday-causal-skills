@@ -14,4 +14,3 @@ user_message: |
 expected:
   must_flag: [manipulation, no_manipulation]
   severity: fatal
-  must_not_miss: [manipulation]

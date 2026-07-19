@@ -77,8 +77,53 @@ def test_classify_new_failure():
 
 
 def test_classify_known_disparity():
+    # A baseline excuses only what it names in `covers:`.
     cmps = [{"name": "ATT", "agree": False}]
-    assert classify(cmps, [], in_baseline=True) == "KNOWN_DISPARITY"
+    assert classify(cmps, [], in_baseline=True,
+                    baseline_entry={"covers": ["ATT"]}) == "KNOWN_DISPARITY"
+
+
+def test_classify_baseline_without_covers_excuses_nothing():
+    """Matching used to be by method name alone, so one documented gap excused every
+    future failure in that method. That masked a live DAG regression."""
+    cmps = [{"name": "ATT", "agree": False}]
+    assert classify(cmps, [], in_baseline=True, baseline_entry={}) == "FAIL"
+    assert classify(cmps, [], in_baseline=True,
+                    baseline_entry={"covers": []}) == "FAIL"
+
+
+def test_classify_undocumented_failure_in_baselined_method_is_fail():
+    cmps = [{"name": "ATT", "agree": False}, {"name": "RMSPE", "agree": False}]
+    # Only ATT is documented; RMSPE is new.
+    assert classify(cmps, [], in_baseline=True,
+                    baseline_entry={"covers": ["ATT"]}) == "FAIL"
+
+
+def test_classify_execution_failure_is_always_fail_no_baseline_escape():
+    """A crash means the recipe did not run, so nothing was compared and every estimand is
+    trivially 'missing'. This is how a networkx removal hid behind a collider gap.
+
+    There is deliberately NO exemption. An earlier version allowed
+    `dimension: [execution]`, but never matched the crash text against `covers:` — so any
+    crash was excused once that dimension appeared, whatever `covers` said."""
+    crash = ["Python recipe failed: AttributeError"]
+
+    # Numerical baseline: cannot excuse a crash.
+    assert classify([{"name": "ATT", "agree": False}], [], in_baseline=True,
+                    exec_failures=crash,
+                    baseline_entry={"covers": ["ATT"],
+                                    "dimension": ["numerical"]}) == "FAIL"
+
+    # Declaring the execution dimension does NOT buy an exemption any more.
+    assert classify([{"name": "ATT", "agree": True}], [], in_baseline=True,
+                    exec_failures=crash,
+                    baseline_entry={"covers": ["recipe failed"],
+                                    "dimension": ["execution"]}) == "FAIL"
+
+    # Not even when everything else agrees and covers names the crash verbatim.
+    assert classify([], [], in_baseline=True, exec_failures=crash,
+                    baseline_entry={"covers": ["python recipe failed: attributeerror"],
+                                    "dimension": ["execution"]}) == "FAIL"
 
 
 def test_classify_assertion_failure_is_fail():
@@ -202,8 +247,21 @@ def test_run_method_numeric_disagree_fail():
 def test_run_method_disagree_known():
     with _tf.TemporaryDirectory() as tmp:
         spec = _mini_repo(tmp, py_att=5.0, r_att=9.0)
-        res = run_method(spec, repo_root=tmp, baseline={"m": {"backlog_id": "X-1"}})
+        res = run_method(spec, repo_root=tmp,
+                         baseline={"m": {"backlog_id": "X-1", "covers": ["ATT"]}})
         assert res["verdict"] == "KNOWN_DISPARITY", res
+
+
+def test_run_method_crash_in_baselined_method_still_fails():
+    """End-to-end version of the DAG regression: a baselined method whose recipe crashes
+    must FAIL, not hide as a known disparity."""
+    with _tf.TemporaryDirectory() as tmp:
+        spec = _mini_repo(tmp, py_att=5.0, r_att=5.0)
+        _write(tmp, "evals/parity/reference/m.py", "raise RuntimeError('boom')")
+        res = run_method(spec, repo_root=tmp,
+                         baseline={"m": {"backlog_id": "X-1", "covers": ["ATT"]}})
+        assert res["verdict"] == "FAIL", res
+        assert any("recipe failed" in f for f in res["assertion_failures"]), res
 
 
 def test_run_method_capability_gap_fail():
