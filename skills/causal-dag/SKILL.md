@@ -158,7 +158,7 @@ Based on the DAG structure and identification strategy, recommend the appropriat
 
 **Handoff**: "Based on your DAG, I recommend [method]. Would you like to proceed with `/causal-[method]`?"
 
-Save the DAG analysis to `docs/causal-plans/YYYY-MM-DD-<project>/dag.md` using this structure:
+**Artifact saving:** When file-writing tools are available, save the DAG analysis to `docs/causal-plans/YYYY-MM-DD-<project>/dag.md` using the structure below. If file-writing tools are unavailable, state that the file was not saved and provide the complete DAG analysis and all requested runnable code directly in the response. Never replace requested code with a Markdown-only artifact.
 
 ```
 # DAG Analysis: [Project Name]
