@@ -131,6 +131,8 @@ Generate code that:
 4. **Lists testable implications** using dagitty::impliedConditionalIndependencies (R) or equivalent
 5. **Tests implications against data** (if the user has data loaded) — run conditional independence tests
 
+**Runnable Python output (required template adaptation):** When DoWhy code is requested, provide the complete adapted workflow in one self-contained fenced `python` block. It must run unattended from a clean process: select `matplotlib.use("Agg")` before importing `pyplot`, save and close figures instead of calling `plt.show()`, and, when the user provides no dataframe, create a small seeded placeholder dataframe containing every DAG variable before constructing `CausalModel`. These runtime requirements take precedence over the Python template's fence structure, plotting calls, and placeholder-data assumptions.
+
 ## Stage 5: Bridge to Method
 
 Based on the DAG structure and identification strategy, recommend the appropriate estimation method:
