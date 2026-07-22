@@ -290,7 +290,14 @@ def score_response(case: dict, response: str, config: dict | None = None, debug:
         # Rubric questions may live under expected.rubric or at case level
         # (the report_* cases carry a top-level rubric).
         rubric = expected.get("rubric") or case.get("rubric") or []
-        return _score_layer2(response, expected, config, debug, rubric=rubric)
+        scores = _score_layer2(response, expected, config, debug, rubric=rubric)
+        # response_contract / deferred_rubric (D1): declarative case metadata,
+        # not judge output. _judge_l2 only receives `expected` + `rubric`, not
+        # the full case, so this is injected here rather than inside it —
+        # mirrors what _judge_l4 already does directly, since L4 has `case`
+        # in scope. Absent on every case today, so inert until D2 uses it.
+        return {**scores, "response_contract": case.get("response_contract"),
+                "deferred_rubric": case.get("deferred_rubric") or []}
     elif layer == 3:
         return _score_layer3(response, expected, case)
     elif layer == 4:
@@ -550,9 +557,16 @@ Questions:
     active = [s for dim, s in dim_scores.items() if dim in dim_ranges]
     overall = sum(active) / len(active) if active else 0.0
 
+    # response_contract / deferred_rubric (D1) are declarative case metadata,
+    # not judge output — passed through unchanged so aggregate() can surface
+    # deferred criteria in the verdict. Absent on every case today (D1 is
+    # mechanism only; D2 migrates cases), so this is inert until then.
+    #
     # Which dimensions the case actually populates — the gate scores only these,
     # so an absent dimension is skipped rather than counted as a 0.0.
-    return {**dim_scores, "overall": overall, "dimensions_present": sorted(dim_ranges)}
+    return {**dim_scores, "overall": overall, "dimensions_present": sorted(dim_ranges),
+            "response_contract": case.get("response_contract"),
+            "deferred_rubric": case.get("deferred_rubric") or []}
 
 
 def score_l5(step1_response: str, step2_response: str, case: dict,

@@ -620,6 +620,29 @@ def test_l4_propagates_judge_error():
         lambda: _with_raising_judge(lambda: _judge_l4("resp", case)), "L4")
 
 
+# --- Grading contract (D1): response_contract / deferred_rubric passthrough ---
+
+def test_judge_l4_absent_grading_contract_defaults_safely():
+    # 0 of 180 real cases set either field today — this is the behavior every
+    # one of them gets, and it must be identical to pre-D1 output.
+    case = {"rubric": {"pedagogy": ["Q1?"], "safety": ["Q2?"]}}
+    out, _ = _with_fake_judge([True, True], lambda: _judge_l4("resp", case))
+    assert out["response_contract"] is None, out
+    assert out["deferred_rubric"] == [], out
+    assert out["overall"] == 1.0, out  # unaffected by the new keys
+
+
+def test_judge_l4_passes_through_response_contract_and_deferred_rubric():
+    case = {"rubric": {"pedagogy": ["Q1?"]},
+            "response_contract": "first_turn",
+            "deferred_rubric": ["Was the adjustment set justified?"]}
+    out, _ = _with_fake_judge([True], lambda: _judge_l4("resp", case))
+    assert out["response_contract"] == "first_turn", out
+    assert out["deferred_rubric"] == ["Was the adjustment set justified?"], out
+    # Deferred criteria never enter the graded dimensions or cost a question.
+    assert out["overall"] == 1.0, out
+
+
 def test_l5_propagates_judge_error():
     case = {"rubric": ["Q1?"], "steps": [{"skill": "a"}, {"skill": "b"}]}
     _expect_judge_error(

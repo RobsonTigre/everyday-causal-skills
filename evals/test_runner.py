@@ -325,6 +325,28 @@ def test_l4_absent_dimension_is_skipped_not_zeroed():
     assert case_gate(4, agg) == "PASS", agg
 
 
+def test_l4_aggregate_absent_grading_contract_defaults_safely():
+    # 0 of 180 real cases carry response_contract/deferred_rubric today —
+    # this is what every one of them aggregates to, unchanged from pre-D1.
+    strong = {"pedagogy": 0.9, "safety": 0.9, "actionable": 0.9,
+              "dimensions_present": ["pedagogy", "safety", "actionable"]}
+    agg = aggregate(_runs(4, [strong] * 5), {"layer": 4})
+    assert agg["response_contract"] is None, agg
+    assert agg["deferred_rubric"] == [], agg
+    assert case_gate(4, agg) == "PASS", agg  # unaffected by the new keys
+
+
+def test_l4_aggregate_propagates_deferred_rubric_and_response_contract():
+    scored = {"pedagogy": 0.9, "safety": 0.9, "actionable": 0.9,
+             "dimensions_present": ["pedagogy", "safety", "actionable"],
+             "response_contract": "first_turn",
+             "deferred_rubric": ["Was the adjustment set justified?"]}
+    agg = aggregate(_runs(4, [scored] * 5), {"layer": 4})
+    assert agg["response_contract"] == "first_turn", agg
+    assert agg["deferred_rubric"] == ["Was the adjustment set justified?"], agg
+    assert case_gate(4, agg) == "PASS", agg  # deferred criteria never gate
+
+
 def test_l5_gate():
     good = aggregate(_runs(5, [{"handoff_quality": 0.8, "questions_passed": 4,
                                 "questions_total": 5}] * 5), {"layer": 5})

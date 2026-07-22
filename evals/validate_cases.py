@@ -63,6 +63,40 @@ def _check_single_skill(case: dict, errors: list[str]) -> None:
         errors.append("missing user_message")
 
 
+_RESPONSE_CONTRACTS = {"final_output", "first_turn"}
+_INPUT_MODES = {"inline", "dataset", "artifact", "withheld"}
+
+
+def _check_grading_contract(case: dict, errors: list[str]) -> None:
+    """`response_contract` / `input_mode` / `deferred_rubric` — optional at every
+    layer; an absent field preserves current behaviour exactly. When present,
+    each must be well-formed:
+
+    - response_contract: final_output (grade the finished artifact) or
+      first_turn (grade turn one only — read by scorer.py's _judge_l4).
+    - input_mode: inline / dataset / artifact / withheld — read only by this
+      validator, never by the scorer.
+    - deferred_rubric: non-empty list of question strings moved out of the
+      graded rubric because they cannot be reached in one turn. Reported in
+      the verdict, never scored, never judged.
+    """
+    contract = case.get("response_contract")
+    if contract is not None and contract not in _RESPONSE_CONTRACTS:
+        errors.append(
+            f"response_contract must be one of {sorted(_RESPONSE_CONTRACTS)}, got {contract!r}")
+
+    mode = case.get("input_mode")
+    if mode is not None and mode not in _INPUT_MODES:
+        errors.append(f"input_mode must be one of {sorted(_INPUT_MODES)}, got {mode!r}")
+
+    if "deferred_rubric" in case:
+        deferred = case["deferred_rubric"]
+        if not isinstance(deferred, list) or not deferred:
+            errors.append("deferred_rubric, if present, must be a non-empty list")
+        elif not all(isinstance(q, str) and q.strip() for q in deferred):
+            errors.append("deferred_rubric entries must be non-empty strings")
+
+
 def _check_must_include(expected: dict, errors: list[str]) -> None:
     """`must_include` terms are strings or non-empty lists of alternate phrasings.
 
@@ -105,6 +139,7 @@ def validate_case(path: Path) -> list[str]:
 
     layer = _check_common(case, path, errors)
     _check_paths(case, errors)
+    _check_grading_contract(case, errors)
     expected = case.get("expected") or {}
 
     if layer == 0:
@@ -202,7 +237,11 @@ def validate_case(path: Path) -> list[str]:
 # schema into the user_message so the skill can see the columns, regardless of whether
 # anything later executes against the file.
 _COMMON_TOP = {"name", "description", "layer", "skill", "references", "user_message",
-               "expected", "dataset"}
+               "expected", "dataset",
+               # Grading contract (D1) — legal at every layer, consumed by
+               # scorer.py's _judge_l4 (response_contract, deferred_rubric)
+               # and by this validator only (input_mode).
+               "response_contract", "input_mode", "deferred_rubric"}
 
 # layer -> (extra top-level keys, allowed expected.* keys)
 _SCHEMA: dict[int, tuple[set[str], set[str]]] = {

@@ -597,6 +597,15 @@ def aggregate(runs: list[dict], case: dict) -> dict:
                        if r["scores"].get("rubric_coverage") is not None]
         if rubric_vals:
             out["rubric_coverage"] = sum(rubric_vals) / len(rubric_vals)
+        # response_contract / deferred_rubric (D1): same propagation as L4's
+        # branch above — static case metadata, same on every run, surfaced in
+        # the verdict without affecting `rate`/detection at all.
+        out["response_contract"] = next(
+            (r["scores"].get("response_contract") for r in valid
+             if r["scores"].get("response_contract")), None)
+        out["deferred_rubric"] = next(
+            (r["scores"].get("deferred_rubric") for r in valid
+             if r["scores"].get("deferred_rubric")), [])
         return out
 
     elif layer == 3:
@@ -624,7 +633,16 @@ def aggregate(runs: list[dict], case: dict) -> dict:
                 dim_avgs[dim] = None  # not populated by this case — skipped, not zero
         scored = [v for v in dim_avgs.values() if v is not None]
         overall = sum(scored) / len(scored) if scored else 0.0
-        return {**base, **dim_avgs, "overall": overall, "rate": overall}
+        # response_contract / deferred_rubric (D1): static case metadata, same
+        # on every run — take it from whichever run reported it. Deferred
+        # criteria are surfaced in the verdict; they never entered dim_avgs
+        # above, so they cost no judge calls and cannot affect the score.
+        contract = next((r["scores"].get("response_contract") for r in valid
+                         if r["scores"].get("response_contract")), None)
+        deferred = next((r["scores"].get("deferred_rubric") for r in valid
+                         if r["scores"].get("deferred_rubric")), [])
+        return {**base, **dim_avgs, "overall": overall, "rate": overall,
+                "response_contract": contract, "deferred_rubric": deferred}
 
     elif layer == 5:
         handoff = sum(r["scores"].get("handoff_quality", 0.0) for r in valid) / n

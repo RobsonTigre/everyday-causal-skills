@@ -866,6 +866,20 @@ def render_verdict_md(verdict: dict) -> str:
     for name, c in sorted(verdict["cases"].items(), key=lambda kv: (kv[1]["layer"], kv[0])):
         valid = f"{c['runs_valid']}/{c['runs_total']}" if c["runs_valid"] is not None else "—"
         lines.append(f"| {name} | L{c['layer']} | {c['verdict']} | {valid} |")
+
+    # D1: rubric criteria a case's triage moved out of grading because they
+    # cannot be reached in one turn (response_contract: first_turn). Reported
+    # here so they stay visible as a migration list — never scored, never
+    # judged, never counted toward the verdict above.
+    deferred = {name: (c.get("aggregate") or {}).get("deferred_rubric")
+               for name, c in verdict["cases"].items()}
+    deferred = {name: d for name, d in deferred.items() if d}
+    if deferred:
+        lines += ["", "## Deferred criteria (reported, not graded)", ""]
+        for name in sorted(deferred):
+            lines.append(f"- **{name}**:")
+            lines.extend(f"  - {q}" for q in deferred[name])
+
     return "\n".join(lines) + "\n"
 
 

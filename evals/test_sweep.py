@@ -114,6 +114,88 @@ def test_verdict_markdown_flags_dirty_tree():
     assert "dirty" in md.lower(), md
 
 
+def test_verdict_markdown_omits_deferred_section_when_none_present():
+    # 0 of 180 real cases set deferred_rubric today — the section must not
+    # appear at all, not appear empty, so today's verdicts render unchanged.
+    v = compile_verdict(_ledger({"a": _entry(1, verdict_agg=_L1_PASS)}))
+    md = render_verdict_md(v)
+    assert "Deferred criteria" not in md, md
+
+
+def test_verdict_markdown_lists_deferred_criteria_per_case():
+    agg = {**_L1_PASS, "deferred_rubric": ["Was the adjustment set justified?"]}
+    v = compile_verdict(_ledger({"a": _entry(1, verdict_agg=agg)}))
+    md = render_verdict_md(v)
+    assert "Deferred criteria" in md, md
+    assert "Was the adjustment set justified?" in md, md
+    assert "**a**" in md, md
+
+
+def test_l2_grading_contract_flows_end_to_end_through_verdict_rendering():
+    # 1f-b acceptance test: response_contract / deferred_rubric must survive
+    # the FULL L2 path — score_response's L2 dispatch (which only had access
+    # to `expected` + a bare `rubric` list, not the full case, so the fields
+    # were silently dropped before this fix) -> aggregate()'s L2 branch ->
+    # compile_verdict -> render_verdict_md. Proving each layer in isolation
+    # was not enough; this is what D2 actually needs for report_no_artifacts.
+    case = {
+        "name": "l2_probe", "layer": 2, "skill": "causal-dag", "user_message": "hi",
+        "expected": {"must_flag": []},
+        "response_contract": "first_turn",
+        "deferred_rubric": ["Was the adjustment set justified?"],
+    }
+
+    real_judge = scorer._call_judge
+    scorer._call_judge = lambda prompt, n, config=None, debug=False, label="": [False] * n
+    try:
+        scores = scorer.score_response(case, "some response", {})
+    finally:
+        scorer._call_judge = real_judge
+
+    assert scores["response_contract"] == "first_turn", scores
+    assert scores["deferred_rubric"] == ["Was the adjustment set justified?"], scores
+
+    runs = [{"run": i + 1, "scores": scores, "tokens": {"input": 0, "output": 0}}
+            for i in range(5)]
+    agg = runner.aggregate(runs, case)
+    assert agg["response_contract"] == "first_turn", agg
+    assert agg["deferred_rubric"] == ["Was the adjustment set justified?"], agg
+
+    verdict = compile_verdict(_ledger({"l2_probe": _entry(2, verdict_agg=agg)}))
+    assert verdict["cases"]["l2_probe"]["aggregate"]["deferred_rubric"] == \
+        ["Was the adjustment set justified?"], verdict
+
+    md = render_verdict_md(verdict)
+    assert "Deferred criteria" in md, md
+    assert "Was the adjustment set justified?" in md, md
+    assert "**l2_probe**" in md, md
+
+
+def test_l2_grading_contract_absent_flows_end_to_end_safely():
+    # The mirror case: 0 of 180 real L2 cases set either field today, so this
+    # is the path every one of them takes through the same full pipeline.
+    case = {
+        "name": "l2_probe_absent", "layer": 2, "skill": "causal-dag",
+        "user_message": "hi", "expected": {"must_flag": []},
+    }
+    real_judge = scorer._call_judge
+    scorer._call_judge = lambda prompt, n, config=None, debug=False, label="": [False] * n
+    try:
+        scores = scorer.score_response(case, "some response", {})
+    finally:
+        scorer._call_judge = real_judge
+
+    runs = [{"run": i + 1, "scores": scores, "tokens": {"input": 0, "output": 0}}
+            for i in range(5)]
+    agg = runner.aggregate(runs, case)
+    assert agg["response_contract"] is None, agg
+    assert agg["deferred_rubric"] == [], agg
+
+    verdict = compile_verdict(_ledger({"l2_probe_absent": _entry(2, verdict_agg=agg)}))
+    md = render_verdict_md(verdict)
+    assert "Deferred criteria" not in md, md
+
+
 # --- Ledger durability and resume safety ---
 
 def test_verdict_reflects_corrected_gate_without_rerunning():

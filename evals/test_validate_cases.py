@@ -205,6 +205,80 @@ def test_clean_case_produces_no_warnings():
     assert _warn(L4_GOOD, name="good_l4") == []
 
 
+# --- Grading contract (D1): response_contract / input_mode / deferred_rubric ---
+
+def test_grading_contract_fields_are_legal_and_not_dead_metadata():
+    # A case using all three fields with legal values must be both valid and
+    # warning-free — the whole point of D1 is that they are real schema, not
+    # unread metadata.
+    text = """
+name: probe
+description: fine
+layer: 4
+skill: causal-did
+user_message: hello
+response_contract: first_turn
+input_mode: inline
+deferred_rubric:
+  - "Was the adjustment set correctly justified?"
+rubric:
+  pedagogy:
+    - "Q1?"
+"""
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", text)
+        assert validate_case(p) == [], validate_case(p)
+    assert _warn(text, name="probe") == []
+
+
+def test_illegal_response_contract_is_an_error():
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:", "response_contract: sometimes\nrubric:"))
+        errs = validate_case(p)
+        assert any("response_contract" in e for e in errs), errs
+
+
+def test_illegal_input_mode_is_an_error():
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:", "input_mode: telepathy\nrubric:"))
+        errs = validate_case(p)
+        assert any("input_mode" in e for e in errs), errs
+
+
+def test_empty_deferred_rubric_is_an_error():
+    # Absent is legitimate (most first_turn cases defer nothing); present-but-
+    # empty is a pointless, likely-accidental declaration.
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:", "deferred_rubric: []\nrubric:"))
+        errs = validate_case(p)
+        assert any("deferred_rubric" in e for e in errs), errs
+
+
+def test_deferred_rubric_non_string_entry_is_an_error():
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:", "deferred_rubric: [1, 2]\nrubric:"))
+        errs = validate_case(p)
+        assert any("deferred_rubric" in e for e in errs), errs
+
+
+def test_real_case_tree_declares_no_grading_contract_fields_yet():
+    # D1 lands the mechanism; D2 (a separate, checkpoint-gated step) migrates
+    # cases onto it. Between those two, every real case must still be silent
+    # on all three fields — this is the literal backward-compatibility claim.
+    import yaml
+    cases_dir = Path("evals/cases")
+    offenders = []
+    for path in sorted(cases_dir.rglob("*.yaml")):
+        case = yaml.safe_load(path.read_text()) or {}
+        if any(k in case for k in ("response_contract", "input_mode", "deferred_rubric")):
+            offenders.append(str(path))
+    assert not offenders, offenders
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0
