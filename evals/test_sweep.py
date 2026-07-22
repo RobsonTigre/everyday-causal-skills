@@ -10,9 +10,13 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import runner  # noqa: E402
+import scorer  # noqa: E402
 import sweep  # noqa: E402
 from sweep import (  # noqa: E402
     compile_verdict,
@@ -162,26 +166,169 @@ def test_only_unmeasured_cases_are_pending():
     assert pending == ["not_measured"], pending
 
 
-def test_run_one_case_marks_partial_measurement_invalid(tmp=None):
-    # 4 of 5 runs valid is not a measurement of the case — it must requeue.
+def test_run_case_slots_preserves_accepted_slots_and_requeues_only_the_rest():
+    # The core slot-checkpointing guarantee: 4 already-accepted runs must
+    # survive untouched, and only the still-missing slot is re-attempted —
+    # the old whole-case design discarded all 5 when even one failed.
     with tempfile.TemporaryDirectory() as d:
         sweep_dir = Path(d)
-        (sweep_dir / "case-x.json").write_text(json.dumps({
-            "cases": [{"name": "x", "layer": 1, "verdict": "PASS",
-                       "aggregate": {"runs_valid": 4, "runs_total": 5, "rate": 0.9},
-                       "invalid_reasons": ["judge_error"]}]}))
+        accepted = [{"run": i + 1, "scores": {"correct_method": True},
+                     "tokens": {"input": 0, "output": 0}} for i in range(4)]
+        case_entry = {
+            "layer": 1,
+            "slots": [{"status": "done", "result": r} for r in accepted]
+                     + [{"status": "pending", "result": None}],
+        }
 
-        class _Proc:
-            returncode, stderr, stdout = 0, "", ""
+        calls = {"n": 0}
 
-        real = sweep.subprocess.run
-        sweep.subprocess.run = lambda *a, **k: _Proc()
+        def fake(*a, **k):
+            calls["n"] += 1
+            class _Proc:
+                returncode, stderr, stdout = 1, "boom", ""
+            return _Proc()
+
+        real = scorer.run_subprocess_grouped
+        scorer.run_subprocess_grouped = fake
         try:
-            patch = sweep.run_one_case("x", 5, "evals/config.yaml", sweep_dir)
+            patch = sweep.run_case_slots("x", case_entry, "evals/config.yaml", sweep_dir, 5, None)
         finally:
-            sweep.subprocess.run = real
+            scorer.run_subprocess_grouped = real
+
+        assert calls["n"] == 1, calls  # only the missing slot was attempted
         assert patch["status"] == "invalid", patch
         assert "4 of 5" in patch["error"], patch
+        done_slots = [s for s in patch["slots"] if s["status"] == "done"]
+        assert len(done_slots) == 4, patch["slots"]
+        assert [s["result"] for s in done_slots] == accepted, patch["slots"]
+
+
+def test_run_case_slots_all_done_computes_verdict_without_rerunning():
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        results = [{"run": i + 1, "scores": {"correct_method": True},
+                    "tokens": {"input": 0, "output": 0}} for i in range(5)]
+        case_entry = {"layer": 1, "slots": [{"status": "done", "result": r} for r in results]}
+
+        def fake(*a, **k):
+            raise AssertionError("no slot should be re-run once all are accepted")
+
+        real = scorer.run_subprocess_grouped
+        scorer.run_subprocess_grouped = fake
+        try:
+            patch = sweep.run_case_slots("x", case_entry, "evals/config.yaml", sweep_dir, 5, None)
+        finally:
+            scorer.run_subprocess_grouped = real
+
+        assert patch["status"] == "done", patch
+        assert patch["verdict"] == "PASS", patch
+        assert patch["aggregate"]["runs_valid"] == 5, patch
+
+
+def test_run_one_slot_treats_exit_2_as_a_real_measurement():
+    # exit 2 means runner.py measured the run and it was invalid — that is a
+    # result, not a crash, and must not be discarded/retried forever.
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        out_json = sweep_dir / "case-x-slot0.json"
+
+        class _Proc:
+            returncode, stderr, stdout = 2, "", ""
+
+        def fake(cmd, timeout=None, cwd=None):
+            out_json.write_text(json.dumps({
+                "cases": [{"name": "x", "layer": 1, "aggregate": {"rate": None},
+                          "verdict": "UNMEASURED", "invalid_reasons": ["skill_timeout"],
+                          "run_records": [{"run": 1, "scores": {}, "invalid": "skill_timeout",
+                                           "error": "timed out"}]}]}))
+            return _Proc()
+
+        real = scorer.run_subprocess_grouped
+        scorer.run_subprocess_grouped = fake
+        try:
+            result = sweep.run_one_slot("x", 0, "evals/config.yaml", sweep_dir)
+        finally:
+            scorer.run_subprocess_grouped = real
+        assert result is not None, result
+        assert result["invalid"] == "skill_timeout", result
+
+
+def test_run_case_slots_never_marks_an_invalid_measurement_done():
+    # Confirmed bug: a slot is "done" whenever run_one_slot returns
+    # non-None, but exit 2 (measured-but-invalid, e.g. a skill_timeout that
+    # survived its own retry budget) also returns non-None. Reproduced: 4
+    # valid + 1 exit-2-invalid slot must NOT report status: done / PASS —
+    # that is a case with an incomplete measurement claiming to be trustworthy.
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        accepted = [{"run": i + 1, "scores": {"accuracy": 1.0},
+                     "tokens": {"input": 0, "output": 0}} for i in range(4)]
+        case_entry = {
+            "layer": 1,
+            "slots": [{"status": "done", "result": r} for r in accepted]
+                     + [{"status": "pending", "result": None}],
+        }
+
+        class _Proc:
+            returncode, stderr, stdout = 2, "", ""
+
+        def fake(cmd, timeout=None, cwd=None):
+            out_path = [a for a in cmd if str(a).endswith(".json")][0]
+            Path(out_path).write_text(json.dumps({
+                "cases": [{"name": "x", "layer": 1,
+                          "aggregate": {"rate": None, "runs_valid": 0, "runs_total": 1},
+                          "verdict": "UNMEASURED", "invalid_reasons": ["skill_timeout"],
+                          "run_records": [{"run": 1, "scores": {}, "invalid": "skill_timeout",
+                                           "error": "timed out"}]}]}))
+            return _Proc()
+
+        real = scorer.run_subprocess_grouped
+        scorer.run_subprocess_grouped = fake
+        try:
+            patch = sweep.run_case_slots("x", case_entry, "evals/config.yaml", sweep_dir, 5, None)
+        finally:
+            scorer.run_subprocess_grouped = real
+
+        assert patch["status"] != "done", patch
+        assert patch.get("verdict") != "PASS", patch
+        done_slots = [s for s in patch["slots"] if s["status"] == "done"]
+        assert len(done_slots) == 4, patch["slots"]  # the 4 valid ones stay accepted
+        assert "skill_timeout" in (patch.get("invalid_reasons") or []), patch
+
+
+def test_run_one_slot_returns_none_on_crash_with_no_output():
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+
+        class _Proc:
+            returncode, stderr, stdout = 1, "crashed", ""
+
+        real = scorer.run_subprocess_grouped
+        scorer.run_subprocess_grouped = lambda *a, **k: _Proc()
+        try:
+            result = sweep.run_one_slot("x", 0, "evals/config.yaml", sweep_dir)
+        finally:
+            scorer.run_subprocess_grouped = real
+        assert result is None, result
+
+
+def test_is_v1_ledger_detects_missing_slots():
+    v1 = _ledger({"x": {"path": "evals/cases/layer1/x.yaml", "layer": 1, "status": "pending"}})
+    assert sweep._is_v1_ledger(v1) is True
+    v2 = _ledger({"x": _entry(1, verdict_agg=_L1_PASS)})
+    v2["cases"]["x"]["slots"] = [{"status": "done", "result": {}}]
+    assert sweep._is_v1_ledger(v2) is False
+
+
+def test_reset_abandoned_slots_only_touches_running_cases():
+    ledger = _ledger({
+        "stuck": _entry(1, status="running", verdict_agg=_L1_PASS),
+        "done": _entry(1, status="done", verdict_agg=_L1_PASS),
+    })
+    touched = sweep._reset_abandoned_slots(ledger)
+    assert touched == 1, touched
+    assert ledger["cases"]["stuck"]["status"] == "pending", ledger["cases"]["stuck"]
+    assert ledger["cases"]["done"]["status"] == "done", ledger["cases"]["done"]
 
 
 # --- Release preconditions (Package C) ---
@@ -647,6 +794,80 @@ def _run_all():
             print(f"FAIL {fn.__name__}: {e}")
     print(f"\n{len(fns) - failed}/{len(fns)} passed")
     sys.exit(1 if failed else 0)
+
+
+# --- run_wave: bounded release fail-fast ---
+
+_DONE_PATCH_TEMPLATE = {
+    "slots": [], "aggregate": {}, "invalid_reasons": [],
+    "runs_valid": 5, "runs_total": 5, "error": None,
+}
+
+
+def test_run_wave_release_fail_fast_never_submits_queued_cases():
+    # Bounded-scheduling guarantee: once a release sweep measures a genuine
+    # FAIL, a case that was never yet handed to a worker must not start —
+    # not just "probably won't". workers=2, 5 cases: the first case fails
+    # near-instantly; the rest each sleep long enough that, under the old
+    # eager-submit-everything design, more than 2 would have been dispatched
+    # before the coordinator could react. Only the 2 already-in-flight may
+    # ever run.
+    calls = {"n": 0}
+    lock = threading.Lock()
+
+    def fake_run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds):
+        with lock:
+            calls["n"] += 1
+        if name == "a":
+            return {"status": "done", "verdict": "FAIL", **_DONE_PATCH_TEMPLATE}
+        time.sleep(0.1)
+        return {"status": "done", "verdict": "PASS", **_DONE_PATCH_TEMPLATE}
+
+    real = sweep.run_case_slots
+    sweep.run_case_slots = fake_run_case_slots
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            sweep_dir = Path(d)
+            ledger_path = sweep_dir / "ledger.json"
+            names = ["a", "b", "c", "d", "e"]
+            ledger = _ledger({n: _entry(1, status="pending", verdict_agg=None) for n in names})
+
+            fail_fast = sweep.run_wave(ledger, names, "evals/config.yaml", sweep_dir,
+                                       ledger_path, workers=2, release=True)
+        assert fail_fast is True, fail_fast
+        assert calls["n"] == 2, calls  # only a and b — c, d, e never submitted
+        assert ledger["cases"]["c"]["status"] != "done", ledger["cases"]["c"]
+    finally:
+        sweep.run_case_slots = real
+
+
+def test_run_wave_diagnostic_sweep_ignores_fail_fast():
+    # release=False (a plain diagnostic sweep) must run every case regardless
+    # of an earlier FAIL — fail-fast is a release-only budget saver.
+    calls = {"n": 0}
+    lock = threading.Lock()
+
+    def fake_run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds):
+        with lock:
+            calls["n"] += 1
+        verdict = "FAIL" if name == "a" else "PASS"
+        return {"status": "done", "verdict": verdict, **_DONE_PATCH_TEMPLATE}
+
+    real = sweep.run_case_slots
+    sweep.run_case_slots = fake_run_case_slots
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            sweep_dir = Path(d)
+            ledger_path = sweep_dir / "ledger.json"
+            names = ["a", "b", "c"]
+            ledger = _ledger({n: _entry(1, status="pending", verdict_agg=None) for n in names})
+
+            fail_fast = sweep.run_wave(ledger, names, "evals/config.yaml", sweep_dir,
+                                       ledger_path, workers=2, release=False)
+        assert fail_fast is False, fail_fast
+        assert calls["n"] == 3, calls
+    finally:
+        sweep.run_case_slots = real
 
 
 if __name__ == "__main__":

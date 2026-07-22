@@ -22,7 +22,7 @@ import re
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime
 from pathlib import Path
 
@@ -35,7 +35,10 @@ import scorer  # noqa: E402
 from validate_cases import validate_tree, warn_tree  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-CASE_TIMEOUT = 5400  # generous: L3 cases execute generated code
+# Per-slot timeout: one runner.py invocation now covers a single run (slot
+# checkpointing — see run_case_slots), not all `runs_per_case` sequentially, so
+# the old whole-case budget is generous headroom for one run.
+SLOT_TIMEOUT = 5400  # generous: L3 cases execute generated code
 
 
 # --- Fingerprint: what this measurement is a measurement OF ---
@@ -382,6 +385,28 @@ def load_ledger(path: Path) -> dict:
     return json.loads(Path(path).read_text())
 
 
+def _is_v1_ledger(ledger: dict) -> bool:
+    """A ledger from before run-slot checkpointing has no per-slot state, so
+    it cannot be resumed under the new harness — only a fresh sweep can."""
+    return any("slots" not in c for c in ledger["cases"].values())
+
+
+def _reset_abandoned_slots(ledger: dict) -> int:
+    """A case left `running` on disk means the sweep died mid-wave for it —
+    it is not actually still running after a restart. Its still-`pending`
+    slots (never rewritten mid-wave; only run_case_slots's returned patch is
+    ever applied, by the coordinator, once a whole case's slots finish) are
+    already exactly what a resume should retry — this only needs to fix the
+    case-level status so the pending-case filter picks it back up. Returns
+    the number of cases touched."""
+    touched = 0
+    for case in ledger["cases"].values():
+        if case["status"] == "running":
+            case["status"] = "pending"
+            touched += 1
+    return touched
+
+
 def new_ledger(sweep_id: str, case_paths: list[str], runs: int, config: dict,
                max_requeues: int, config_path: str | None = None) -> dict:
     cases = {}
@@ -390,9 +415,10 @@ def new_ledger(sweep_id: str, case_paths: list[str], runs: int, config: dict,
         layer = int(Path(p).parent.name[len("layer"):])
         cases[Path(p).stem] = {
             "path": rel, "layer": layer, "status": "pending", "attempts": 0,
-            "runs_valid": None, "runs_total": None, "runner_exit": None,
+            "runs_valid": None, "runs_total": None,
             "aggregate": None, "verdict": None, "invalid_reasons": [],
             "updated": None,
+            "slots": [{"status": "pending", "result": None} for _ in range(runs)],
         }
     return {
         "sweep_id": sweep_id,
@@ -569,65 +595,158 @@ def preflight(config: dict, attempts: int = 3, wait: float = 60.0,
     raise RuntimeError(f"preflight failed after {attempts} attempts: {last}")
 
 
-# --- Case execution ---
+# --- Case execution: run-slot checkpointing ---
+#
+# Each case keeps `runs` independently checkpointed slots. A single slot that
+# times out or crashes no longer discards the other, already-valid slots — the
+# failure mode that left 176 of 180 cases UNMEASURED. An accepted slot
+# ("status": "done") is never re-run; a requeue wave only re-attempts the
+# slots still missing.
 
-def run_one_case(name: str, runs: int, config_path: str, sweep_dir: Path) -> dict:
-    """Run one case in its own runner process. Returns a ledger entry patch."""
-    out_json = sweep_dir / f"case-{name}.json"
+def run_one_slot(name: str, slot_index: int, config_path: str, sweep_dir: Path) -> dict | None:
+    """Run exactly one measurement for a case in its own runner process.
+
+    Returns the raw run record (valid or invalid — either is a real
+    measurement) or None if nothing was measured at all (crash, timeout, no
+    output), which means this slot must be retried.
+    """
+    out_json = sweep_dir / f"case-{name}-slot{slot_index}.json"
     cmd = [sys.executable, "evals/runner.py", "--case", name,
-           "--runs", str(runs), "--config", config_path,
+           "--runs", "1", "--config", config_path,
            "--json-out", str(out_json), "--no-history"]
     try:
-        proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True,
-                              timeout=CASE_TIMEOUT)
+        proc = scorer.run_subprocess_grouped(cmd, timeout=SLOT_TIMEOUT, cwd=REPO_ROOT)
         exit_code = proc.returncode
-        stderr = proc.stderr[-500:]
     except subprocess.TimeoutExpired:
-        return {"status": "invalid", "runner_exit": -1,
-                "error": f"case timed out after {CASE_TIMEOUT}s"}
+        return None
 
-    if not out_json.exists():
-        return {"status": "invalid", "runner_exit": exit_code,
-                "error": f"runner produced no JSON (exit {exit_code}): {stderr}"}
+    # Exit 2 means runner.py measured the run and it was invalid (e.g. the
+    # skill call failed after its own retries) — that is still a real
+    # measurement, not a crash, so it must not be silently discarded.
+    if exit_code not in (0, 2) or not out_json.exists():
+        return None
 
     data = json.loads(out_json.read_text())
-    entry = data["cases"][0]
-    agg = entry["aggregate"]
-    measured = agg.get("rate") is not None and agg.get("runs_valid") == agg.get("runs_total")
+    cases = data.get("cases") or []
+    records = cases[0].get("run_records") if cases else None
+    return records[0] if records else None
+
+
+def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Path,
+                   runs: int, thresholds: dict | None) -> dict:
+    """Run only a case's not-yet-accepted slots. Pure: reads `case_entry` but
+    never mutates it or the shared ledger — the caller applies the returned
+    patch. Returns a ledger entry patch (status, slots, and — once every slot
+    is accepted — aggregate/verdict/invalid_reasons)."""
+    slots = [dict(s) for s in (case_entry.get("slots") or
+                               [{"status": "pending", "result": None} for _ in range(runs)])]
+
+    for i, slot in enumerate(slots):
+        if slot["status"] == "done":
+            continue
+        result = run_one_slot(name, i, config_path, sweep_dir)
+        # A slot is accepted only once it produces a VALID measurement — the
+        # same invariant the old whole-case design enforced (runs_valid ==
+        # runs_total before "measured"). Exit 2 (measured, but invalid — e.g.
+        # a skill_timeout that survived its own retry budget) is real
+        # information, not a crash, so keep its reason for diagnosis, but it
+        # must not be mistaken for an accepted slot: a case with 4 valid runs
+        # and 1 timeout is not a trustworthy 4/5 PASS, it is still missing a
+        # measurement and must be retried next wave.
+        if result is not None and not result.get("invalid"):
+            slot["status"] = "done"
+            slot["result"] = result
+        else:
+            slot["status"] = "pending"  # still missing — next requeue wave retries it
+            slot["last_error"] = result.get("invalid") if result else None
+
+    accepted = [s["result"] for s in slots if s["status"] == "done"]
+    if len(accepted) != len(slots):
+        pending_reasons = sorted({s["last_error"] for s in slots
+                                  if s["status"] != "done" and s.get("last_error")})
+        return {
+            "status": "invalid", "slots": slots,
+            "invalid_reasons": pending_reasons,
+            "error": f"only {len(accepted)} of {len(slots)} runs measured",
+        }
+
+    layer = case_entry["layer"]
+    agg = runner.aggregate(accepted, {"layer": layer})
     return {
-        "status": "done" if measured else "invalid",
-        "runner_exit": exit_code,
-        "runs_valid": agg.get("runs_valid"),
-        "runs_total": agg.get("runs_total"),
-        "aggregate": agg,
-        "verdict": entry["verdict"],
-        "invalid_reasons": entry.get("invalid_reasons", []),
-        "error": None if measured else f"only {agg.get('runs_valid')} of "
-                                       f"{agg.get('runs_total')} runs measured",
+        "status": "done", "slots": slots, "aggregate": agg,
+        "verdict": runner.case_gate(layer, agg, thresholds),
+        "invalid_reasons": sorted({r["invalid"] for r in accepted if r.get("invalid")}),
+        "runs_valid": agg.get("runs_valid"), "runs_total": agg.get("runs_total"),
+        "error": None,
     }
 
 
 def run_wave(ledger: dict, names: list[str], config_path: str, sweep_dir: Path,
-             ledger_path: Path, workers: int) -> None:
+             ledger_path: Path, workers: int, release: bool = False) -> bool:
+    """Run one wave. Returns True if release fail-fast stopped it early.
+
+    Dispatch is incremental — at most `workers` cases are ever in flight, and
+    a new one is only submitted right before it starts, re-checking the
+    fail-fast flag each time. Submitting everything upfront (the previous
+    design) let the pool's own internal queue hand a worker its next case
+    before the coordinator had processed the FAIL that should have stopped
+    it — "no further cases will be started" was only usually true. This
+    makes it true by construction: nothing is ever queued past the point the
+    coordinator has seen the FAIL.
+    """
     runs = ledger["runs_per_case"]
+    thresholds = ledger["thresholds"]
     done = {"n": 0}
     total = len(names)
+    stop = {"flag": False}
+
+    # Coordinator marks intent before dispatch, so a crash mid-wave leaves an
+    # accurate "running" marker on disk for the next resume to reset.
+    for name in names:
+        ledger["cases"][name]["status"] = "running"
+    save_ledger(ledger, ledger_path)
 
     def work(name):
-        ledger["cases"][name]["status"] = "running"
-        ledger["cases"][name]["attempts"] += 1
-        patch = run_one_case(name, runs, config_path, sweep_dir)
-        patch["updated"] = datetime.now().isoformat(timespec="seconds")
-        ledger["cases"][name].update(patch)
-        save_ledger(ledger, ledger_path)
-        done["n"] += 1
-        entry = ledger["cases"][name]
-        flag = entry["verdict"] if entry["status"] == "done" else "UNMEASURED"
-        print(f"  [{done['n']}/{total}] {name}: {flag}"
-              + (f" ({entry['error']})" if entry.get("error") else ""))
+        # Pure worker: no ledger mutation, no save_ledger — coordinator-only
+        # writes, so concurrent cases can never race on the shared ledger dict
+        # or its on-disk file.
+        case_entry = ledger["cases"][name]
+        return name, run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds)
 
+    remaining = list(names)
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        list(pool.map(work, names))
+        in_flight: dict = {}
+
+        def submit_next():
+            while remaining and len(in_flight) < workers:
+                if release and stop["flag"]:
+                    return  # fail-fast: nothing new gets queued once it's set
+                name = remaining.pop(0)
+                in_flight[pool.submit(work, name)] = name
+
+        submit_next()
+        while in_flight:
+            finished, _ = wait(in_flight, return_when=FIRST_COMPLETED)
+            for future in finished:
+                in_flight.pop(future)
+                name, patch = future.result()
+                ledger["cases"][name]["attempts"] += 1
+                patch["updated"] = datetime.now().isoformat(timespec="seconds")
+                ledger["cases"][name].update(patch)
+                save_ledger(ledger, ledger_path)
+                done["n"] += 1
+                entry = ledger["cases"][name]
+                flag = entry["verdict"] if entry["status"] == "done" else "UNMEASURED"
+                print(f"  [{done['n']}/{total}] {name}: {flag}"
+                      + (f" ({entry['error']})" if entry.get("error") else ""))
+                if (release and not stop["flag"]
+                        and entry["status"] == "done" and entry.get("verdict") == "FAIL"):
+                    stop["flag"] = True
+                    print(f"  release fail-fast: {name} measured FAIL — no further "
+                          f"cases will be submitted (diagnostic sweeps are unaffected)")
+            submit_next()
+
+    return stop["flag"]
 
 
 # --- Verdict ---
@@ -898,6 +1017,11 @@ def main() -> int:
         ledger_path = Path(args.resume)
         ledger = load_ledger(ledger_path)
         sweep_dir = ledger_path.parent
+        if _is_v1_ledger(ledger):
+            print("Refusing to resume: this ledger predates run-slot checkpointing "
+                  "(no per-slot state) and cannot be safely resumed under the new "
+                  "harness. Start a fresh sweep instead.")
+            return 3
         current = build_fingerprint(config, [str(REPO_ROOT / c["path"])
                                              for c in ledger["cases"].values()],
                                     args.config)
@@ -906,6 +1030,11 @@ def main() -> int:
             print(f"Refusing to resume: {', '.join(drift)} changed since this sweep started.")
             print("A verdict must describe one tree. Start a fresh sweep instead.")
             return 3
+        reset = _reset_abandoned_slots(ledger)
+        if reset:
+            print(f"Resuming: {reset} case(s) had a slot still marked running when "
+                  f"the sweep stopped — reset to pending for this attempt.")
+            save_ledger(ledger, ledger_path)
         print(f"Resuming {ledger['sweep_id']} from {ledger_path}")
     else:
         case_paths = select_cases(args)
@@ -943,9 +1072,15 @@ def main() -> int:
                     break
         else:
             print(f"\nWave 0: {len(pending)} case(s), {args.workers} at a time")
-        run_wave(ledger, sorted(pending), args.config, sweep_dir, ledger_path, args.workers)
+        fail_fast = run_wave(ledger, sorted(pending), args.config, sweep_dir, ledger_path,
+                             args.workers, release=bool(release))
         pending = [n for n, c in ledger["cases"].items() if c["status"] != "done"]
         wave += 1
+        if fail_fast:
+            print("\nRelease fail-fast: a case already measured FAIL, so the rest of "
+                  "the sweep would only spend budget proving nothing new — stopping. "
+                  "Diagnostic sweeps (no --release-verdict) are unaffected.")
+            break
 
     for name in pending:  # exhausted requeues
         ledger["cases"][name]["status"] = "gave_up"

@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from scorer import JudgeError, score_response, score_l5
+from scorer import JudgeError, score_response, score_l5, run_subprocess_grouped
 
 
 # Mirrors evals/config.yaml, which is untracked (local config by design).
@@ -195,15 +195,22 @@ def invoke_skill_cli(args: list[str], config: dict | None = None, timeout: int =
     Rate limiting shows up as a nonzero exit with empty stderr. Without a retry
     here, one blip discards the whole run and forces the sweep to re-run all five
     — the failure mode that left ~40 cases unmeasured in July.
+
+    A genuine timeout is terminal, not retried: repeating the same wait three
+    times just burns 3x the time for the same outcome — the failure mode that
+    stalled the auditor cases and left the v0.6.0 sweep at 176 UNMEASURED.
+    `config["skill"]["timeout"]` overrides the `timeout` param so the release
+    timeout policy can be pinned and fingerprinted, not just hard-coded here.
     """
     skill_cfg = (config or {}).get("skill", {})
     max_attempts = int(skill_cfg.get("max_attempts", 3))
     backoff = float(skill_cfg.get("retry_backoff", 10.0))
+    timeout = int(skill_cfg.get("timeout", timeout))
 
     last: SkillError | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            proc = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+            proc = run_subprocess_grouped(args, timeout=timeout)
             if proc.returncode != 0:
                 raise SkillError(
                     "skill_error",
@@ -221,7 +228,8 @@ def invoke_skill_cli(args: list[str], config: dict | None = None, timeout: int =
                     f"{label}: claude -p returned no usable text: {str(resp.get('result'))[:200]}")
             return text, resp.get("usage", {})
         except subprocess.TimeoutExpired as e:
-            last = SkillError("skill_error", f"{label}: claude -p timed out after {timeout}s")
+            raise SkillError(
+                "skill_timeout", f"{label}: claude -p timed out after {timeout}s") from e
         except SkillError as e:
             last = e
         if attempt < max_attempts and backoff:
@@ -272,7 +280,7 @@ def run_case_l0(case: dict, config: dict, runs: int, debug: bool = False) -> lis
             scores = score_response(case, "", config, debug)
             results.append({"run": i + 1, "scores": scores, "tokens": {"input": 0, "output": 0}})
         except JudgeError as e:
-            results.append(_invalid_run(i, "judge_error", str(e)))
+            results.append(_invalid_run(i, e.reason, str(e)))
         except Exception as e:
             results.append(_invalid_run(i, "run_error", str(e)))
     return results
@@ -332,7 +340,7 @@ def run_case_cli(case: dict, config: dict, runs: int, debug: bool = False) -> li
             results.append(_invalid_run(i, e.reason, str(e)))
         except JudgeError as e:
             # The skill answered; only the measurement failed. Keep the response.
-            results.append(_invalid_run(i, "judge_error", str(e), response=text))
+            results.append(_invalid_run(i, e.reason, str(e), response=text))
         except Exception as e:
             results.append(_invalid_run(i, "run_error", str(e), response=text))
 
@@ -439,7 +447,7 @@ def run_case_l5_cli(case: dict, config: dict, runs: int, debug: bool = False) ->
             results.append(_invalid_run(i, e.reason, str(e),
                                         step1_response="", step2_response=""))
         except JudgeError as e:
-            results.append(_invalid_run(i, "judge_error", str(e),
+            results.append(_invalid_run(i, e.reason, str(e),
                                         step1_response="", step2_response=""))
         except Exception as e:
             results.append(_invalid_run(i, "run_error", str(e),
@@ -478,7 +486,7 @@ def run_case_api(client, case: dict, config: dict, runs: int, debug: bool = Fals
                 "tokens": {"input": resp.usage.input_tokens, "output": resp.usage.output_tokens},
             })
         except JudgeError as e:
-            results.append(_invalid_run(i, "judge_error", str(e), response=text))
+            results.append(_invalid_run(i, e.reason, str(e), response=text))
         except Exception as e:
             results.append(_invalid_run(i, "run_error", str(e), response=text))
     return results
@@ -540,7 +548,7 @@ def run_case_l5_api(client, case: dict, config: dict, runs: int, debug: bool = F
                 },
             })
         except JudgeError as e:
-            results.append(_invalid_run(i, "judge_error", str(e),
+            results.append(_invalid_run(i, e.reason, str(e),
                                         step1_response="", step2_response=""))
         except Exception as e:
             results.append(_invalid_run(i, "run_error", str(e),
@@ -866,6 +874,10 @@ def main():
                                          config.get("thresholds")),
                     "invalid_reasons": sorted({r["invalid"] for r in cr["runs"]
                                                if r.get("invalid")}),
+                    # Raw per-run records, additive: lets a caller that ran
+                    # --runs 1 (sweep.py's run-slot checkpointing) recover the
+                    # single measurement instead of only its aggregate.
+                    "run_records": cr["runs"],
                 }
                 for cr in all_results["cases"]
             ],

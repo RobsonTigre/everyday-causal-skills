@@ -10,12 +10,62 @@ from __future__ import annotations
 import json
 import os
 import re
+import signal
 import subprocess
 import time
 
 # Case `dataset:` paths are declared relative to the repo root, but generated code runs
 # in a temp cwd, so they are resolved against this.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def run_subprocess_grouped(args, timeout, capture_output=True, text=True,
+                           cwd=None, term_grace=10.0):
+    """Like subprocess.run, but the child is its own process group so a timeout
+    can be cleaned up without leaving orphaned grandchildren behind.
+
+    subprocess.run's own timeout handling only ever reaches the direct child —
+    it kills it but never exposes the pid, so anything the child spawned
+    survives. Here we own the Popen, so on timeout we SIGTERM the whole group,
+    give it `term_grace` seconds, SIGKILL if it is still alive, then drain.
+    Always raises subprocess.TimeoutExpired on timeout, matching subprocess.run's
+    contract so callers need no changes beyond the call site itself.
+    """
+    proc = subprocess.Popen(
+        args, cwd=cwd,
+        stdout=subprocess.PIPE if capture_output else None,
+        stderr=subprocess.PIPE if capture_output else None,
+        text=text, start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _terminate_group(proc, term_grace)
+        raise
+    return subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
+
+
+def _terminate_group(proc, grace):
+    """SIGTERM the process group, wait, SIGKILL if still alive, then drain.
+
+    Draining via communicate() (not just wait()) after the kill mirrors what
+    subprocess.run itself does on its own timeout path — wait() alone can
+    deadlock if the child left enough buffered output to fill the pipe.
+    """
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    try:
+        proc.communicate(timeout=grace)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    proc.communicate()
 
 
 class JudgeError(RuntimeError):
@@ -25,7 +75,15 @@ class JudgeError(RuntimeError):
     timing out, or replying off-schema yields no measurement at all — callers
     record the run as invalid so it can be requeued. Silently substituting
     zeros here is what made whole sweeps unusable.
+
+    Carries `reason` so callers can tell a genuine timeout (`judge_timeout`,
+    terminal — see `_with_judge_retries`) from a malformed reply
+    (`malformed_response`) or a generic failure (`judge_error`, the default).
     """
+
+    def __init__(self, message: str, reason: str = "judge_error"):
+        super().__init__(message)
+        self.reason = reason
 
 
 _MODEL_MAP = {
@@ -51,6 +109,10 @@ def _with_judge_retries(attempt_fn, config: dict | None, label: str):
 
     Rate limiting is transient, so a failed measurement is worth retrying before
     the run is abandoned. Persistent failure raises rather than degrading.
+
+    A genuine timeout is terminal, not retried: repeating the same wait three
+    times just burns 3x the time for the same outcome, which is what let a
+    single slow judge call stall a whole sweep.
     """
     judge_config = (config or {}).get("judge", {})
     max_attempts = int(judge_config.get("max_attempts", 3))
@@ -61,10 +123,13 @@ def _with_judge_retries(attempt_fn, config: dict | None, label: str):
         try:
             return attempt_fn()
         except JudgeError as e:
+            if e.reason == "judge_timeout":
+                raise
             last_err = e
             if attempt < max_attempts and backoff:
                 time.sleep(backoff * 2 ** (attempt - 1))
-    raise JudgeError(f"{label}: giving up after {max_attempts} attempt(s): {last_err}")
+    raise JudgeError(f"{label}: giving up after {max_attempts} attempt(s): {last_err}",
+                     reason=last_err.reason if last_err else "judge_error")
 
 
 def _call_judge_once(prompt: str, num_questions: int, config: dict | None = None,
@@ -73,9 +138,10 @@ def _call_judge_once(prompt: str, num_questions: int, config: dict | None = None
     judge_config = (config or {}).get("judge", {})
     judge_model_raw = judge_config.get("model", "claude-sonnet-4-20250514")
     model = _MODEL_MAP.get(judge_model_raw, judge_model_raw)
+    timeout = int(judge_config.get("timeout", 120))
 
     try:
-        proc = subprocess.run(
+        proc = run_subprocess_grouped(
             [
                 "claude", "-p", prompt,
                 "--model", model,
@@ -85,12 +151,11 @@ def _call_judge_once(prompt: str, num_questions: int, config: dict | None = None
                 "--no-session-persistence",
                 "--setting-sources", "local",
             ],
-            capture_output=True,
-            text=True,
-            timeout=120,
+            timeout=timeout,
         )
     except subprocess.TimeoutExpired as e:
-        raise JudgeError(f"{label}: claude -p timed out") from e
+        raise JudgeError(f"{label}: claude -p timed out after {timeout}s",
+                         reason="judge_timeout") from e
 
     if proc.returncode != 0:
         raise JudgeError(f"{label}: claude -p exited {proc.returncode}: {proc.stderr[:500]}")
@@ -98,7 +163,8 @@ def _call_judge_once(prompt: str, num_questions: int, config: dict | None = None
     try:
         resp = json.loads(proc.stdout)
     except (json.JSONDecodeError, TypeError) as e:
-        raise JudgeError(f"{label}: unparseable claude -p stdout: {proc.stdout[:200]}") from e
+        raise JudgeError(f"{label}: unparseable claude -p stdout: {proc.stdout[:200]}",
+                         reason="malformed_response") from e
 
     if resp.get("is_error"):
         raise JudgeError(f"{label}: claude -p error: {resp.get('result', 'unknown')}")
@@ -130,7 +196,8 @@ def _call_judge_once(prompt: str, num_questions: int, config: dict | None = None
     # one misaligns per-dimension slices. Neither may be scored.
     if len(answers) != num_questions:
         raise JudgeError(
-            f"{label}: expected {num_questions} answers, got {len(answers)}")
+            f"{label}: expected {num_questions} answers, got {len(answers)}",
+            reason="malformed_response")
 
     return answers
 
@@ -161,10 +228,11 @@ Would you load this skill for this user message? Answer with exactly YES or NO, 
     judge_config = (config or {}).get("judge", {})
     judge_model_raw = judge_config.get("model", "claude-sonnet-4-20250514")
     model = _MODEL_MAP.get(judge_model_raw, judge_model_raw)
+    timeout = int(judge_config.get("l0_timeout", 30))
 
     def attempt():
         try:
-            result = subprocess.run(
+            result = run_subprocess_grouped(
                 [
                     "claude", "-p", prompt,
                     "--model", model,
@@ -173,10 +241,11 @@ Would you load this skill for this user message? Answer with exactly YES or NO, 
                     "--no-session-persistence",
                     "--setting-sources", "local",
                 ],
-                capture_output=True, text=True, timeout=30
+                timeout=timeout,
             )
         except subprocess.TimeoutExpired as e:
-            raise JudgeError("L0 JUDGE: claude -p timed out") from e
+            raise JudgeError(f"L0 JUDGE: claude -p timed out after {timeout}s",
+                             reason="judge_timeout") from e
         if result.returncode != 0:
             raise JudgeError(
                 f"L0 JUDGE: claude -p exited {result.returncode}: {result.stderr[:500]}")
@@ -185,7 +254,8 @@ Would you load this skill for this user message? Answer with exactly YES or NO, 
         # An empty or off-script reply is no measurement. Reading it as "not
         # triggered" silently PASSES every should_trigger: false case.
         if "YES" not in first and "NO" not in first:
-            raise JudgeError(f"L0 JUDGE: no YES/NO in reply: {text[:200]!r}")
+            raise JudgeError(f"L0 JUDGE: no YES/NO in reply: {text[:200]!r}",
+                             reason="malformed_response")
         return text, "YES" in first
 
     answer, triggered = _with_judge_retries(attempt, config, "L0 JUDGE")

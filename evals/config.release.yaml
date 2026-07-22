@@ -36,10 +36,24 @@ judge:
   model: claude-sonnet-4-20250514
   max_attempts: 3        # scorer.py:56
   retry_backoff: 5.0     # scorer.py:57 — exponential
+  timeout: 120            # scorer.py — per claude -p judge call; a timeout is
+                           # terminal (not retried), see _with_judge_retries
+  l0_timeout: 30           # scorer.py — separate, shorter timeout for the L0
+                           # trigger judge (a YES/NO reply, not a full rubric)
 
 skill:
   max_attempts: 3        # runner.py:195 — rate limiting shows up as a nonzero exit
   retry_backoff: 10.0    # runner.py:196 — with empty stderr
+  timeout: 450             # runner.py — per claude -p skill call; a timeout is
+                           # terminal (not retried), see invoke_skill_cli.
+                           # MEASURED: single-worker, uncontended calibration of
+                           # the two /causal-auditor cases that stalled the prior
+                           # sweep — auditor_subtle_flaw 113s, auditor_thorough
+                           # _analysis 168s. 450s is ~2.7x the slower measured
+                           # case; kept unchanged rather than inflated without
+                           # further evidence. Revisit if a real (concurrent,
+                           # 3-worker) sweep shows contention pushes calls
+                           # past this.
 
 # Mirrors runner.DEFAULT_THRESHOLDS, which is the committed contract; case_gate() falls
 # back to it per-key, so this block only needs to restate what it wants to pin.

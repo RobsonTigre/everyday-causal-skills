@@ -34,20 +34,23 @@ def _ok(text="```python\nprint(1)\n```"):
 
 
 def _with_fake_cli(replies, fn):
-    """Replace runner.subprocess.run, serving each reply in turn."""
+    """Replace runner.run_subprocess_grouped, serving (or raising) each reply in turn."""
     calls = {"n": 0}
-    real = runner.subprocess.run
+    real = runner.run_subprocess_grouped
 
     def fake(*a, **k):
         i = min(calls["n"], len(replies) - 1)
         calls["n"] += 1
-        return replies[i]
+        reply = replies[i]
+        if isinstance(reply, BaseException):
+            raise reply
+        return reply
 
-    runner.subprocess.run = fake
+    runner.run_subprocess_grouped = fake
     try:
         return fn(), calls
     finally:
-        runner.subprocess.run = real
+        runner.run_subprocess_grouped = real
 
 
 def test_skill_call_retries_transient_failure():
@@ -97,6 +100,53 @@ def test_skill_unparseable_stdout_retries_then_marks_invalid():
         lambda: runner.run_case_cli(dict(_L3_CASE), _SKILL_CFG, 1))
     assert calls["n"] == 3, calls
     assert out[0]["invalid"] == "skill_error", out
+
+
+def test_skill_timeout_is_config_driven():
+    # The old hard-coded 450s default made the release timeout un-pinnable —
+    # config.skill.timeout must reach run_subprocess_grouped's timeout kwarg.
+    captured = {}
+    real = runner.run_subprocess_grouped
+
+    def fake(*a, **k):
+        captured["timeout"] = k.get("timeout")
+        return _ok()
+
+    runner.run_subprocess_grouped = fake
+    try:
+        cfg = {"skill": {"max_attempts": 3, "retry_backoff": 0, "timeout": 999},
+               "judge": {"max_attempts": 1, "retry_backoff": 0}}
+        runner.run_case_cli(dict(_L3_CASE), cfg, 1)
+    finally:
+        runner.run_subprocess_grouped = real
+    assert captured["timeout"] == 999, captured
+
+
+def test_skill_timeout_is_terminal_not_retried():
+    # Retrying a genuine timeout burns 3x the wait for the same outcome — the
+    # failure mode that stalled the auditor cases. One attempt, then give up.
+    out, calls = _with_fake_cli(
+        [runner.subprocess.TimeoutExpired(cmd="claude", timeout=1), _ok()],
+        lambda: runner.run_case_cli(dict(_L3_CASE), _SKILL_CFG, 1))
+    assert calls["n"] == 1, calls
+    assert out[0]["invalid"] == "skill_timeout", out
+
+
+def test_judge_error_reason_propagates_not_flattened():
+    # runner.py previously hardcoded "judge_error" for every JudgeError, which
+    # would have hidden the new judge_timeout/malformed_response distinctions.
+    real_score = runner.score_response
+
+    def fake_score(*a, **k):
+        raise runner.JudgeError("boom", reason="judge_timeout")
+
+    runner.score_response = fake_score
+    try:
+        out, _ = _with_fake_cli(
+            [_ok()], lambda: runner.run_case_cli(dict(_L3_CASE), _SKILL_CFG, 1))
+    finally:
+        runner.score_response = real_score
+    assert out[0]["invalid"] == "judge_timeout", out
 
 
 def _runs(layer, scores_list, invalid_after=0):

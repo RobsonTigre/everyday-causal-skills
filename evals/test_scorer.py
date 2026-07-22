@@ -3,6 +3,7 @@ Run: python3 evals/test_scorer.py   (from repo root)
 """
 import json
 import os
+import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -307,9 +308,9 @@ def _judge_stdout(answers):
 
 
 def _with_fake_subprocess(replies, fn):
-    """Run fn() with scorer.subprocess.run returning each reply in turn."""
+    """Run fn() with scorer.run_subprocess_grouped returning each reply in turn."""
     calls = {"n": 0}
-    real = scorer.subprocess.run
+    real = scorer.run_subprocess_grouped
 
     def fake(*args, **kwargs):
         i = min(calls["n"], len(replies) - 1)
@@ -319,11 +320,11 @@ def _with_fake_subprocess(replies, fn):
             raise reply
         return reply
 
-    scorer.subprocess.run = fake
+    scorer.run_subprocess_grouped = fake
     try:
         return fn(), calls
     finally:
-        scorer.subprocess.run = real
+        scorer.run_subprocess_grouped = real
 
 
 def _expect_judge_error(fn, what):
@@ -357,6 +358,176 @@ def test_judge_raises_on_unparseable_stdout():
         lambda: _with_fake_subprocess(
             [reply], lambda: scorer._call_judge("p", 2, _NO_RETRY)),
         "unparseable stdout")
+
+
+# --- run_subprocess_grouped: process-group cleanup on timeout ---
+
+def test_run_subprocess_grouped_starts_new_session_and_returns_completed_process():
+    captured = {}
+
+    class _FakePopen:
+        def __init__(self, args, **kwargs):
+            captured["kwargs"] = kwargs
+            self.pid = 1
+
+        def communicate(self, timeout=None):
+            self.returncode = 0
+            return ("out", "")
+
+    real = scorer.subprocess.Popen
+    scorer.subprocess.Popen = _FakePopen
+    try:
+        result = scorer.run_subprocess_grouped(["echo", "hi"], timeout=5)
+    finally:
+        scorer.subprocess.Popen = real
+    assert captured["kwargs"].get("start_new_session") is True, captured
+    assert result.returncode == 0 and result.stdout == "out", result
+
+
+def test_run_subprocess_grouped_sigterms_group_then_drains_on_timeout():
+    # A child that exits cleanly on SIGTERM must not also be SIGKILLed.
+    signals = []
+
+    class _FakePopen:
+        def __init__(self, args, **kwargs):
+            self.pid = 4242
+            self._calls = 0
+
+        def communicate(self, timeout=None):
+            self._calls += 1
+            if self._calls == 1:
+                raise subprocess.TimeoutExpired(cmd="x", timeout=timeout)
+            self.returncode = -15  # terminated by SIGTERM
+            return ("", "")
+
+    real_popen, real_killpg = scorer.subprocess.Popen, scorer.os.killpg
+    scorer.subprocess.Popen = _FakePopen
+    scorer.os.killpg = lambda pid, sig: signals.append((pid, sig))
+    try:
+        try:
+            scorer.run_subprocess_grouped(["sleep", "100"], timeout=1, term_grace=0.01)
+            raise AssertionError("expected TimeoutExpired")
+        except subprocess.TimeoutExpired:
+            pass
+    finally:
+        scorer.subprocess.Popen = real_popen
+        scorer.os.killpg = real_killpg
+    assert signals == [(4242, scorer.signal.SIGTERM)], signals
+
+
+def test_run_subprocess_grouped_sigkills_group_if_term_grace_exceeded():
+    # A child unresponsive to SIGTERM must be force-killed, not left running.
+    signals = []
+
+    class _FakePopen:
+        def __init__(self, args, **kwargs):
+            self.pid = 4242
+            self._calls = 0
+
+        def communicate(self, timeout=None):
+            self._calls += 1
+            if self._calls <= 2:
+                raise subprocess.TimeoutExpired(cmd="x", timeout=timeout)
+            self.returncode = -9  # terminated by SIGKILL
+            return ("", "")
+
+    real_popen, real_killpg = scorer.subprocess.Popen, scorer.os.killpg
+    scorer.subprocess.Popen = _FakePopen
+    scorer.os.killpg = lambda pid, sig: signals.append((pid, sig))
+    try:
+        try:
+            scorer.run_subprocess_grouped(["sleep", "100"], timeout=1, term_grace=0.01)
+            raise AssertionError("expected TimeoutExpired")
+        except subprocess.TimeoutExpired:
+            pass
+    finally:
+        scorer.subprocess.Popen = real_popen
+        scorer.os.killpg = real_killpg
+    assert signals == [(4242, scorer.signal.SIGTERM), (4242, scorer.signal.SIGKILL)], signals
+
+
+def test_judge_timeout_is_config_driven():
+    # config.judge.timeout must reach run_subprocess_grouped's timeout kwarg.
+    captured = {}
+    real = scorer.run_subprocess_grouped
+
+    def fake(*a, **k):
+        captured["timeout"] = k.get("timeout")
+        return _FakeProc(_judge_stdout([True, True]))
+
+    scorer.run_subprocess_grouped = fake
+    try:
+        cfg = {"judge": {"max_attempts": 1, "retry_backoff": 0, "timeout": 777}}
+        scorer._call_judge_once("p", 2, cfg)
+    finally:
+        scorer.run_subprocess_grouped = real
+    assert captured["timeout"] == 777, captured
+
+
+def test_judge_timeout_is_terminal_not_retried():
+    # A genuine judge timeout must not be retried three times — same failure
+    # mode as the skill side, just on the measurement call instead of the
+    # skill call.
+    cfg = {"judge": {"max_attempts": 3, "retry_backoff": 0}}
+    reply = subprocess.TimeoutExpired(cmd="claude", timeout=1)
+    out, calls = _with_fake_subprocess(
+        [reply, _FakeProc(_judge_stdout([True]))],
+        lambda: _expect_judge_error(
+            lambda: scorer._call_judge("p", 1, cfg), "judge timeout"))
+    assert calls["n"] == 1, calls
+
+
+def test_judge_timeout_reason_is_typed():
+    reply = subprocess.TimeoutExpired(cmd="claude", timeout=1)
+    try:
+        _with_fake_subprocess([reply], lambda: scorer._call_judge("p", 1, _NO_RETRY))
+        raise AssertionError("expected JudgeError")
+    except JudgeError as e:
+        assert e.reason == "judge_timeout", e.reason
+
+
+def test_judge_wrong_answer_count_reason_is_malformed():
+    reply = _FakeProc(_judge_stdout([True]))
+    try:
+        _with_fake_subprocess(
+            [reply], lambda: scorer._call_judge("p", 3, _NO_RETRY))
+        raise AssertionError("expected JudgeError")
+    except JudgeError as e:
+        assert e.reason == "malformed_response", e.reason
+
+
+def test_judge_generic_error_reason_stays_default():
+    # Non-timeout, non-malformed failures (e.g. nonzero exit) keep the
+    # existing generic "judge_error" reason — no behavior change there.
+    reply = _FakeProc("", returncode=1, stderr="boom")
+    try:
+        _with_fake_subprocess([reply], lambda: scorer._call_judge("p", 1, _NO_RETRY))
+        raise AssertionError("expected JudgeError")
+    except JudgeError as e:
+        assert e.reason == "judge_error", e.reason
+
+
+def test_l0_judge_timeout_is_config_driven_and_terminal():
+    captured = {"n": 0}
+    real = scorer.run_subprocess_grouped
+
+    def fake(*a, **k):
+        captured["n"] += 1
+        captured["timeout"] = k.get("timeout")
+        raise subprocess.TimeoutExpired(cmd="claude", timeout=1)
+
+    scorer.run_subprocess_grouped = fake
+    try:
+        cfg = {"judge": {"max_attempts": 3, "retry_backoff": 0, "l0_timeout": 15}}
+        try:
+            scorer._score_layer0("desc", "msg", {}, cfg)
+            raise AssertionError("expected JudgeError")
+        except JudgeError as e:
+            assert e.reason == "judge_timeout", e.reason
+    finally:
+        scorer.run_subprocess_grouped = real
+    assert captured["n"] == 1, captured  # terminal, not retried
+    assert captured["timeout"] == 15, captured
 
 
 def test_judge_raises_on_nonzero_exit():
