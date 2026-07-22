@@ -7,9 +7,10 @@ post-intervention TREND change, plus mild AR(1) noise. The point estimands are
 recovered identically by least-squares segmented regression in both languages
 (R `lm` and Python `statsmodels.ols`), which is the runnable numerical-parity
 probe. (The templates' recommended BSTS estimators -- R `CausalImpact`, Python
-`causalimpact` -- are NOT cross-comparable here: the Python BSTS port does not
-import under the project interpreter, so the only runnable shared estimator is
-the classical segmented-regression ITS.)
+`pycausalimpact` -- are NOT cross-comparable here: they are independent BSTS
+implementations with their own priors and posterior sampling, so they are
+stochastic and cannot serve a deterministic probe. Segmented regression is the
+shared estimator both languages compute identically.)
 
 Columns the recipes may use:
   time        1-based integer time index (linear pre-trend)

@@ -3,7 +3,6 @@ name: causal-planner
 description: Structured interview that identifies causal problems and recommends the right inference method with a step-by-step analysis plan. Use when user says "what method should I use", "measure impact", "causal analysis", "treatment effect", "observational data", or "does X cause Y". Not for implementing a specific method.
 metadata:
   author: Robson Tigre
-  version: 0.3.2
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

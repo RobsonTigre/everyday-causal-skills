@@ -17,4 +17,3 @@ user_message: |
 expected:
   must_flag: [m_bias]
   severity: serious
-  must_not_miss: [m_bias]

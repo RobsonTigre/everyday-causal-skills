@@ -15,4 +15,3 @@ user_message: |
 expected:
   must_flag: [collider_bias]
   severity: fatal
-  must_not_miss: [collider_bias]

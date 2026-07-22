@@ -17,7 +17,12 @@ assert nx.is_directed_acyclic_graph(G)
 # d-separate D and Y in the mutilated graph -> no valid observed backdoor set.
 G_mut = G.copy()
 G_mut.remove_edges_from(list(G.out_edges("D")))
-x_blocks = nx.d_separated(G_mut, {"D"}, {"Y"}, {"X"})
+
+# networkx renamed d_separated -> is_d_separator in 3.3 and removed the old name in 3.5.
+# Same arguments, same semantics (verified against textbook chain/fork/collider cases).
+_d_separated = getattr(nx, "is_d_separator", None) or nx.d_separated
+
+x_blocks = _d_separated(G_mut, {"D"}, {"Y"}, {"X"})
 print(f"Observed backdoor set {{X}} blocks D-Y? {x_blocks}")
 
 # Front-door estimand via two OLS stages (the numeric parity target).

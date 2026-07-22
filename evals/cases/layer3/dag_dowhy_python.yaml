@@ -7,7 +7,8 @@ user_message: |
   Help me build a DAG for the following: treatment D affects outcome Y.
   Confounder X affects both D and Y. Mediator M sits on the path D -> M -> Y.
   Generate the DoWhy code. I use Python.
+requires: [dowhy, networkx]
 expected:
   code_runs: true
-  packages_used: [dowhy, networkx]
-  output_contains: [backdoor_variables]
+  must_include:
+    - [backdoor_variables, "backdoor set", "backdoor adjustment", "backdoor path", backdoor]

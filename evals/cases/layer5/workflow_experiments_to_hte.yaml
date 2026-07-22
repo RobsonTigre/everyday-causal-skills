@@ -1,15 +1,24 @@
 name: workflow_experiments_to_hte
-description: After completing an experiment analysis, skill should offer HTE handoff
+description: After an experiment analysis, the HTE skill picks up the RCT and finds who benefits
 layer: 5
-skill: causal-experiments
 references:
   - references/method-registry.md
-user_message: |
-  The A/B test analysis is complete. We found a significant 5% lift in conversion.
-  The team now wants to know which user segments benefit most so we can optimize
-  targeting. What should I do next?
-expected:
-  rubric:
-    - "Does the response recommend /causal-hte or heterogeneous treatment effect analysis?"
-    - "Does it explain that the RCT provides a strong foundation for HTE (clean identification)?"
-    - "Does it NOT suggest re-running the experiment with different groups?"
+  - references/assumptions/hte.md
+steps:
+  - skill: causal-experiments
+    scenario: |
+      We finished an A/B test on our new checkout flow. 5,000 users, randomly
+      assigned 50/50, and we measured a statistically significant 5% lift in
+      conversion. We logged age, income, and device type for every user.
+      Please walk me through the analysis and what we can conclude. I use R.
+  - skill: causal-hte
+    input_from: step_1
+    scenario: |
+      The team now wants to know which user segments benefit most so we can
+      optimize targeting. Please proceed based on the analysis above.
+rubric:
+  - "Does the second skill recommend heterogeneous treatment effect / CATE analysis rather than re-running the experiment with different groups?"
+  - "Does it recognise that the data came from a randomized experiment and that this gives clean identification for HTE?"
+  - "Does it use the covariates already collected in step 1 (age, income, device type) rather than asking for a new data collection?"
+  - "Does it supply the known randomization propensity (0.5) instead of estimating it, as is correct for an RCT?"
+  - "Does the combined output read as one continuous analysis — experiment results followed by segment analysis — rather than two disconnected answers?"

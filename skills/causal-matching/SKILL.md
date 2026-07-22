@@ -3,7 +3,6 @@ name: causal-matching
 description: Implements matching, propensity scores, IPW, and doubly-robust estimators in R or Python with balance diagnostics and sensitivity analysis. Use when user mentions matching, propensity score, observational study, confounders, selection bias, or covariate balance. Not for settings with unobserved confounding.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

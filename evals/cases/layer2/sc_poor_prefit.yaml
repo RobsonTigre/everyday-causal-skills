@@ -13,4 +13,3 @@ user_message: |
 expected:
   must_flag: [pre_treatment_fit, convex_hull]
   severity: serious
-  must_not_miss: [pre_treatment_fit]

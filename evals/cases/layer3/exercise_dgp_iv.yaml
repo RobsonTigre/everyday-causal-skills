@@ -1,5 +1,5 @@
 name: exercise_dgp_iv
-description: Exercise skill generates an IV scenario — DGP code must run and declare true effect
+description: Exercise skill at the debrief stage — the revealed IV DGP must run and declare the true LATE
 layer: 3
 skill: causal-exercises
 references:
@@ -8,14 +8,17 @@ references:
   - references/lessons.md
 language: python
 user_message: |
-  Generate an instrumental variables practice exercise for me. I want to practice
-  with Python. Please include:
-  1. A realistic scenario with a clear instrument
-  2. Python code to generate the data (the DGP) with endogeneity and a valid instrument
-  3. The true LATE so I can check my work later
+  I'm working through the instrumental variables practice exercise you set me — the
+  one where take-up of the training program was clearly self-selected and there was a
+  randomly assigned encouragement I could lean on as an instrument.
 
-  In your DGP code, after generating the data, print the true effect as ESTIMATE:<value>
-  (e.g., print(f'ESTIMATE:{true_late}')). Also save the data as a CSV.
+  I've finished my attempt. I ran 2SLS using the encouragement as the instrument and
+  estimated a LATE of about 1,850, with a first-stage F around 24.
+
+  Please debrief me now — reveal the data-generating process and the true LATE and
+  compare them against my estimate. Include the full DGP code in Python so I can
+  re-run it myself: have it print the true effect on its own line as ESTIMATE:<value>
+  (e.g. print(f'ESTIMATE:{true_late}')) and save the dataset as a CSV.
 expected:
   true_effect: null
   tolerance: null

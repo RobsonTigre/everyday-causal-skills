@@ -3,7 +3,6 @@ name: causal-exercises
 description: Generates practice exercises with simulated data and known ground truth across all causal inference methods. Use when user says "practice", "exercise", "simulate", "learn causal inference", or "test my skills". Not for real data analysis.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

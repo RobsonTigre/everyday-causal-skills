@@ -3,7 +3,6 @@ name: causal-experiments
 description: Designs and analyzes randomized experiments with power analysis, balance checks, and robust standard errors in R or Python. Use when user asks about RCT, A/B test, power analysis, randomization, or experimental design. Not for observational data.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

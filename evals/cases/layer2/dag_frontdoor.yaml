@@ -14,5 +14,7 @@ user_message: |
   directly but NOT website visits. Help me with the DAG. I use Python.
 expected:
   must_flag: [no_backdoor_adjustment]
-  must_identify: [front_door_criterion]
-  must_not_miss: [front_door_criterion]
+rubric:
+  - "Does it recognise that no valid backdoor adjustment set exists, because brand affinity is unobserved?"
+  - "Does it identify the front-door criterion as the way to identify the effect here?"
+  - "Does it explain that website visits mediate the whole effect of ad exposure and are unaffected by brand affinity?"

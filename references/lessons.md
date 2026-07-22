@@ -64,6 +64,13 @@ Format:
 **Rule**: Any variable that is a descendant of D should not be in the adjustment set when the target is the total effect. Check `nx.descendants(G, treatment)` (Python) or `dagitty::descendants(dag, "D")` (R) before accepting controls. This includes mediators, colliders, and any other post-treatment variables.
 **Source**: Design decision (Pearl 2009, Rosenbaum 1984), 2026-04-05
 
+### DAG: Missing file-write tools must not suppress requested code
+**Layer**: L3
+**Trigger**: A user requests DAG code where Write/Edit tools are unavailable
+**Mistake**: Treating inability to save `dag.md` as blocking and returning a Markdown-only artifact without runnable R/Python code
+**Rule**: The response is primary. Always provide the requested analysis and runnable code; save only when file-writing tools are available.
+**Source**: Eval failure (`dag_dowhy_python`), 2026-07-20
+
 ### DiD: Python staggered DiD must use diff-diff CallawaySantAnna
 **Layer**: L3
 **Trigger**: Generating Python code for a staggered rollout (units treated at different times)

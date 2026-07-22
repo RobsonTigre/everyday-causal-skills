@@ -3,7 +3,6 @@ name: causal-dag
 description: Guides DAG construction and causal identification through structured conversation. Generates dagitty (R) or DoWhy (Python) code for adjustment sets, testable implications, and visualization. Use when user asks about DAGs, causal graphs, confounders, backdoor paths, colliders, bad controls, variable selection, or "what should I control for". Not for estimating causal effects (hand off to method skills).
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 
@@ -132,6 +131,8 @@ Generate code that:
 4. **Lists testable implications** using dagitty::impliedConditionalIndependencies (R) or equivalent
 5. **Tests implications against data** (if the user has data loaded) — run conditional independence tests
 
+**Runnable Python output (required template adaptation):** When DoWhy code is requested, provide the complete adapted workflow in one self-contained fenced `python` block. It must run unattended from a clean process: select `matplotlib.use("Agg")` before importing `pyplot`, save and close figures instead of calling `plt.show()`, and, when the user provides no dataframe, create a small seeded placeholder dataframe containing every DAG variable before constructing `CausalModel`. These runtime requirements take precedence over the Python template's fence structure, plotting calls, and placeholder-data assumptions.
+
 ## Stage 5: Bridge to Method
 
 Based on the DAG structure and identification strategy, recommend the appropriate estimation method:
@@ -159,7 +160,7 @@ Based on the DAG structure and identification strategy, recommend the appropriat
 
 **Handoff**: "Based on your DAG, I recommend [method]. Would you like to proceed with `/causal-[method]`?"
 
-Save the DAG analysis to `docs/causal-plans/YYYY-MM-DD-<project>/dag.md` using this structure:
+**Artifact saving:** When file-writing tools are available, save the DAG analysis to `docs/causal-plans/YYYY-MM-DD-<project>/dag.md` using the structure below. If file-writing tools are unavailable, state that the file was not saved and provide the complete DAG analysis and all requested runnable code directly in the response. Never replace requested code with a Markdown-only artifact.
 
 ```
 # DAG Analysis: [Project Name]

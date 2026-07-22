@@ -8,6 +8,7 @@ references:
   - references/lessons.md
 dataset: evals/data/timeseries_causalarima_l3.csv
 language: python
+requires: [pycausalarima]
 user_message: |
   I have daily outcome data for 100 periods. A price change intervention began at
   period 71 (date 2023-03-12). No control series available. The data is loaded as df

@@ -13,10 +13,7 @@ expected:
   must_flag:
     - missing_plan
     - missing_audit
-  must_recommend:
-    - causal-planner
-    - causal-auditor
 rubric:
   - "Does the report skill identify that plan.md and audit.md are missing?"
-  - "Does it recommend specific skills to fill the gaps?"
+  - "Does it recommend /causal-planner and /causal-auditor by name to fill those gaps?"
   - "Does it still produce a report from what's available, with caveats about missing sections?"

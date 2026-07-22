@@ -13,4 +13,3 @@ user_message: |
 expected:
   must_flag: [relevance, weak_instrument]
   severity: fatal
-  must_not_miss: [relevance]

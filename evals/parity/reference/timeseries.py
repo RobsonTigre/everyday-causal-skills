@@ -1,8 +1,9 @@
 # Single-series interrupted time series (segmented regression) -- Python reference.
 # `df` is preloaded by the parity runner from the shared fixture.
-# This is the runnable cross-language numerical probe: the Python BSTS port
-# (causalimpact) does not import under the project interpreter, so segmented
-# regression with Newey-West (HAC) SEs is the shared estimator both languages run.
+# This is the runnable cross-language numerical probe: R `CausalImpact` and Python
+# `pycausalimpact` are independent, stochastic BSTS implementations that cannot be
+# compared deterministically, so segmented regression with Newey-West (HAC) SEs is
+# the shared estimator both languages compute identically.
 import statsmodels.formula.api as smf
 
 model = smf.ols("outcome ~ time + post + time_since", data=df).fit(

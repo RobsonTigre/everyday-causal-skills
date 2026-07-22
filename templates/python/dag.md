@@ -31,6 +31,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
+
+# d-separation test. networkx renamed d_separated -> is_d_separator in 3.3 and removed
+# the old name in 3.5; same arguments, same semantics. Bind once so this template works
+# on either version.
+d_separated = getattr(nx, "is_d_separator", None) or nx.d_separated
 ```
 
 ## Define the DAG
@@ -89,7 +94,7 @@ for size in range(len(nodes) + 1):
         # Remove outgoing edges from D to test backdoor blocking
         G_mutilated = G.copy()
         G_mutilated.remove_edges_from(list(G.out_edges(treatment)))
-        if nx.d_separated(G_mutilated, {treatment}, {outcome}, s):
+        if d_separated(G_mutilated, {treatment}, {outcome}, s):
             valid_sets.append(s)
 
 # Find minimal sets (no proper subset is also valid)
@@ -122,7 +127,7 @@ for x, y in combinations(nodes, 2):
     for size in range(max_cond_size + 1):
         for z_set in combinations(other, size):
             z = set(z_set)
-            if nx.d_separated(G, {x}, {y}, z):
+            if d_separated(G, {x}, {y}, z):
                 z_str = ", ".join(sorted(z)) if z else "{}"
                 implications.append((x, y, z))
                 print(f"  {x} ⊥ {y} | {{{z_str}}}")

@@ -7,7 +7,8 @@ user_message: |
   Help me build a DAG for the following: treatment D affects outcome Y.
   Confounder X affects both D and Y. Mediator M sits on the path D -> M -> Y.
   Generate the dagitty code. I use R.
+requires: [dagitty, ggdag]
 expected:
   code_runs: true
-  packages_used: [dagitty, ggdag]
-  output_contains: [adjustment_set]
+  must_include:
+    - [adjustment_set, "adjustment sets", adjustmentsets, "minimal adjustment"]

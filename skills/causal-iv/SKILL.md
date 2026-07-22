@@ -3,7 +3,6 @@ name: causal-iv
 description: Implements instrumental variables and 2SLS in R or Python with first-stage diagnostics, weak instrument detection, and overidentification tests. Use when user mentions IV, instrument, 2SLS, non-compliance, or endogeneity. Not for cases without a plausible instrument.
 metadata:
   author: Robson Tigre
-  version: 0.3.3
   compatibility: Requires R (>= 4.0) or Python (>= 3.9). Package dependencies listed in templates.
 ---
 

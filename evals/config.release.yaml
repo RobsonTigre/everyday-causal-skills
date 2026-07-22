@@ -1,0 +1,100 @@
+# Release sweep configuration — TRACKED, unlike evals/config.yaml (gitignored, local).
+#
+# Use it for any measurement that becomes evidence. Run BOTH interpreters from the venv —
+# the orchestrator needs the eval dependencies, and EVAL_PYTHON is what actually executes
+# generated L3 code (scorer.py:673, which otherwise falls back to bare "python3"):
+#
+#   EVAL_PYTHON="$PWD/.venv/bin/python" .venv/bin/python evals/sweep.py \
+#       --config evals/config.release.yaml --release-verdict v0.6.0
+#
+# --release-verdict refuses to run unless the tree is clean, this file is the config in
+# use, and EVAL_PYTHON imports every package the L3 cases declare.
+#
+# Why this file exists: config.yaml is untracked by design, so a release verdict was
+# measured against settings nobody could inspect afterwards. Every value here is either
+# read by the harness or recorded in the fingerprint.
+#
+# Retry knobs are stated explicitly. They were previously inherited from code defaults,
+# which meant the retry behaviour of a release run was undeclared.
+
+# MUST be a scalar string. runner.py:292 and :348 do
+#   model_map.get(config.get("model", ""), ...)
+# so a nested mapping raises TypeError: unhashable type: 'dict'. The fingerprint records
+# the requested value and the alias actually invoked (`model`, `model_alias_invoked`) —
+# that is where provenance belongs, not here.
+#
+# KNOWN GAP: the identity of the model that actually *served* each request is not
+# captured. The CLI does not report it on the text output path, so the fingerprint proves
+# what was asked for, not what answered.
+model: claude-sonnet-4-20250514
+
+# Read at runner.py:460/498/519 on the --backend api path only. The CLI backend, which
+# release sweeps use, ignores it. Kept so an API-backend run is fully specified.
+max_tokens: 4096
+
+judge:
+  model: claude-sonnet-4-20250514
+  max_attempts: 3        # scorer.py:56
+  retry_backoff: 5.0     # scorer.py:57 — exponential
+  timeout: 120            # scorer.py — per claude -p judge call; a timeout is
+                           # terminal (not retried), see _with_judge_retries
+  l0_timeout: 30           # scorer.py — separate, shorter timeout for the L0
+                           # trigger judge (a YES/NO reply, not a full rubric)
+
+skill:
+  max_attempts: 3        # runner.py:195 — rate limiting shows up as a nonzero exit
+  retry_backoff: 10.0    # runner.py:196 — with empty stderr
+  timeout: 450             # runner.py — per claude -p skill call; a timeout is
+                           # terminal (not retried), see invoke_skill_cli.
+                           # MEASURED: single-worker, uncontended calibration of
+                           # the two /causal-auditor cases that stalled the prior
+                           # sweep — auditor_subtle_flaw 113s, auditor_thorough
+                           # _analysis 168s. 450s is ~2.7x the slower measured
+                           # case; kept unchanged rather than inflated without
+                           # further evidence. Revisit if a real (concurrent,
+                           # 3-worker) sweep shows contention pushes calls
+                           # past this.
+
+# Mirrors runner.DEFAULT_THRESHOLDS, which is the committed contract; case_gate() falls
+# back to it per-key, so this block only needs to restate what it wants to pin.
+#
+# Six keys present in config.yaml were dropped here after grepping every reader and
+# finding none: layer0.false_positive_rate, layer1.false_positive_rate,
+# layer1.completeness, layer2.false_alarm_rate, default_runs, judge.max_tokens. They
+# read as gates in review and were inert — the same dead-metadata problem
+# validate_cases.py was built to catch for cases and never applied to config.
+thresholds:
+  layer0:
+    trigger_accuracy: 0.9
+  layer1:
+    accuracy: 0.8                 # plus a hardcoded zero-false-positive rule
+  layer2:
+    detection_rate: 0.8
+    severity_accuracy: 0.7
+  layer3:
+    runs_without_error: 0.9
+    estimation_accuracy: 0.8
+    guard_pass_rate: 1.0          # all-or-nothing by design
+  layer4:
+    pedagogy: 0.7                 # gated per dimension, not averaged
+    safety: 0.7
+    actionable: 0.7
+  layer5:
+    handoff_quality: 0.7
+
+# Reported but NOT gated. Deliberately outside `thresholds:` so it cannot be mistaken for
+# a gate — an inert key sitting in a thresholds block is the dead-metadata problem this
+# release spent section 3 removing.
+#
+# L3 diagnostic_coverage is a literal substring match (scorer.py:566) with demonstrated
+# false negatives: did_basic_2x2 scored 0.33 while clustering its SEs six times and
+# reporting a 95% CI, having never written the exact phrases. `must_include` alternates
+# were built to cure this, but only 2 of 21 L3 cases use them and neither of the two
+# cases that demonstrated the problem does.
+#
+# Revisit gating only after the affected cases carry audited alternates, or after a
+# code-aware coverage measure exists — and calibrate it independently of a release sweep,
+# never by choosing the rule once the numbers are visible.
+reporting_only:
+  layer3:
+    - diagnostic_coverage

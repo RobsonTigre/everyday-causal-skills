@@ -7,11 +7,23 @@ references:
   - references/method-registry.md
   - references/lessons.md
 user_message: |
-  I want to know if a college degree affects earnings. I think parental education
-  affects both whether someone goes to college and their earnings. I also think
-  parental income is affected by parental education and affects both college and
-  earnings. Help me draw the DAG. I use Python.
+  Consider this hypothetical, complete data-generating process. Parental education
+  affects parental income; both parental education and parental income affect whether
+  someone earns a college degree and their later earnings; and earning a college degree
+  affects later earnings. These are the only relevant causal relationships. There are
+  no additional observed or unobserved common causes of college degree and earnings.
+
+  I want the total causal effect of earning a college degree on later earnings. In one
+  response, give me the complete DAG analysis: draw the graph, enumerate and classify
+  the paths, state whether the effect is identifiable, give the minimally sufficient
+  adjustment set, flag variables that should not be adjusted for, state any testable
+  implications, and provide Python code.
 expected:
+  # A clean case: nothing is wrong, so the detection score measures false alarms.
+  # The positive obligations below were previously in must_identify/must_not_miss,
+  # which nothing read — they are graded questions now.
   must_flag: []
-  must_identify: [valid_adjustment_set]
-  must_not_miss: [backdoor_path_through_parental_vars]
+rubric:
+  - "Does it identify the backdoor path running through the parental variables (parental education and parental income)?"
+  - "Does it identify {parental education, parental income} as the minimally sufficient adjustment set that blocks the backdoor paths?"
+  - "Does it correctly treat this as an identifiable design rather than reporting a violation?"

@@ -8,8 +8,82 @@ so no API key is needed.
 from __future__ import annotations
 
 import json
+import os
 import re
+import signal
 import subprocess
+import time
+
+# Case `dataset:` paths are declared relative to the repo root, but generated code runs
+# in a temp cwd, so they are resolved against this.
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def run_subprocess_grouped(args, timeout, capture_output=True, text=True,
+                           cwd=None, term_grace=10.0):
+    """Like subprocess.run, but the child is its own process group so a timeout
+    can be cleaned up without leaving orphaned grandchildren behind.
+
+    subprocess.run's own timeout handling only ever reaches the direct child —
+    it kills it but never exposes the pid, so anything the child spawned
+    survives. Here we own the Popen, so on timeout we SIGTERM the whole group,
+    give it `term_grace` seconds, SIGKILL if it is still alive, then drain.
+    Always raises subprocess.TimeoutExpired on timeout, matching subprocess.run's
+    contract so callers need no changes beyond the call site itself.
+    """
+    proc = subprocess.Popen(
+        args, cwd=cwd,
+        stdout=subprocess.PIPE if capture_output else None,
+        stderr=subprocess.PIPE if capture_output else None,
+        text=text, start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _terminate_group(proc, term_grace)
+        raise
+    return subprocess.CompletedProcess(args, proc.returncode, stdout, stderr)
+
+
+def _terminate_group(proc, grace):
+    """SIGTERM the process group, wait, SIGKILL if still alive, then drain.
+
+    Draining via communicate() (not just wait()) after the kill mirrors what
+    subprocess.run itself does on its own timeout path — wait() alone can
+    deadlock if the child left enough buffered output to fill the pipe.
+    """
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    try:
+        proc.communicate(timeout=grace)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        pass
+    proc.communicate()
+
+
+class JudgeError(RuntimeError):
+    """The judge did not produce a valid, complete measurement.
+
+    Raised instead of returning a degraded score. A judge that is rate-limited,
+    timing out, or replying off-schema yields no measurement at all — callers
+    record the run as invalid so it can be requeued. Silently substituting
+    zeros here is what made whole sweeps unusable.
+
+    Carries `reason` so callers can tell a genuine timeout (`judge_timeout`,
+    terminal — see `_with_judge_retries`) from a malformed reply
+    (`malformed_response`) or a generic failure (`judge_error`, the default).
+    """
+
+    def __init__(self, message: str, reason: str = "judge_error"):
+        super().__init__(message)
+        self.reason = reason
 
 
 _MODEL_MAP = {
@@ -30,39 +104,70 @@ _JUDGE_SCHEMA = json.dumps({
 })
 
 
-def _call_judge(prompt: str, num_questions: int, config: dict | None = None,
-                debug: bool = False, label: str = "JUDGE") -> list[bool]:
-    """Call claude -p as a structured-output judge and return a list of booleans.
+def _with_judge_retries(attempt_fn, config: dict | None, label: str):
+    """Call attempt_fn(), retrying JudgeError with exponential backoff.
 
-    Uses the Max subscription (no API key). Returns one boolean per question,
-    padded with False if the judge returns fewer answers than expected.
+    Rate limiting is transient, so a failed measurement is worth retrying before
+    the run is abandoned. Persistent failure raises rather than degrading.
+
+    A genuine timeout is terminal, not retried: repeating the same wait three
+    times just burns 3x the time for the same outcome, which is what let a
+    single slow judge call stall a whole sweep.
     """
+    judge_config = (config or {}).get("judge", {})
+    max_attempts = int(judge_config.get("max_attempts", 3))
+    backoff = float(judge_config.get("retry_backoff", 5.0))
+
+    last_err = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return attempt_fn()
+        except JudgeError as e:
+            if e.reason == "judge_timeout":
+                raise
+            last_err = e
+            if attempt < max_attempts and backoff:
+                time.sleep(backoff * 2 ** (attempt - 1))
+    raise JudgeError(f"{label}: giving up after {max_attempts} attempt(s): {last_err}",
+                     reason=last_err.reason if last_err else "judge_error")
+
+
+def _call_judge_once(prompt: str, num_questions: int, config: dict | None = None,
+                     debug: bool = False, label: str = "JUDGE") -> list[bool]:
+    """One judge call. Raises JudgeError unless it yields exactly num_questions answers."""
     judge_config = (config or {}).get("judge", {})
     judge_model_raw = judge_config.get("model", "claude-sonnet-4-20250514")
     model = _MODEL_MAP.get(judge_model_raw, judge_model_raw)
+    timeout = int(judge_config.get("timeout", 120))
 
-    proc = subprocess.run(
-        [
-            "claude", "-p", prompt,
-            "--model", model,
-            "--output-format", "json",
-            "--json-schema", _JUDGE_SCHEMA,
-            "--tools", "",
-            "--no-session-persistence",
-            "--setting-sources", "local",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
+    try:
+        proc = run_subprocess_grouped(
+            [
+                "claude", "-p", prompt,
+                "--model", model,
+                "--output-format", "json",
+                "--json-schema", _JUDGE_SCHEMA,
+                "--tools", "",
+                "--no-session-persistence",
+                "--setting-sources", "local",
+            ],
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise JudgeError(f"{label}: claude -p timed out after {timeout}s",
+                         reason="judge_timeout") from e
 
     if proc.returncode != 0:
-        raise RuntimeError(f"claude -p exited {proc.returncode}: {proc.stderr[:500]}")
+        raise JudgeError(f"{label}: claude -p exited {proc.returncode}: {proc.stderr[:500]}")
 
-    resp = json.loads(proc.stdout)
+    try:
+        resp = json.loads(proc.stdout)
+    except (json.JSONDecodeError, TypeError) as e:
+        raise JudgeError(f"{label}: unparseable claude -p stdout: {proc.stdout[:200]}",
+                         reason="malformed_response") from e
 
     if resp.get("is_error"):
-        raise RuntimeError(f"claude -p error: {resp.get('result', 'unknown')}")
+        raise JudgeError(f"{label}: claude -p error: {resp.get('result', 'unknown')}")
 
     if debug:
         print(f"\n    [{label} REASONING]\n{resp.get('result', '')}\n    [/{label} REASONING]")
@@ -87,11 +192,26 @@ def _call_judge(prompt: str, num_questions: int, config: dict | None = None,
                 elif "NO" in cleaned:
                     answers.append(False)
 
-    # Pad with False if fewer answers than expected
-    while len(answers) < num_questions:
-        answers.append(False)
+    # Strict count: a short reply is an incomplete measurement, and an over-long
+    # one misaligns per-dimension slices. Neither may be scored.
+    if len(answers) != num_questions:
+        raise JudgeError(
+            f"{label}: expected {num_questions} answers, got {len(answers)}",
+            reason="malformed_response")
 
     return answers
+
+
+def _call_judge(prompt: str, num_questions: int, config: dict | None = None,
+                debug: bool = False, label: str = "JUDGE") -> list[bool]:
+    """Call claude -p as a structured-output judge and return one boolean per question.
+
+    Uses the Max subscription (no API key). Raises JudgeError if a valid,
+    complete set of answers cannot be obtained within the retry budget.
+    """
+    return _with_judge_retries(
+        lambda: _call_judge_once(prompt, num_questions, config, debug, label),
+        config, label)
 
 
 def _score_layer0(description: str, user_message: str, expected: dict,
@@ -108,19 +228,37 @@ Would you load this skill for this user message? Answer with exactly YES or NO, 
     judge_config = (config or {}).get("judge", {})
     judge_model_raw = judge_config.get("model", "claude-sonnet-4-20250514")
     model = _MODEL_MAP.get(judge_model_raw, judge_model_raw)
-    result = subprocess.run(
-        [
-            "claude", "-p", prompt,
-            "--model", model,
-            "--output-format", "text",
-            "--tools", "",
-            "--no-session-persistence",
-            "--setting-sources", "local",
-        ],
-        capture_output=True, text=True, timeout=30
-    )
-    answer = result.stdout.strip().upper()
-    triggered = "YES" in answer.split("\n")[0]
+    timeout = int(judge_config.get("l0_timeout", 30))
+
+    def attempt():
+        try:
+            result = run_subprocess_grouped(
+                [
+                    "claude", "-p", prompt,
+                    "--model", model,
+                    "--output-format", "text",
+                    "--tools", "",
+                    "--no-session-persistence",
+                    "--setting-sources", "local",
+                ],
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise JudgeError(f"L0 JUDGE: claude -p timed out after {timeout}s",
+                             reason="judge_timeout") from e
+        if result.returncode != 0:
+            raise JudgeError(
+                f"L0 JUDGE: claude -p exited {result.returncode}: {result.stderr[:500]}")
+        text = result.stdout.strip().upper()
+        first = text.split("\n")[0]
+        # An empty or off-script reply is no measurement. Reading it as "not
+        # triggered" silently PASSES every should_trigger: false case.
+        if "YES" not in first and "NO" not in first:
+            raise JudgeError(f"L0 JUDGE: no YES/NO in reply: {text[:200]!r}",
+                             reason="malformed_response")
+        return text, "YES" in first
+
+    answer, triggered = _with_judge_retries(attempt, config, "L0 JUDGE")
 
     should_trigger = expected.get("should_trigger", True)
     correct = triggered == should_trigger
@@ -152,7 +290,14 @@ def score_response(case: dict, response: str, config: dict | None = None, debug:
         # Rubric questions may live under expected.rubric or at case level
         # (the report_* cases carry a top-level rubric).
         rubric = expected.get("rubric") or case.get("rubric") or []
-        return _score_layer2(response, expected, config, debug, rubric=rubric)
+        scores = _score_layer2(response, expected, config, debug, rubric=rubric)
+        # response_contract / deferred_rubric (D1): declarative case metadata,
+        # not judge output. _judge_l2 only receives `expected` + `rubric`, not
+        # the full case, so this is injected here rather than inside it —
+        # mirrors what _judge_l4 already does directly, since L4 has `case`
+        # in scope. Absent on every case today, so inert until D2 uses it.
+        return {**scores, "response_contract": case.get("response_contract"),
+                "deferred_rubric": case.get("deferred_rubric") or []}
     elif layer == 3:
         return _score_layer3(response, expected, case)
     elif layer == 4:
@@ -224,25 +369,15 @@ Return your answers as a JSON object with an "answers" array of booleans, one pe
 Questions:
 {numbered}"""
 
-    try:
-        answers = _call_judge(prompt, len(rubric), config, debug, label="L1 JUDGE")
-        accuracy = sum(answers) / len(answers) if answers else 0.0
+    answers = _call_judge(prompt, len(rubric), config, debug, label="L1 JUDGE")
+    accuracy = sum(answers) / len(answers) if answers else 0.0
 
-        return {
-            "correct_method": accuracy >= 0.5,
-            "rubric_scores": answers,
-            "accuracy": accuracy,
-            "false_positives": false_positives,
-        }
-    except Exception as e:
-        print(f"\n    [L1 judge error: {e}]", end="")
-        return {
-            "correct_method": False,
-            "rubric_scores": [],
-            "accuracy": 0.0,
-            "false_positives": false_positives,
-            "error": str(e),
-        }
+    return {
+        "correct_method": accuracy >= 0.5,
+        "rubric_scores": answers,
+        "accuracy": accuracy,
+        "false_positives": false_positives,
+    }
 
 
 def _check_severity_patterns(response: str, expected_severity: str) -> bool:
@@ -338,57 +473,38 @@ Return your answers as a JSON object with an "answers" array of booleans, one pe
 Questions:
 {numbered}"""
 
-    try:
-        answers = _call_judge(prompt, len(questions), config, debug, label="JUDGE")
+    answers = _call_judge(prompt, len(questions), config, debug, label="JUDGE")
 
-        rubric_answers = answers[rubric_start:] if rubric else []
-        rubric_extra = (
-            {"rubric_coverage": sum(rubric_answers) / len(rubric_answers)} if rubric else {}
-        )
+    rubric_answers = answers[rubric_start:] if rubric else []
+    rubric_extra = (
+        {"rubric_coverage": sum(rubric_answers) / len(rubric_answers)} if rubric else {}
+    )
 
-        if rubric_type == "clean":
-            false_alarm = answers[0]
-            return {
-                "violation_detected": not false_alarm,
-                "flags_coverage": 1.0 if not false_alarm else 0.0,
-                "severity_correct": not false_alarm,
-                **rubric_extra,
-            }
-        else:
-            flag_answers = answers[:len(must_flag)]
-            # Two-pass severity: pattern match first, then judge fallback
-            pattern_pass = _check_severity_patterns(response, severity) if severity else True
-            judge_answer = answers[len(must_flag)] if severity else True
-            severity_answer = pattern_pass or judge_answer
-            return {
-                "violation_detected": any(flag_answers),
-                "flags_coverage": sum(flag_answers) / len(flag_answers) if flag_answers else 1.0,
-                "severity_correct": severity_answer,
-                **rubric_extra,
-            }
-    except Exception as e:
-        # Fallback to string matching if CLI unavailable
-        print(f"\n    [judge fallback: {e}]", end="")
-        return _score_layer2_string(response, case_expected)
-
-
-def _score_layer2_string(response: str, expected: dict) -> dict:
-    """Score assumption checking via string matching (fallback)."""
-    text = response.lower()
-    must_flag = expected.get("must_flag", [])
-    flagged = {v: v.lower().replace("_", " ") in text for v in must_flag}
-    expected_severity = expected.get("severity", "").lower()
-    severity_ok = _check_severity_patterns(response, expected_severity) if expected_severity else True
-    return {
-        "violation_detected": any(flagged.values()) if flagged else True,
-        "flags_coverage": sum(flagged.values()) / len(flagged) if flagged else 1.0,
-        "severity_correct": severity_ok,
-    }
+    if rubric_type == "clean":
+        false_alarm = answers[0]
+        return {
+            "violation_detected": not false_alarm,
+            "flags_coverage": 1.0 if not false_alarm else 0.0,
+            "severity_correct": not false_alarm,
+            **rubric_extra,
+        }
+    else:
+        flag_answers = answers[:len(must_flag)]
+        # Two-pass severity: pattern match first, then judge fallback
+        pattern_pass = _check_severity_patterns(response, severity) if severity else True
+        judge_answer = answers[len(must_flag)] if severity else True
+        severity_answer = pattern_pass or judge_answer
+        return {
+            "violation_detected": any(flag_answers),
+            "flags_coverage": sum(flag_answers) / len(flag_answers) if flag_answers else 1.0,
+            "severity_correct": severity_answer,
+            **rubric_extra,
+        }
 
 
 def _score_layer2(response: str, expected: dict, config: dict | None = None, debug: bool = False,
                   rubric: list | None = None) -> dict:
-    """Score assumption checking — uses LLM judge, falls back to string matching."""
+    """Score assumption checking via LLM judge."""
     return _judge_l2(response, expected, config, debug, rubric=rubric)
 
 
@@ -427,28 +543,30 @@ Return your answers as a JSON object with an "answers" array of booleans, one pe
 Questions:
 {numbered}"""
 
-    try:
-        answers = _call_judge(prompt, len(questions), config, debug, label="L4 JUDGE")
+    answers = _call_judge(prompt, len(questions), config, debug, label="L4 JUDGE")
 
-        dim_scores: dict[str, float] = {}
-        for dim in dimensions:
-            if dim in dim_ranges:
-                start, end = dim_ranges[dim]
-                dim_answers = answers[start:end]
-                dim_scores[dim] = sum(dim_answers) / len(dim_answers)
-            else:
-                dim_scores[dim] = 0.0
+    dim_scores: dict[str, float] = {}
+    for dim in dimensions:
+        if dim in dim_ranges:
+            start, end = dim_ranges[dim]
+            dim_answers = answers[start:end]
+            dim_scores[dim] = sum(dim_answers) / len(dim_answers)
+        else:
+            dim_scores[dim] = 0.0
 
-        active = [s for dim, s in dim_scores.items() if dim in dim_ranges]
-        overall = sum(active) / len(active) if active else 0.0
+    active = [s for dim, s in dim_scores.items() if dim in dim_ranges]
+    overall = sum(active) / len(active) if active else 0.0
 
-        return {**dim_scores, "overall": overall}
-    except Exception as e:
-        print(f"\n    [L4 judge error: {e}]", end="")
-        return {
-            "pedagogy": 0.0, "safety": 0.0, "actionable": 0.0, "overall": 0.0,
-            "error": str(e),
-        }
+    # response_contract / deferred_rubric (D1) are declarative case metadata,
+    # not judge output — passed through unchanged so aggregate() can surface
+    # deferred criteria in the verdict. Absent on every case today (D1 is
+    # mechanism only; D2 migrates cases), so this is inert until then.
+    #
+    # Which dimensions the case actually populates — the gate scores only these,
+    # so an absent dimension is skipped rather than counted as a 0.0.
+    return {**dim_scores, "overall": overall, "dimensions_present": sorted(dim_ranges),
+            "response_contract": case.get("response_contract"),
+            "deferred_rubric": case.get("deferred_rubric") or []}
 
 
 def score_l5(step1_response: str, step2_response: str, case: dict,
@@ -487,25 +605,42 @@ Return your answers as a JSON object with an "answers" array of booleans, one pe
 Questions:
 {numbered}"""
 
-    try:
-        answers = _call_judge(prompt, len(rubric_questions), config, debug, label="L5 JUDGE")
+    answers = _call_judge(prompt, len(rubric_questions), config, debug, label="L5 JUDGE")
 
-        passed = sum(answers[:len(rubric_questions)])
-        total = len(rubric_questions)
+    passed = sum(answers[:len(rubric_questions)])
+    total = len(rubric_questions)
 
-        return {
-            "handoff_quality": passed / total if total else 0.0,
-            "questions_passed": passed,
-            "questions_total": total,
-        }
-    except Exception as e:
-        print(f"\n    [L5 judge error: {e}]", end="")
-        return {
-            "handoff_quality": 0.0,
-            "questions_passed": 0,
-            "questions_total": len(rubric_questions),
-            "error": str(e),
-        }
+    return {
+        "handoff_quality": passed / total if total else 0.0,
+        "questions_passed": passed,
+        "questions_total": total,
+    }
+
+
+def must_include_alternates(term) -> tuple[str, list[str]]:
+    """Normalize one `must_include` entry to (canonical_key, [accepted phrasings]).
+
+    A term is either a plain string, or a list of interchangeable phrasings whose
+    FIRST element is the canonical key. Alternates exist because the metric matches
+    literal substrings: did_basic_2x2 reported a 95% CI six different ways and still
+    scored zero for never writing "confidence interval". Keying on the first element
+    keeps results comparable across runs no matter which phrasing matched.
+
+    Raises ValueError on shapes the validator is expected to have rejected already.
+    """
+    if isinstance(term, str):
+        if not term.strip():
+            raise ValueError("must_include term is empty")
+        return term, [term]
+    if isinstance(term, (list, tuple)):
+        if not term:
+            raise ValueError("must_include alternates list is empty")
+        if not all(isinstance(a, str) and a.strip() for a in term):
+            raise ValueError(
+                f"must_include alternates must all be non-empty strings: {term!r}")
+        return term[0], list(term)
+    raise ValueError(
+        f"must_include term must be a string or a list of strings, got {type(term).__name__}")
 
 
 def _score_layer3(response: str, expected: dict, case: dict) -> dict:
@@ -513,7 +648,12 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     code_blocks = re.findall(r"```(?:python|r|R)\n(.*?)```", response, re.DOTALL)
 
     must_include = expected.get("must_include", [])
-    included = {c: c.lower().replace("_", " ") in response.lower() for c in must_include}
+    resp_lower = response.lower()
+    included = {}
+    for term in must_include:
+        canonical, alternates = must_include_alternates(term)
+        included[canonical] = any(
+            alt.lower().replace("_", " ") in resp_lower for alt in alternates)
 
     # Code-scoped guard: match only inside fenced code blocks, not prose.
     code_text = "\n".join(code_blocks).lower()
@@ -528,7 +668,21 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     is_exercise = (true_effect is None and not expected_values
                    and any("ESTIMATE:" in cb for cb in code_blocks))
 
-    exec_result = {"ran": False, "error": None, "estimate": None}
+    # Nothing-executed must be distinguishable from executed-and-crashed. Leaving this
+    # as error=None made a prose-only reply look identical to a failing script, which is
+    # exactly how exercise_dgp_iv read as a crash in 4 of 5 runs when in fact no code
+    # was ever produced. The default below is overwritten whenever execution happens.
+    if not code_blocks:
+        _why_not = ("no runnable code block found in the response — expected a "
+                    f"{case.get('language', 'python')} block")
+    elif is_exercise:
+        _why_not = ("no runnable code found — this exercise case needs a code block "
+                    "printing an ESTIMATE: line to recover ground truth")
+    else:
+        _why_not = ("no runnable code was executed — the response has code but the case "
+                    "declares neither `dataset` nor `expected.code_runs`, so nothing "
+                    "selected it to run (case configuration issue, not a skill failure)")
+    exec_result = {"ran": False, "error": _why_not, "estimate": None}
 
     if is_exercise:
         # Exercise case: find and run the DGP block to extract runtime ground truth
@@ -548,11 +702,16 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
             requires=case.get("requires"),
         )
 
-    # Check estimation accuracy if ground truth provided (non-exercise cases only)
+    # Check estimation accuracy if ground truth provided (non-exercise cases only).
+    # None means the gate does not apply to this case at all; a case that declares a
+    # true effect and then reports no estimate has failed it, not skipped it.
     estimate_ok = None
-    if not is_exercise and exec_result["estimate"] is not None and true_effect is not None:
-        tolerance = expected.get("tolerance", 1.0)
-        estimate_ok = abs(exec_result["estimate"] - true_effect) <= tolerance
+    if not is_exercise and true_effect is not None:
+        if exec_result["estimate"] is None:
+            estimate_ok = False
+        else:
+            tolerance = expected.get("tolerance", 1.0)
+            estimate_ok = abs(exec_result["estimate"] - true_effect) <= tolerance
 
     # Named-value accuracy: expected.values maps KEY -> number or
     # KEY -> {value, tol}. Values are parsed from KEY:<float> lines in the
@@ -590,7 +749,6 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
 def _execute_code(code: str, language: str = "python", dataset_path: str | None = None,
                   requires: list | None = None) -> dict:
     """Execute generated code in a subprocess and capture results."""
-    import os
     import tempfile
 
     result = {"ran": False, "error": None, "estimate": None, "values": {}}
@@ -613,22 +771,23 @@ def _execute_code(code: str, language: str = "python", dataset_path: str | None 
             result["error"] = f"Required package '{mod}' not importable under {interp}"
             return result
 
-    # Prepend dataset loading if dataset provided
+    # Prepend dataset loading if dataset provided. Cases declare paths relative to the
+    # repo root (`evals/data/...`), but the code runs in a temp cwd, so resolve here.
     if dataset_path:
+        abs_dataset = os.path.abspath(os.path.join(_REPO_ROOT, dataset_path))
         if language == "python":
             # Use non-interactive matplotlib backend to prevent plt.show() blocking
-            code = f"import matplotlib\nmatplotlib.use('Agg')\nimport pandas as pd\ndf = pd.read_csv('{dataset_path}')\n" + code
+            code = f"import matplotlib\nmatplotlib.use('Agg')\nimport pandas as pd\ndf = pd.read_csv({abs_dataset!r})\n" + code
         else:
-            code = f'df <- read.csv("{dataset_path}")\n' + code
+            code = f'df <- read.csv({abs_dataset!r})\n' + code
 
     # Suppress R warning escalation — print warnings but don't error
     if language != "python":
         code = 'options(warn = 1)\n' + code
 
     # Ensure directories for CSV writes exist in temp execution context
-    import os as _os
     for csv_match in re.findall(r'\.to_csv\(["\'](.+?)["\']\)', code):
-        csv_dir = _os.path.dirname(csv_match)
+        csv_dir = os.path.dirname(csv_match)
         if csv_dir:
             code = f"import os; os.makedirs('{csv_dir}', exist_ok=True)\n" + code
             break  # Only need one makedirs preamble
@@ -637,11 +796,18 @@ def _execute_code(code: str, language: str = "python", dataset_path: str | None 
     cmd = [py_interp] if language == "python" else [r_interp]
 
     try:
-        with tempfile.NamedTemporaryFile(mode="w", suffix=suffix, delete=False) as f:
-            f.write(code)
-            f.flush()
+        # Run inside a throwaway directory. Generated code calls savefig("x.png") and
+        # to_csv("y.csv") with bare names; inheriting the repo root as cwd littered it
+        # with artifacts that then showed up as dirty paths in the sweep fingerprint.
+        # The dataset path is resolved to an absolute path above, before the preamble is
+        # built, so relative `evals/data/...` declarations survive the cwd change.
+        with tempfile.TemporaryDirectory(prefix="eval-exec-") as workdir:
+            script = os.path.join(workdir, f"generated{suffix}")
+            with open(script, "w") as f:
+                f.write(code)
             proc = subprocess.run(
-                cmd + [f.name], capture_output=True, text=True, timeout=180
+                cmd + [script], capture_output=True, text=True, timeout=180,
+                cwd=workdir,
             )
         # Extract estimate from output FIRST
         for line in proc.stdout.split("\n"):
@@ -661,15 +827,20 @@ def _execute_code(code: str, language: str = "python", dataset_path: str | None 
             except ValueError:
                 pass
 
-        # Success = clean exit OR produced an estimate despite warnings
-        result["ran"] = proc.returncode == 0 or result["estimate"] is not None
+        # Success requires a clean exit, full stop. Previously an estimate printed
+        # before a crash counted as a successful run and its stderr was thrown away,
+        # so a script that died partway through registered as green.
+        result["ran"] = proc.returncode == 0
 
-        if proc.returncode != 0 and result["estimate"] is None:
+        if proc.returncode != 0:
             stderr = proc.stderr
             # Strip R package loading messages that obscure real errors
             stderr = re.sub(r'── Attaching.*?── Conflicts.*?\n(?:.*?masks.*?\n)*(?:ℹ.*?\n)*', '', stderr, flags=re.DOTALL)
             stderr = stderr.strip()
-            result["error"] = stderr[:500] if stderr else "Non-zero exit code with no error message"
+            detail = stderr[:500] if stderr else "no error message on stderr"
+            got = ("" if result["estimate"] is None
+                   else f" (an ESTIMATE was printed before the failure: {result['estimate']})")
+            result["error"] = f"exit code {proc.returncode}: {detail}{got}"
         else:
             result["error"] = None
     except subprocess.TimeoutExpired:
