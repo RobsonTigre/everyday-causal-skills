@@ -97,6 +97,8 @@ Generate complete analysis code. Read the appropriate template from `templates/r
 
 **IMPORTANT — Template adherence**: Copy the code pattern from the appropriate template exactly, then adapt only variable names to match the user's data. Do not restructure the code, use alternative function APIs, or improvise. The templates have been tested; deviations introduce bugs.
 
+**Non-negotiable**: the variable-importance caveat (`cat`/`print` lines right after `variable_importance()` / `feature_importances_`) and the policy deployment disclaimer (`cat`/`print` lines right after the policy tree's predictions) are part of the code pattern, not optional narration. Include them verbatim by running the copied code — do not summarize them, promise to add them, or state them only in prose instead of executing the lines that print them.
+
 **Two-pass approach (always follow this order)**:
 
 1. **LinearDML first pass** (always run — fast, interpretable, screens for signal):

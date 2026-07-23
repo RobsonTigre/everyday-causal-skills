@@ -99,6 +99,11 @@ abline(v = mean(tau_hat), col = "red", lwd = 2)
 # Which covariates drive heterogeneity?
 # Higher values = more important for splitting
 varimp <- variable_importance(cf)
+
+cat("\nImportant caveat: Variable importance measures splitting value, not causal\n")
+cat("moderation. A variable that is important for the forest's predictions is not\n")
+cat("necessarily a causal modifier — it could correlate with a true modifier.\n")
+
 names(varimp) <- colnames(X)
 barplot(sort(varimp, decreasing = TRUE),
         main = "Variable Importance for Treatment Effect Heterogeneity",
@@ -245,15 +250,21 @@ dr_scores_adjusted <- dr_scores
 dr_scores_adjusted[, 2] <- dr_scores[, 2] - cost
 
 pt <- policy_tree(X, dr_scores_adjusted, depth = 2)
-print(pt)
-plot(pt)
 
 # Policy assignment
 policy <- predict(pt, X)
+
+cat("\nThis is an exploratory targeting rule, not a deployment-ready policy.\n")
+cat("Before operationalizing: (1) validate on held-out data, (2) run a confirmatory\n")
+cat("experiment, (3) review for fairness and equity, (4) get domain expert review.\n")
+
 cat("Policy tree treats:", mean(policy == 2), "of units\n")
 
 # Compare to threshold rule
 cat("Threshold rule treats:", mean(treat_rule), "of units\n")
+
+print(pt)
+plot(pt)
 ```
 
 ### Step 4c: Fairness check
