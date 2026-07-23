@@ -451,6 +451,41 @@ def test_artifact_fixture_absolute_source_inside_fixtures_root_is_valid():
         assert validate_case(p) == [], validate_case(p)
 
 
+def test_artifact_fixture_symlinked_file_inside_confined_source_is_an_error():
+    # Confining the source ROOT isn't enough: shutil.copytree's default symlinks=False
+    # dereferences symlinks during copy, so a symlink inside an otherwise-confined
+    # fixture can pull in file content from anywhere on disk. Verified manually with a
+    # symlink to /etc/hosts; using a synthetic file here so the test is portable.
+    with tempfile.TemporaryDirectory() as t, \
+            tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as outside:
+        Path(fixture_dir, "plan.md").write_text("legit content")
+        secret = Path(outside, "secret.txt")
+        secret.write_text("should never leak")
+        os.symlink(secret, Path(fixture_dir, "evil_link"))
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:",
+            f"input_mode: artifact\nartifact_fixture:\n  source: {fixture_dir}\n"
+            f"  dest: docs/causal-plans/probe\nrubric:"))
+        errs = validate_case(p)
+        assert any("symlink" in e for e in errs), errs
+
+
+def test_artifact_fixture_symlinked_dir_inside_confined_source_is_an_error():
+    with tempfile.TemporaryDirectory() as t, \
+            tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as outside:
+        Path(fixture_dir, "plan.md").write_text("legit content")
+        Path(outside, "secret.txt").write_text("should never leak")
+        os.symlink(outside, Path(fixture_dir, "evil_dir"))
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:",
+            f"input_mode: artifact\nartifact_fixture:\n  source: {fixture_dir}\n"
+            f"  dest: docs/causal-plans/probe\nrubric:"))
+        errs = validate_case(p)
+        assert any("symlink" in e for e in errs), errs
+
+
 def test_artifact_fixture_dest_escaping_sandbox_is_an_error():
     with tempfile.TemporaryDirectory() as t:
         fixture_dir = Path(t) / "fixture"

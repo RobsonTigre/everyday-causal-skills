@@ -26,6 +26,26 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES_ROOT = Path(_REPO_ROOT) / "evals" / "fixtures"
 
 
+def reject_symlinks(root: Path) -> None:
+    """Fixture trees are static, checked-in content -- no legitimate fixture needs a
+    symlink inside it. Confining `source` to resolve inside FIXTURES_ROOT is not enough:
+    `shutil.copytree`'s default `symlinks=False` DEREFERENCES symlinks during copy, so a
+    symlink anywhere inside an otherwise-confined source tree can pull in file content
+    from anywhere on disk (verified: a symlink to /etc/hosts inside a confined fixture
+    got /etc/hosts's actual content copied in as a plain file). Preserving the symlink
+    instead of dereferencing it is not a fix either -- the sandbox would then contain a
+    symlink the model's Read tool would still follow, just with an extra hop. Reject any
+    symlink found anywhere in the tree, full stop.
+
+    `root.rglob("*")` yields a symlinked directory as a single entry without descending
+    into it, so one loop over is_symlink() catches both symlinked files and symlinked
+    directories -- no special-casing needed.
+    """
+    for entry in root.rglob("*"):
+        if entry.is_symlink():
+            raise ValueError(f"contains a symlink, which is not allowed: {entry}")
+
+
 def run_subprocess_grouped(args, timeout, capture_output=True, text=True,
                            cwd=None, term_grace=10.0):
     """Like subprocess.run, but the child is its own process group so a timeout

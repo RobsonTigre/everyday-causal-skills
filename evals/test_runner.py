@@ -304,6 +304,50 @@ def test_provision_artifact_fixture_rejects_source_escaping_via_symlink():
             link.unlink(missing_ok=True)
 
 
+def test_provision_artifact_fixture_rejects_symlinked_file_inside_confined_source():
+    # The confinement check in the prior two tests validates the SOURCE ROOT's own
+    # resolved path -- it never inspects what's inside a legitimately-confined directory.
+    # shutil.copytree's default symlinks=False DEREFERENCES symlinks during copy, so a
+    # symlink sitting inside an otherwise-confined fixture, pointing anywhere else on
+    # disk, gets its target's actual content copied in as a plain file. Reproduces the
+    # exact bug (verified manually with a symlink to /etc/hosts; using a synthetic
+    # "secret" file here so the test doesn't depend on /etc/hosts being readable).
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as outside, \
+            tempfile.TemporaryDirectory() as workdir:
+        (Path(fixture_dir) / "plan.md").write_text("legit content")
+        secret = Path(outside) / "secret.txt"
+        secret.write_text("should never leak into the sandbox")
+        os.symlink(secret, Path(fixture_dir) / "evil_link")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "symlink" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for a symlink inside the fixture source")
+        assert not (Path(workdir) / "docs").exists(), "nothing should have been copied at all"
+
+
+def test_provision_artifact_fixture_rejects_symlinked_dir_inside_confined_source():
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as outside, \
+            tempfile.TemporaryDirectory() as workdir:
+        (Path(fixture_dir) / "plan.md").write_text("legit content")
+        (Path(outside) / "secret.txt").write_text("should never leak into the sandbox")
+        os.symlink(outside, Path(fixture_dir) / "evil_dir")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "symlink" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for a symlinked directory inside the fixture source")
+        assert not (Path(workdir) / "docs").exists(), "nothing should have been copied at all"
+
+
 def test_run_case_cli_provisions_fixture_before_invoking_the_skill():
     # The fixture must already be on disk, at the declared dest, inside the sandbox
     # cwd handed to the skill invocation -- not before the workdir exists, not after.

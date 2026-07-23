@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from scorer import FIXTURES_ROOT, SEVERITIES, must_include_alternates  # noqa: E402
+from scorer import FIXTURES_ROOT, SEVERITIES, must_include_alternates, reject_symlinks  # noqa: E402
 
 DIMENSIONS = ("pedagogy", "safety", "actionable")
 
@@ -185,6 +185,11 @@ def _check_artifact_fixture(case: dict, errors: list[str]) -> None:
         errors.append(f"artifact_fixture.source must be under evals/fixtures/: {source!r}")
     elif not Path(source).is_dir():
         errors.append(f"artifact_fixture.source not found or not a directory: {source}")
+    else:
+        try:
+            reject_symlinks(Path(source))
+        except ValueError as e:
+            errors.append(f"artifact_fixture.source {e}")
     if not isinstance(dest, str) or Path(dest).is_absolute() or ".." in Path(dest).parts:
         errors.append(f"artifact_fixture.dest must be a relative path with no '..': {dest!r}")
 

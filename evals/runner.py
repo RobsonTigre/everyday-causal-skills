@@ -19,7 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from scorer import FIXTURES_ROOT, JudgeError, score_response, score_l5, run_subprocess_grouped
+from scorer import (FIXTURES_ROOT, JudgeError, score_response, score_l5,
+                    run_subprocess_grouped, reject_symlinks)
 
 
 # Mirrors evals/config.yaml, which is untracked (local config by design).
@@ -336,6 +337,10 @@ def _provision_artifact_fixture(case: dict, workdir: str) -> None:
     source = Path(source_str).resolve()
     if not source.is_relative_to(FIXTURES_ROOT):
         raise ValueError(f"artifact_fixture.source escapes evals/fixtures/: {source_str!r}")
+    try:
+        reject_symlinks(source)
+    except ValueError as e:
+        raise ValueError(f"artifact_fixture.source {e}") from None
     dest_str = fixture["dest"]
     if not isinstance(dest_str, str) or Path(dest_str).is_absolute() or ".." in Path(dest_str).parts:
         raise ValueError(f"artifact_fixture.dest must be a relative path with no '..': {dest_str!r}")
