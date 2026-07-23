@@ -14,6 +14,8 @@ import threading
 import time
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import runner  # noqa: E402
 import scorer  # noqa: E402
@@ -288,9 +290,12 @@ def test_run_case_slots_preserves_accepted_slots_and_requeues_only_the_rest():
 def test_run_case_slots_all_done_computes_verdict_without_rerunning():
     with tempfile.TemporaryDirectory() as d:
         sweep_dir = Path(d)
+        case_path = sweep_dir / "x.yaml"
+        case_path.write_text(yaml.dump({"name": "x", "layer": 1}))
         results = [{"run": i + 1, "scores": {"correct_method": True},
                     "tokens": {"input": 0, "output": 0}} for i in range(5)]
-        case_entry = {"layer": 1, "slots": [{"status": "done", "result": r} for r in results]}
+        case_entry = {"layer": 1, "path": str(case_path),
+                      "slots": [{"status": "done", "result": r} for r in results]}
 
         def fake(*a, **k):
             raise AssertionError("no slot should be re-run once all are accepted")
@@ -376,6 +381,101 @@ def test_run_case_slots_never_marks_an_invalid_measurement_done():
         done_slots = [s for s in patch["slots"] if s["status"] == "done"]
         assert len(done_slots) == 4, patch["slots"]  # the 4 valid ones stay accepted
         assert "skill_timeout" in (patch.get("invalid_reasons") or []), patch
+
+
+def _done_case_entry(sweep_dir, name, layer, case_body, run_scores):
+    """A case_entry with every slot pre-accepted, wired to a real on-disk case
+    file — the shape `run_case_slots` needs to reach its aggregation step."""
+    case_path = sweep_dir / f"{name}.yaml"
+    case_path.write_text(yaml.dump({"name": name, "layer": layer, **case_body}))
+    results = [{"run": i + 1, "scores": dict(scores),
+                "tokens": {"input": 0, "output": 0}} for i, scores in enumerate(run_scores)]
+    return {"layer": layer, "path": str(case_path),
+            "slots": [{"status": "done", "result": r} for r in results]}
+
+
+def _run_slots_without_rerunning(name, case_entry, sweep_dir):
+    def fake(*a, **k):
+        raise AssertionError("no slot should be re-run once all are accepted")
+
+    real = scorer.run_subprocess_grouped
+    scorer.run_subprocess_grouped = fake
+    try:
+        return sweep.run_case_slots(name, case_entry, "evals/config.yaml", sweep_dir, 5, None)
+    finally:
+        scorer.run_subprocess_grouped = real
+
+
+def test_run_case_slots_multi_flag_l2_partial_coverage_fails_through_sweep():
+    # The D9-fix regression: run_case_slots() must load the real case (with its
+    # declared must_flag) before aggregating, not the stripped {"layer": layer}
+    # dict — otherwise a 2-flag case where every run catches only 1 of 2 flags
+    # wrongly reports PASS through the sweep path.
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        case_entry = _done_case_entry(
+            sweep_dir, "multi_flag_case", 2,
+            {"expected": {"must_flag": ["flag_a", "flag_b"], "severity": "serious"}},
+            [{"violation_detected": True, "flags_coverage": 0.5, "severity_correct": True}] * 5,
+        )
+        patch = _run_slots_without_rerunning("multi_flag_case", case_entry, sweep_dir)
+
+        assert patch["status"] == "done", patch
+        assert patch["aggregate"]["detected"] == 0, patch["aggregate"]
+        assert patch["verdict"] == "FAIL", patch
+
+
+def test_run_case_slots_single_flag_l2_case_unaffected():
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        case_entry = _done_case_entry(
+            sweep_dir, "single_flag_case", 2,
+            {"expected": {"must_flag": ["flag_a"], "severity": "serious"}},
+            [{"violation_detected": True, "flags_coverage": 1.0, "severity_correct": True}] * 5,
+        )
+        patch = _run_slots_without_rerunning("single_flag_case", case_entry, sweep_dir)
+
+        assert patch["aggregate"]["detected"] == 5, patch["aggregate"]
+        assert patch["verdict"] == "PASS", patch
+
+
+def test_run_case_slots_l4_legacy_runs_use_case_declared_rubric_dimensions():
+    # Same root cause, same fix: aggregate()'s L4 branch falls back to the
+    # case's own `rubric` dict when no run reports `dimensions_present` (old-
+    # ledger runs). Through the stripped case dict this fell back further, to
+    # "assume all three dimensions", forcing an undeclared `actionable` to a
+    # phantom 0.0 instead of skipping it — turning a real PASS into a FAIL.
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        case_entry = _done_case_entry(
+            sweep_dir, "l4_legacy_case", 4,
+            {"rubric": {"pedagogy": ["q1"], "safety": ["q2"]}},
+            [{"pedagogy": 1.0, "safety": 1.0}] * 5,  # no actionable, no dimensions_present
+        )
+        patch = _run_slots_without_rerunning("l4_legacy_case", case_entry, sweep_dir)
+
+        assert patch["aggregate"]["actionable"] is None, patch["aggregate"]
+        assert patch["aggregate"]["pedagogy"] == 1.0, patch["aggregate"]
+        assert patch["verdict"] == "PASS", patch
+
+
+def test_run_case_slots_raises_on_ledger_case_mismatch():
+    # A ledger entry's `path` no longer matching the on-disk case (renamed or
+    # edited case file mid-sweep) must fail loudly, not silently aggregate
+    # against the wrong case.
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        case_entry = _done_case_entry(
+            sweep_dir, "renamed_case", 1, {}, [{"correct_method": True}] * 5,
+        )
+        case_entry["layer"] = 2  # ledger says layer 2; the file on disk says layer 1
+
+        try:
+            _run_slots_without_rerunning("renamed_case", case_entry, sweep_dir)
+            raised = False
+        except ValueError:
+            raised = True
+        assert raised, "expected a ValueError on ledger/case layer mismatch"
 
 
 def test_run_one_slot_returns_none_on_crash_with_no_output():

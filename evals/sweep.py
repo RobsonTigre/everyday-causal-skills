@@ -670,11 +670,18 @@ def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Pat
             "error": f"only {len(accepted)} of {len(slots)} runs measured",
         }
 
-    layer = case_entry["layer"]
-    agg = runner.aggregate(accepted, {"layer": layer})
+    case = runner.load_case(str(REPO_ROOT / case_entry["path"]))
+    if Path(case_entry["path"]).stem != name or case["layer"] != case_entry["layer"]:
+        raise ValueError(
+            f"ledger/case mismatch for {name!r}: case_entry declares path="
+            f"{case_entry['path']!r} layer={case_entry['layer']!r}, but the file "
+            f"there is named {Path(case_entry['path']).stem!r} with layer="
+            f"{case.get('layer')!r}"
+        )
+    agg = runner.aggregate(accepted, case)
     return {
         "status": "done", "slots": slots, "aggregate": agg,
-        "verdict": runner.case_gate(layer, agg, thresholds),
+        "verdict": runner.case_gate(case_entry["layer"], agg, thresholds),
         "invalid_reasons": sorted({r["invalid"] for r in accepted if r.get("invalid")}),
         "runs_valid": agg.get("runs_valid"), "runs_total": agg.get("runs_total"),
         "error": None,
