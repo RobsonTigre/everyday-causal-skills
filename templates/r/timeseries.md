@@ -30,6 +30,7 @@ library(modelsummary)
 # df: time series data frame with columns: date, outcome, (optional) covariates
 # intervention_date: date when the intervention/treatment occurred
 
+df$date <- as.Date(df$date)  # CausalArima below needs a real Date vector, not a string
 intervention_date <- as.Date("2020-01-01")  # Set your intervention date
 
 # Define pre and post periods
@@ -110,6 +111,10 @@ ca_fit <- CausalArima(
 
 # Summary
 summary(ca_fit)
+
+# Extract the numeric temporal average effect for programmatic use (summary() above
+# prints a human-readable table; the fitted object holds the per-period effect vector)
+cat("Temporal average causal effect:", mean(ca_fit$causal.effect), "\n")
 ```
 
 ## Diagnostics
