@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from scorer import _score_layer3  # noqa: E402
+from scorer import _execute_code, _score_layer3  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _TEMPLATE = _REPO_ROOT / "templates" / "r" / "timeseries.md"
@@ -72,26 +72,47 @@ def test_causalarima_template_runs_against_its_own_case_fixture():
     date_fix_line = next(ln for ln in prep.splitlines() if "as.Date(df$date)" in ln)
     assert "df$date <- as.Date(df$date)" in date_fix_line, date_fix_line
 
+    # Also extract the CI accessor block literally -- the point is to prove the
+    # template's own code computes a real CI, not that a hand-written test script does.
     arima_block = _block_containing("CausalArima(")
+    ci_lines = [ln for ln in arima_block.splitlines()
+                if "avg_effect_boot" in ln or "avg_effect_ci" in ln]
+    assert len(ci_lines) == 3, f"expected the 3 CI-accessor lines in the template: {ci_lines}"
+
     script = (
         f"{_preflight_block()}\n"
         f"{date_fix_line}\n"
         'intervention_date <- as.Date("2023-03-12")\n'
         f"{arima_block}\n"
         'cat(sprintf("ESTIMATE:%f\\n", mean(ca_fit$causal.effect)))\n'
+        'cat(sprintf("CI_LOWER:%f\\n", avg_effect_ci[1]))\n'
+        'cat(sprintf("CI_UPPER:%f\\n", avg_effect_ci[2]))\n'
     )
 
     case = {"dataset": "evals/data/timeseries_causalarima_l3.csv",
             "language": "r", "requires": ["CausalArima"]}
     expected = {"true_effect": 4.0, "tolerance": 2.5,
                 "must_include": ["pre_treatment", "confidence_interval"]}
-    result = _score_layer3(
-        f"```r\n{script}```\n\nChecked pre treatment fit and report a 95 percent "
-        "confidence interval from the bootstrap distribution.",
-        expected, case)
+    response = (f"```r\n{script}```\n\nChecked pre treatment fit and report a 95 percent "
+                "confidence interval from the bootstrap distribution.")
+    result = _score_layer3(response, expected, case)
 
     assert result["runs_without_error"] is True, result
     assert result["estimation_accurate"] is True, result
+
+    # The must_include check above only proves the RESPONSE TEXT mentions a confidence
+    # interval -- it says nothing about whether the CODE actually computed one. This is
+    # the check that does: run the same script through _execute_code directly (the same
+    # function _score_layer3 uses internally, but it doesn't surface `values` in its own
+    # return) and confirm the template's own CI-accessor code printed two real, distinct
+    # numbers that bracket the point estimate -- not just that some prose mentions a CI.
+    exec_result = _execute_code(script, language="r",
+                                 dataset_path=case["dataset"], requires=case["requires"])
+    assert exec_result["ran"] is True, exec_result
+    ci_lower = exec_result["values"].get("CI_LOWER")
+    ci_upper = exec_result["values"].get("CI_UPPER")
+    assert ci_lower is not None and ci_upper is not None, exec_result
+    assert ci_lower < exec_result["estimate"] < ci_upper, (ci_lower, exec_result["estimate"], ci_upper)
 
 
 def test_causalimpact_controls_template_runs_against_its_own_case_fixture():
