@@ -45,13 +45,32 @@ def _assert_immediately_follows(code: str, anchor: str, message: str) -> None:
     bug with a different culprit than a plot call.
     """
     anchor_idx = _index_of(code, anchor)
-    anchor_line_end = code.find("\n", anchor_idx)
     message_idx = _index_of(code, message)
+    # Without this, a message placed BEFORE its anchor still passes: the slice below
+    # (code[anchor_line_end:message_line_start]) has start > end, which Python silently
+    # returns as "" rather than erroring -- an empty `offending` list, a vacuous pass.
+    assert anchor_idx < message_idx, (
+        f"{message!r} appears before {anchor!r}, not after (positions {message_idx} < {anchor_idx})")
+    anchor_line_end = code.find("\n", anchor_idx)
     message_line_start = code.rfind("\n", 0, message_idx) + 1
     between = code[anchor_line_end:message_line_start]
     offending = [ln for ln in between.splitlines() if ln.strip() and not ln.strip().startswith("#")]
     assert not offending, (
         f"non-comment code between {anchor!r} and {message!r}: {offending}")
+
+
+def test_assert_immediately_follows_rejects_message_before_anchor():
+    # Regression lock: code[anchor_line_end:message_line_start] with start > end
+    # silently returns "" in Python, not an error, so a message placed BEFORE its
+    # anchor previously passed this check vacuously -- the templates are currently
+    # correct, but the test itself did not prove that.
+    backwards = 'print("Important caveat")\nvarimp = est.feature_importances_\nplt.barh(x, y)\n'
+    try:
+        _assert_immediately_follows(backwards, "feature_importances_", "Important caveat")
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError("expected AssertionError when message precedes its anchor")
 
 
 def test_python_variable_importance_caveat_immediately_follows_extraction():
