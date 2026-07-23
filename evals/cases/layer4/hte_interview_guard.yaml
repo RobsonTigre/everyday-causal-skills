@@ -1,0 +1,21 @@
+name: hte_interview_guard
+description: Interview-regression guard — HTE skill must not skip any of its always-ask questions
+layer: 4
+skill: causal-hte
+response_contract: first_turn
+input_mode: inline
+references:
+  - references/assumptions/hte.md
+  - references/method-registry.md
+user_message: |
+  I want to explore heterogeneous treatment effects in my program evaluation
+  data. I have 4,000 users and covariates: age, income, region, tenure. I use
+  Python.
+rubric:
+  pedagogy:
+    - "Does it ask which variables might be effect modifiers, rather than assuming which covariates belong in X?"
+  safety:
+    - "Does it ask whether treatment is randomized or observational before proceeding?"
+    - "Does it ask whether the outcome is continuous or binary?"
+  actionable:
+    - "Does it ask whether the user has pre-specified subgroup hypotheses or is exploring?"

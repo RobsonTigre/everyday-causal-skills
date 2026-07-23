@@ -2,6 +2,8 @@ name: dag_collider_bias
 description: DAG skill must detect collider bias when user proposes controlling for a collider
 layer: 2
 skill: causal-dag
+response_contract: first_turn
+input_mode: dataset
 references:
   - references/assumptions/dag.md
   - references/method-registry.md

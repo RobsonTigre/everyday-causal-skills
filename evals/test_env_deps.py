@@ -23,6 +23,7 @@ import yaml
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _PYPROJECT = _REPO_ROOT / "pyproject.toml"
 _PY_TEMPLATES = _REPO_ROOT / "templates" / "python"
+_R_TEMPLATES = _REPO_ROOT / "templates" / "r"
 _LAYER3 = _REPO_ROOT / "evals" / "cases" / "layer3"
 
 # Import names that ship with CPython or are otherwise never pip-declared.
@@ -57,11 +58,19 @@ def _extra_packages(extra: str) -> set[str]:
 
 
 def _template_preflight_maps() -> dict[str, str]:
-    """import-name -> pip-name, harvested from every Python template's preflight."""
+    """import-name -> pip-name, harvested from every Python template's preflight.
+
+    Covers both `required = {...}` (hard-gated, always needed) and `optional = {...}`
+    (D7: variant-only packages, e.g. `templates/python/timeseries.md`'s CausalImpact vs
+    CausalArima split — noted but not blocked for a live user, per
+    `references/preflight.md`'s "Required vs optional"). The eval harness still needs
+    both installed to execute every L3 case regardless of that user-facing framing, so
+    this guard treats them identically for pyproject-coverage purposes.
+    """
     mapping: dict[str, str] = {}
     for path in sorted(_PY_TEMPLATES.glob("*.md")):
         text = path.read_text()
-        for block in re.findall(r"required\s*=\s*\{(.*?)\}", text, re.S):
+        for block in re.findall(r"(?:required|optional)\s*=\s*\{(.*?)\}", text, re.S):
             for imp, pip in re.findall(r'"([^"]+)"\s*:\s*"([^"]+)"', block):
                 mapping[imp] = pip
     assert mapping, "no preflight `required = {...}` maps found in templates/python"
@@ -79,6 +88,45 @@ def _l3_python_requires() -> set[str]:
         for mod in case.get("requires") or []:
             req.add(mod)
     return req
+
+
+def _r_template_required_packages() -> set[str]:
+    """R package names declared in any R template's `required <- c(...)` preflight.
+
+    R has no pyproject-equivalent lockfile, so unlike the Python guard this can't check
+    installability -- it checks documentation: every package an R-executed L3 case
+    depends on must be named in some template's Prerequisites block, or a live user
+    following that template has no way to know they need it before the skill's
+    generated code fails on a missing library().
+    """
+    packages: set[str] = set()
+    for path in sorted(_R_TEMPLATES.glob("*.md")):
+        text = path.read_text()
+        for block in re.findall(r"required\s*<-\s*c\((.*?)\)", text, re.S):
+            packages.update(re.findall(r'"([^"]+)"', block))
+    return packages
+
+
+def _l3_r_requires() -> set[str]:
+    """R package names declared by `requires:` on R-executed L3 cases (D7)."""
+    req: set[str] = set()
+    for path in sorted(_LAYER3.glob("*.yaml")):
+        case = yaml.safe_load(path.read_text()) or {}
+        if (case.get("language") or "python").lower() != "r":
+            continue
+        for pkg in case.get("requires") or []:
+            req.add(pkg)
+    return req
+
+
+def test_r_l3_requires_are_documented_in_r_templates():
+    documented = _r_template_required_packages()
+    missing = sorted(_l3_r_requires() - documented)
+    assert not missing, (
+        f"L3 R cases declare `requires:` packages not documented in any "
+        f"templates/r/*.md Prerequisites block: {missing}. A live user following the "
+        "template has no way to know they need these."
+    )
 
 
 def test_evals_extra_covers_templates_and_l3_cases():

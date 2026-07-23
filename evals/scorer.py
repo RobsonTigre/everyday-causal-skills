@@ -380,6 +380,13 @@ Questions:
     }
 
 
+#: The only `severity` values this scorer implements a pattern for. Shared with
+#: validate_cases.py so a typo (or a new severity level introduced without wiring a
+#: pattern here) is rejected at validation time instead of silently auto-passing --
+#: `_check_severity_patterns` treats any unrecognised value as "no severity expected".
+SEVERITIES = {"fatal", "serious"}
+
+
 def _check_severity_patterns(response: str, expected_severity: str) -> bool:
     """Pattern-match for canonical severity phrases from the severity contract."""
     text = response.lower()
@@ -429,8 +436,11 @@ def _judge_l2(response: str, case_expected: dict, config: dict | None = None, de
             "relevance": "a concern about instrument relevance or weakness (e.g., weak first stage, low F-statistic)",
             "weak_instrument": "a weak instrument problem that would make IV estimates unreliable",
             "manipulation": "manipulation or bunching at the cutoff that would invalidate the RDD",
-            "no_manipulation": "a density or manipulation test at the cutoff",
+            "manipulation_test": "a density or manipulation test at the cutoff",
             "overlap": "poor overlap or common support between treatment and control groups",
+            # Unused by any current case (kept, not dropped — it documents a real
+            # concept the map already covers, and removing a mapped-but-idle entry
+            # for no functional gain is not worth the churn).
             "positivity": "a positivity violation (some covariate strata have zero probability of treatment)",
             "pre_treatment_fit": "poor pre-treatment fit between the treated unit and its synthetic control",
             "convex_hull": "the treated unit falling outside the convex hull of the donor pool",
@@ -441,6 +451,12 @@ def _judge_l2(response: str, case_expected: dict, config: dict | None = None, de
             "late_extrapolation": "the problem of scaling a complier-specific (LATE) effect to non-compliers or the full population without justification",
             "audit_carryover": "the upstream audit's non-fatal finding carried forward as a named risk or caveat (without converting it into a numeric adjustment)",
             "missing_financial_inputs": "that required financial or business inputs are missing and must be provided (or explicitly ranged) before a final verdict",
+            "collider_bias": "collider bias — conditioning on a variable that is a common effect of two other variables, which opens a spurious association between them",
+            "m_bias": "M-bias — conditioning on a pre-treatment variable that is itself a collider between an unmeasured cause of treatment and an unmeasured cause of the outcome, inducing bias rather than removing it",
+            "no_backdoor_adjustment": "the absence of a valid backdoor adjustment set (e.g., because a needed confounder is unobserved), requiring an alternative identification strategy such as the front-door criterion",
+            "no_heterogeneity": "a lack of meaningful treatment effect heterogeneity (e.g., a null or non-significant BLP/GATES result), which should temper any targeting or personalization recommendation",
+            "missing_plan": "that the causal plan (plan.md) is missing from the available artifacts and should be flagged as a gap",
+            "missing_audit": "that the validity audit (audit.md) is missing from the available artifacts and should be flagged as a gap",
         }
         for flag in must_flag:
             desc = flag_descriptions.get(flag, flag.replace("_", " "))

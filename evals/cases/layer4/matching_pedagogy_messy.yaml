@@ -7,10 +7,14 @@ references:
   - references/method-registry.md
   - references/lessons.md
 dataset: evals/data/matching_poor_overlap.csv
+dataset_contract:
+  columns: [id, age, tenure, department, treated, productivity]
+  n_rows: 500
 user_message: |
-  I'm comparing outcomes for employees who voluntarily enrolled in a wellness program
-  vs those who didn't. The enrollees tend to be younger, healthier, and higher income.
-  The propensity score distributions barely overlap. I have 5000 employees total.
+  I'm comparing productivity for employees who voluntarily enrolled in a wellness
+  program vs those who didn't. I have age, tenure, and department as covariates.
+  The enrollees look quite different from non-enrollees on these covariates, and
+  the propensity score distributions barely overlap. I have 500 employees total.
   I use Python.
 rubric:
   pedagogy:

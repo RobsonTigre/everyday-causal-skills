@@ -2,6 +2,8 @@ name: report_standalone
 description: Report skill with no prior artifacts — should build from the user's figures alone, without inventing detail
 layer: 4
 skill: causal-report
+response_contract: final_output
+input_mode: inline
 references:
   - references/method-registry.md
   - references/lessons.md
@@ -10,7 +12,8 @@ user_message: |
   years of education was the treatment, and earnings was the outcome. The first-stage
   F-statistic was 28. The LATE was $1,200 per year (SE: $400). The exclusion
   restriction is debatable — distance might affect earnings through channels other
-  than education. Write a business report.
+  than education. Write a business report. That's everything I have — please go
+  ahead and run the full analysis.
 rubric:
   pedagogy:
     - "Is a business tone maintained throughout, rather than lapsing into academic prose?"
@@ -19,5 +22,6 @@ rubric:
     - "Does the report build only on the figures the user supplied, without inventing estimates, sample sizes, or diagnostics that were never provided?"
     - "Does it flag the exclusion restriction concern in the Limitations section?"
   actionable:
-    - "Does the report skill create a project folder and report artifact without requiring a prior skill to have run?"
     - "Does the Recommendations section suggest running /causal-auditor for a deeper review?"
+deferred_rubric:
+  - "Does the report skill create a project folder and report artifact without requiring a prior skill to have run? (no Write grant in this sandbox)"

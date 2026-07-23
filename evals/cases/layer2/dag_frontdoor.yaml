@@ -2,6 +2,8 @@ name: dag_frontdoor
 description: DAG skill must identify front-door criterion opportunity when backdoor is blocked
 layer: 2
 skill: causal-dag
+response_contract: final_output
+input_mode: inline
 references:
   - references/assumptions/dag.md
   - references/method-registry.md
@@ -11,7 +13,8 @@ user_message: |
   (brand affinity) that drives both who sees ads and who buys. But ad exposure
   works entirely through website visits — ads make people visit the site, and
   visits lead to purchases. Brand affinity affects ad exposure and purchases
-  directly but NOT website visits. Help me with the DAG. I use Python.
+  directly but NOT website visits. Help me with the DAG. I use Python. That's
+  everything I have — please go ahead and run the full analysis.
 expected:
   must_flag: [no_backdoor_adjustment]
 rubric:
