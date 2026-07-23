@@ -17,7 +17,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from scorer import SEVERITIES, must_include_alternates  # noqa: E402
+from scorer import FIXTURES_ROOT, SEVERITIES, must_include_alternates  # noqa: E402
 
 DIMENSIONS = ("pedagogy", "safety", "actionable")
 
@@ -176,7 +176,14 @@ def _check_artifact_fixture(case: dict, errors: list[str]) -> None:
         return
 
     source, dest = fixture["source"], fixture["dest"]
-    if not isinstance(source, str) or not Path(source).is_dir():
+    # Unlike `dest`, an absolute `source` is not itself unsafe -- there is no
+    # Path(workdir)/source join for it to defeat. What matters is where it resolves to,
+    # so containment is the authoritative check, not path style.
+    if not isinstance(source, str) or ".." in Path(source).parts:
+        errors.append(f"artifact_fixture.source must not contain '..': {source!r}")
+    elif not Path(source).resolve().is_relative_to(FIXTURES_ROOT):
+        errors.append(f"artifact_fixture.source must be under evals/fixtures/: {source!r}")
+    elif not Path(source).is_dir():
         errors.append(f"artifact_fixture.source not found or not a directory: {source}")
     if not isinstance(dest, str) or Path(dest).is_absolute() or ".." in Path(dest).parts:
         errors.append(f"artifact_fixture.dest must be a relative path with no '..': {dest!r}")

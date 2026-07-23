@@ -356,13 +356,15 @@ def test_dataset_contract_empty_columns_is_an_error():
 # --- Artifact fixture (D5): input_mode: artifact / artifact_fixture: {source, dest} ---
 
 def test_artifact_fixture_with_real_source_is_valid():
-    with tempfile.TemporaryDirectory() as t:
-        fixture_dir = Path(t) / "fixture"
-        fixture_dir.mkdir()
-        (fixture_dir / "plan.md").write_text("hi")
+    # source must resolve under evals/fixtures/ (confinement) -- a real fixture lives
+    # there, so the probe dir does too rather than at system temp.
+    with tempfile.TemporaryDirectory() as t, \
+            tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir:
+        Path(fixture_dir, "plan.md").write_text("hi")
+        rel_source = os.path.relpath(fixture_dir)
         p = _write(t, "layer4", "good_l4.yaml", L4_GOOD.replace(
             "rubric:",
-            f"input_mode: artifact\nartifact_fixture:\n  source: {fixture_dir}\n"
+            f"input_mode: artifact\nartifact_fixture:\n  source: {rel_source}\n"
             f"  dest: docs/causal-plans/probe\nrubric:"))
         assert validate_case(p) == [], validate_case(p)
 
@@ -396,6 +398,57 @@ def test_artifact_fixture_missing_source_directory_is_an_error():
             "  dest: docs/causal-plans/probe\nrubric:"))
         errs = validate_case(p)
         assert any("not found or not a directory" in e for e in errs), errs
+
+
+def test_artifact_fixture_source_outside_fixtures_root_is_an_error():
+    # The concrete threat: a source that's a real, existing, readable directory --
+    # just not under evals/fixtures/. Before this check, is_dir() alone would have
+    # accepted it and shutil.copytree would copy it wholesale into the sandbox. An
+    # absolute path to a real directory outside evals/fixtures/ is exactly this case --
+    # unlike dest, an absolute source isn't rejected on style; containment decides it.
+    with tempfile.TemporaryDirectory() as t, tempfile.TemporaryDirectory() as outside:
+        Path(outside, "plan.md").write_text("hi")
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:",
+            f"input_mode: artifact\nartifact_fixture:\n  source: {outside}\n"
+            f"  dest: docs/causal-plans/probe\nrubric:"))
+        errs = validate_case(p)
+        assert any("must be under evals/fixtures/" in e for e in errs), errs
+
+    # Same containment failure, reached via a relative (not absolute) path this time.
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:",
+            "input_mode: artifact\nartifact_fixture:\n"
+            "  source: evals/data\n"
+            "  dest: docs/causal-plans/probe\nrubric:"))
+        errs = validate_case(p)
+        assert any("must be under evals/fixtures/" in e for e in errs), errs
+
+
+def test_artifact_fixture_dotdot_source_is_an_error():
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "rubric:",
+            "input_mode: artifact\nartifact_fixture:\n"
+            "  source: ../../etc\n"
+            "  dest: docs/causal-plans/probe\nrubric:"))
+        errs = validate_case(p)
+        assert any("source must not contain '..'" in e for e in errs), errs
+
+
+def test_artifact_fixture_absolute_source_inside_fixtures_root_is_valid():
+    # Unlike dest, an absolute source is fine as long as it resolves inside
+    # evals/fixtures/ -- containment is the authoritative check, not path style.
+    with tempfile.TemporaryDirectory() as t, \
+            tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir:
+        assert Path(fixture_dir).is_absolute(), fixture_dir
+        Path(fixture_dir, "plan.md").write_text("hi")
+        p = _write(t, "layer4", "good_l4.yaml", L4_GOOD.replace(
+            "rubric:",
+            f"input_mode: artifact\nartifact_fixture:\n  source: {fixture_dir}\n"
+            f"  dest: docs/causal-plans/probe\nrubric:"))
+        assert validate_case(p) == [], validate_case(p)
 
 
 def test_artifact_fixture_dest_escaping_sandbox_is_an_error():

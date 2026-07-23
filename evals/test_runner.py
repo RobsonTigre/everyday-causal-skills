@@ -157,7 +157,10 @@ def test_link_plugin_dirs_does_not_expose_evals_or_docs():
 
 
 def test_provision_artifact_fixture_copies_tree_into_sandbox():
-    with tempfile.TemporaryDirectory() as fixture_dir, tempfile.TemporaryDirectory() as workdir:
+    # source must resolve under evals/fixtures/ (confinement, see below) -- a real
+    # fixture lives there, so the probe dir does too rather than at system temp.
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir:
         (Path(fixture_dir) / "plan.md").write_text("plan contents")
         case = {"input_mode": "artifact",
                 "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
@@ -178,7 +181,8 @@ def test_provision_artifact_fixture_noop_without_artifact_input_mode():
 # --- Fixture confinement (P1: Path(workdir) / abs_path silently discards workdir) ---
 
 def test_provision_artifact_fixture_rejects_absolute_dest():
-    with tempfile.TemporaryDirectory() as fixture_dir, tempfile.TemporaryDirectory() as workdir, \
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir, \
             tempfile.TemporaryDirectory() as outside:
         (Path(fixture_dir) / "plan.md").write_text("plan contents")
         escape_target = str(Path(outside) / "probe")
@@ -194,7 +198,8 @@ def test_provision_artifact_fixture_rejects_absolute_dest():
 
 
 def test_provision_artifact_fixture_rejects_dotdot_traversal():
-    with tempfile.TemporaryDirectory() as fixture_dir, tempfile.TemporaryDirectory() as workdir:
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir:
         (Path(fixture_dir) / "plan.md").write_text("plan contents")
         case = {"input_mode": "artifact",
                 "artifact_fixture": {"source": fixture_dir, "dest": "../../escape"}}
@@ -211,7 +216,8 @@ def test_provision_artifact_fixture_rejects_symlink_escape():
     # A relative-looking dest can still resolve outside workdir if a path component
     # inside the sandbox is a symlink to somewhere else -- the string-level '..'/absolute
     # checks can't see this; only resolving the final path and checking containment can.
-    with tempfile.TemporaryDirectory() as fixture_dir, tempfile.TemporaryDirectory() as workdir, \
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir, \
             tempfile.TemporaryDirectory() as outside:
         (Path(fixture_dir) / "plan.md").write_text("plan contents")
         os.symlink(outside, Path(workdir) / "link")
@@ -224,6 +230,78 @@ def test_provision_artifact_fixture_rejects_symlink_escape():
         else:
             raise AssertionError("expected ValueError for symlink escaping the sandbox")
         assert not (Path(outside) / "probe").exists()
+
+
+# --- Fixture confinement: source side (D5 fixed dest confinement, missed source) ---
+
+def test_provision_artifact_fixture_rejects_source_outside_fixtures_root():
+    # The concrete threat: a source that IS a real, existing, readable directory --
+    # just not one under evals/fixtures/. shutil.copytree would happily copy it
+    # wholesale into the model-readable sandbox with no confinement check at all.
+    # An absolute path to a real directory outside evals/fixtures/ is exactly this case.
+    with tempfile.TemporaryDirectory() as outside, tempfile.TemporaryDirectory() as workdir:
+        (Path(outside) / "plan.md").write_text("plan contents")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": outside, "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "escapes evals/fixtures/" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for source outside evals/fixtures/")
+        assert not (Path(workdir) / "docs").exists()
+
+
+def test_provision_artifact_fixture_accepts_absolute_source_when_contained():
+    # Unlike dest (where an absolute value defeats the Path(workdir)/dest join), an
+    # absolute source is fine as long as it resolves inside evals/fixtures/ -- there is
+    # no equivalent join for source to defeat, so containment alone must decide this.
+    # tempfile.TemporaryDirectory(dir=...) always returns absolute paths, exercising
+    # exactly this.
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir:
+        assert Path(fixture_dir).is_absolute(), fixture_dir
+        (Path(fixture_dir) / "plan.md").write_text("plan contents")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        runner._provision_artifact_fixture(case, workdir)
+        copied = Path(workdir) / "docs/causal-plans/probe/plan.md"
+        assert copied.read_text() == "plan contents"
+
+
+def test_provision_artifact_fixture_rejects_dotdot_source():
+    with tempfile.TemporaryDirectory() as workdir:
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": "../../etc", "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "source" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for '..' traversal in source")
+        assert not (Path(workdir) / "docs").exists()
+
+
+def test_provision_artifact_fixture_rejects_source_escaping_via_symlink():
+    # A relative-looking source can still resolve outside evals/fixtures/ if a path
+    # component is a symlink to somewhere else -- the string-level '..' check alone
+    # can't see this; only resolving the final path and checking containment can.
+    with tempfile.TemporaryDirectory() as outside, tempfile.TemporaryDirectory() as workdir:
+        link = Path("evals/fixtures/_test_probe_link")
+        try:
+            os.symlink(outside, link)
+            case = {"input_mode": "artifact",
+                    "artifact_fixture": {"source": "evals/fixtures/_test_probe_link",
+                                          "dest": "docs/causal-plans/probe"}}
+            try:
+                runner._provision_artifact_fixture(case, workdir)
+            except ValueError as e:
+                assert "escapes" in str(e), e
+            else:
+                raise AssertionError("expected ValueError for source escaping evals/fixtures/ via symlink")
+            assert not (Path(workdir) / "docs").exists()
+        finally:
+            link.unlink(missing_ok=True)
 
 
 def test_run_case_cli_provisions_fixture_before_invoking_the_skill():
@@ -241,7 +319,7 @@ def test_run_case_cli_provisions_fixture_before_invoking_the_skill():
     real = runner.run_subprocess_grouped
     runner.run_subprocess_grouped = fake
     try:
-        with tempfile.TemporaryDirectory() as fixture_dir:
+        with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir:
             (Path(fixture_dir) / "plan.md").write_text("plan contents")
             case = dict(_L3_CASE, input_mode="artifact",
                         artifact_fixture={"source": fixture_dir,

@@ -13,10 +13,17 @@ import re
 import signal
 import subprocess
 import time
+from pathlib import Path
 
 # Case `dataset:` paths are declared relative to the repo root, but generated code runs
 # in a temp cwd, so they are resolved against this.
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+#: `artifact_fixture.source` (D5) must resolve inside this directory -- shared by
+#: validate_cases.py and runner.py so the confinement boundary is defined once, not
+#: duplicated as a literal that could drift between the two checkers (the same reasoning
+#: SEVERITIES below uses).
+FIXTURES_ROOT = Path(_REPO_ROOT) / "evals" / "fixtures"
 
 
 def run_subprocess_grouped(args, timeout, capture_output=True, text=True,

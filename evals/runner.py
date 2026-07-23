@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from scorer import JudgeError, score_response, score_l5, run_subprocess_grouped
+from scorer import FIXTURES_ROOT, JudgeError, score_response, score_l5, run_subprocess_grouped
 
 
 # Mirrors evals/config.yaml, which is untracked (local config by design).
@@ -327,6 +327,15 @@ def _provision_artifact_fixture(case: dict, workdir: str) -> None:
     if not fixture:
         return
     import shutil
+    source_str = fixture["source"]
+    if not isinstance(source_str, str) or ".." in Path(source_str).parts:
+        raise ValueError(f"artifact_fixture.source must not contain '..': {source_str!r}")
+    # Unlike `dest`, an absolute `source` is not itself unsafe -- there is no
+    # Path(workdir)/source join for it to defeat. What matters is where it resolves to,
+    # so containment is the authoritative check, not path style.
+    source = Path(source_str).resolve()
+    if not source.is_relative_to(FIXTURES_ROOT):
+        raise ValueError(f"artifact_fixture.source escapes evals/fixtures/: {source_str!r}")
     dest_str = fixture["dest"]
     if not isinstance(dest_str, str) or Path(dest_str).is_absolute() or ".." in Path(dest_str).parts:
         raise ValueError(f"artifact_fixture.dest must be a relative path with no '..': {dest_str!r}")
@@ -335,7 +344,7 @@ def _provision_artifact_fixture(case: dict, workdir: str) -> None:
     if not dest.resolve().is_relative_to(workdir_resolved):
         raise ValueError(f"artifact_fixture.dest escapes the sandbox workdir: {dest_str!r}")
     dest.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(fixture["source"], dest)
+    shutil.copytree(source, dest)
 
 
 def run_case_cli(case: dict, config: dict, runs: int, debug: bool = False) -> list[dict]:
