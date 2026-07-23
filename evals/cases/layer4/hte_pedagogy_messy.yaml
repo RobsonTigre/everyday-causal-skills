@@ -2,6 +2,8 @@ name: hte_pedagogy_messy
 description: Messy HTE scenario — small sample, binary outcome, observational, post-treatment variable
 layer: 4
 skill: causal-hte
+response_contract: final_output
+input_mode: inline
 references:
   - references/assumptions/hte.md
   - references/method-registry.md

@@ -7,11 +7,13 @@ references:
   - references/method-registry.md
   - references/lessons.md
 dataset: evals/data/iv_weak.csv
+dataset_contract:
+  columns: [id, distance, education, earnings]
+  n_rows: 1000
 user_message: |
-  I'm trying to estimate the effect of private tutoring on test scores. My instrument
-  is whether a tutoring center opened within 1km of the student's home in the past year.
-  I have data on 3000 students. The first-stage relationship looks "okay but not amazing."
-  I use R.
+  I'm trying to estimate the effect of years of education on earnings. My instrument
+  is distance from each student's home to the nearest college. I have data on 1,000
+  students. The first-stage relationship looks "okay but not amazing." I use R.
 rubric:
   pedagogy:
     - "Does the response explain weak instrument bias and why it makes 2SLS unreliable?"

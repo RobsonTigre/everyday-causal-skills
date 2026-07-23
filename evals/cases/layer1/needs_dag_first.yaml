@@ -2,6 +2,10 @@ name: needs_dag_first
 description: User has observational data with unclear confounder/mediator distinction -- planner should recommend DAG
 layer: 1
 skill: causal-planner
+references:
+  - references/decision-tree.md
+  - references/method-registry.md
+  - references/lessons.md
 user_message: |
   I want to know if a marketing campaign increased revenue. I have data on
   campaign exposure, revenue, customer demographics, website visits, and

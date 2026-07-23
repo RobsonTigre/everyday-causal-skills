@@ -19,7 +19,8 @@ from pathlib import Path
 
 import yaml
 
-from scorer import JudgeError, score_response, score_l5, run_subprocess_grouped
+from scorer import (FIXTURES_ROOT, JudgeError, score_response, score_l5,
+                    run_subprocess_grouped, reject_symlinks)
 
 
 # Mirrors evals/config.yaml, which is untracked (local config by design).
@@ -189,7 +190,7 @@ class SkillError(RuntimeError):
 
 
 def invoke_skill_cli(args: list[str], config: dict | None = None, timeout: int = 450,
-                     label: str = "skill") -> tuple[str, dict]:
+                     label: str = "skill", cwd: str | None = None) -> tuple[str, dict]:
     """Run one skill call, retrying transient failures. Returns (text, usage).
 
     Rate limiting shows up as a nonzero exit with empty stderr. Without a retry
@@ -210,7 +211,7 @@ def invoke_skill_cli(args: list[str], config: dict | None = None, timeout: int =
     last: SkillError | None = None
     for attempt in range(1, max_attempts + 1):
         try:
-            proc = run_subprocess_grouped(args, timeout=timeout)
+            proc = run_subprocess_grouped(args, timeout=timeout, cwd=cwd)
             if proc.returncode != 0:
                 raise SkillError(
                     "skill_error",
@@ -288,6 +289,69 @@ def run_case_l0(case: dict, config: dict, runs: int, debug: bool = False) -> lis
 
 # --- Backend: Claude Code CLI (`claude -p`) ---
 
+_SANDBOX_LINK_DIRS = ("templates", "references")
+
+
+def _link_plugin_dirs(workdir: str) -> None:
+    """Every method skill's SKILL.md instructs the model to Read live, relative-path
+    files under `templates/` ("Generate complete analysis code. Read the appropriate
+    template from templates/r/X.md...") and `references/` (assumption checklists,
+    method registry) — these are NOT pre-loaded into the system prompt the way a
+    case's own `references:` list is (that's a *different* mechanism: load_references()
+    bakes case-declared refs into the system prompt as text; SKILL.md's own "Read
+    references/lessons.md" etc. is a live tool call the model makes itself). Confirmed
+    by direct probe: pointing `claude -p` at an empty cwd and asking it to Read
+    `templates/python/dag.md` returns "does not exist" — the model then silently
+    improvises code instead of copying the template, with no visible error anywhere
+    in its response. Symlinked (not copied) so a plugin edit is reflected immediately
+    and this costs one syscall per case-run. Deliberately excludes `docs/` (the
+    artifact fixture needs an isolated home there, not a live view of the real
+    gitignored docs/) and `evals/` (would let a case Glob its own answer key).
+    """
+    for name in _SANDBOX_LINK_DIRS:
+        src = Path(name).resolve()
+        if src.is_dir():
+            os.symlink(src, Path(workdir) / name)
+
+
+def _provision_artifact_fixture(case: dict, workdir: str) -> None:
+    """D5: `input_mode: artifact` cases declare `artifact_fixture: {source, dest}` — a
+    checked-in fixture tree under `evals/fixtures/` and the relative path inside the
+    sandbox where the skill should discover it, matching what the case's narrative
+    claims (e.g. `docs/causal-plans/2026-03-15-loyalty-program`). Copied fresh into
+    each run's temp workspace so Read/Glob/Grep find it exactly where the story says
+    it lives, without ever touching the real repo tree or leaking across runs.
+    """
+    if case.get("input_mode") != "artifact":
+        return
+    fixture = case.get("artifact_fixture")
+    if not fixture:
+        return
+    import shutil
+    source_str = fixture["source"]
+    if not isinstance(source_str, str) or ".." in Path(source_str).parts:
+        raise ValueError(f"artifact_fixture.source must not contain '..': {source_str!r}")
+    # Unlike `dest`, an absolute `source` is not itself unsafe -- there is no
+    # Path(workdir)/source join for it to defeat. What matters is where it resolves to,
+    # so containment is the authoritative check, not path style.
+    source = Path(source_str).resolve()
+    if not source.is_relative_to(FIXTURES_ROOT):
+        raise ValueError(f"artifact_fixture.source escapes evals/fixtures/: {source_str!r}")
+    try:
+        reject_symlinks(source)
+    except ValueError as e:
+        raise ValueError(f"artifact_fixture.source {e}") from None
+    dest_str = fixture["dest"]
+    if not isinstance(dest_str, str) or Path(dest_str).is_absolute() or ".." in Path(dest_str).parts:
+        raise ValueError(f"artifact_fixture.dest must be a relative path with no '..': {dest_str!r}")
+    workdir_resolved = Path(workdir).resolve()
+    dest = Path(workdir) / dest_str
+    if not dest.resolve().is_relative_to(workdir_resolved):
+        raise ValueError(f"artifact_fixture.dest escapes the sandbox workdir: {dest_str!r}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, dest)
+
+
 def run_case_cli(case: dict, config: dict, runs: int, debug: bool = False) -> list[dict]:
     """Run eval case via `claude -p` — bills to Claude Code subscription."""
     import tempfile
@@ -313,18 +377,21 @@ def run_case_cli(case: dict, config: dict, runs: int, debug: bool = False) -> li
     for i in range(runs):
         text = ""
         try:
-            text, usage = invoke_skill_cli(
-                [
-                    "claude", "-p", case["user_message"],
-                    "--system-prompt-file", sys_file.name,
-                    "--model", model,
-                    "--output-format", "json",
-                    "--tools", "Read,Glob,Grep",
-                    "--dangerously-skip-permissions",
-                    "--no-session-persistence",
-                    "--setting-sources", "local",
-                ],
-                config, label=case["name"])
+            with tempfile.TemporaryDirectory(prefix="eval-case-") as workdir:
+                _link_plugin_dirs(workdir)
+                _provision_artifact_fixture(case, workdir)
+                text, usage = invoke_skill_cli(
+                    [
+                        "claude", "-p", case["user_message"],
+                        "--system-prompt-file", sys_file.name,
+                        "--model", model,
+                        "--output-format", "json",
+                        "--tools", "Read,Glob,Grep",
+                        "--dangerously-skip-permissions",
+                        "--no-session-persistence",
+                        "--setting-sources", "local",
+                    ],
+                    config, label=case["name"], cwd=workdir)
 
             scores = score_response(case, text, config, debug=debug)
             results.append({
@@ -588,7 +655,17 @@ def aggregate(runs: list[dict], case: dict) -> dict:
         return {**base, "accuracy": rate, "false_positives": fp_counts, "rate": rate}
 
     elif layer == 2:
-        detected = sum(1 for r in valid if r["scores"].get("violation_detected"))
+        # D9: `violation_detected` is `any(flag_answers)` -- a case declaring 3 flags
+        # would pass detection on a single hit. `flags_coverage` (fraction of declared
+        # flags actually caught) is computed per-run by the scorer but was never rolled
+        # into the gate. Multi-flag cases now require full coverage per run; single-flag
+        # cases are unaffected (flags_coverage and violation_detected agree when there's
+        # only one flag to hit).
+        must_flag = (case.get("expected") or {}).get("must_flag") or []
+        if len(must_flag) > 1:
+            detected = sum(1 for r in valid if r["scores"].get("flags_coverage") == 1.0)
+        else:
+            detected = sum(1 for r in valid if r["scores"].get("violation_detected"))
         severity_ok = sum(1 for r in valid if r["scores"].get("severity_correct"))
         out = {**base, "detected": detected, "severity_ok": severity_ok,
                "rate": detected / n}
@@ -623,8 +700,18 @@ def aggregate(runs: list[dict], case: dict) -> dict:
         present = set()
         for r in valid:
             present.update(r["scores"].get("dimensions_present") or [])
-        if not present:  # legacy runs without the marker: assume all three
-            present = {"pedagogy", "safety", "actionable"}
+        if not present:
+            # D9: old-ledger compatibility. Runs recorded before `dimensions_present`
+            # existed carry no per-run marker. The previous fallback ("assume all
+            # three") forced every dimension a case never populated into a hard 0.0
+            # average via scores.get(dim, 0.0) below -- exactly what this guards
+            # against. Use the case's own declared rubric dimensions instead: still
+            # works with zero per-run markers (--recompile stays supported), but
+            # reflects what this case actually grades instead of guessing.
+            rubric = case.get("rubric") or {}
+            present = {d for d in ("pedagogy", "safety", "actionable") if rubric.get(d)}
+            if not present:  # case has no rubric on file either -- last-resort guess
+                present = {"pedagogy", "safety", "actionable"}
         dim_avgs = {}
         for dim in ("pedagogy", "safety", "actionable"):
             if dim in present:

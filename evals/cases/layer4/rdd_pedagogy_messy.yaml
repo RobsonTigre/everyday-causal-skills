@@ -7,11 +7,14 @@ references:
   - references/method-registry.md
   - references/lessons.md
 dataset: evals/data/rdd_bunching.csv
+dataset_contract:
+  columns: [student_id, test_score, scholarship, gpa]
+  n_rows: 2000
 user_message: |
-  A government subsidy is available to firms with fewer than 50 employees. I want
-  to estimate the effect of the subsidy on firm revenue. I have administrative data
-  on 10,000 firms. I suspect some firms might manipulate their employee count to
-  qualify. I use Python.
+  Students scoring >= 70 on an entrance exam get a scholarship. I want to estimate
+  the effect of the scholarship on GPA. I have data on 2,000 students. I suspect
+  some students might manipulate their exam score to qualify — there could be
+  retakes or grading discretion near the cutoff. I use Python.
 rubric:
   pedagogy:
     - "Does the response explain WHY manipulation invalidates RDD (it breaks the comparable-near-cutoff assumption)?"

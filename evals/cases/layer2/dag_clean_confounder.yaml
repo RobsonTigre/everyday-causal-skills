@@ -2,6 +2,8 @@ name: dag_clean_confounder
 description: DAG skill correctly identifies a clean confounder adjustment
 layer: 2
 skill: causal-dag
+response_contract: final_output
+input_mode: inline
 references:
   - references/assumptions/dag.md
   - references/method-registry.md
@@ -13,11 +15,11 @@ user_message: |
   affects later earnings. These are the only relevant causal relationships. There are
   no additional observed or unobserved common causes of college degree and earnings.
 
-  I want the total causal effect of earning a college degree on later earnings. In one
-  response, give me the complete DAG analysis: draw the graph, enumerate and classify
-  the paths, state whether the effect is identifiable, give the minimally sufficient
-  adjustment set, flag variables that should not be adjusted for, state any testable
-  implications, and provide Python code.
+  I want the total causal effect of earning a college degree on later earnings: draw the
+  graph, enumerate and classify the paths, state whether the effect is identifiable, give
+  the minimally sufficient adjustment set, flag variables that should not be adjusted for,
+  state any testable implications, and provide Python code. That's everything I have —
+  please go ahead and run the full analysis.
 expected:
   # A clean case: nothing is wrong, so the detection score measures false alarms.
   # The positive obligations below were previously in must_identify/must_not_miss,

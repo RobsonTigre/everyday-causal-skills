@@ -10,13 +10,14 @@ Exits 0 when every case is well formed, 1 with a per-case list otherwise.
 """
 from __future__ import annotations
 
+import csv
 import sys
 from pathlib import Path
 
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from scorer import must_include_alternates  # noqa: E402
+from scorer import FIXTURES_ROOT, SEVERITIES, must_include_alternates, reject_symlinks  # noqa: E402
 
 DIMENSIONS = ("pedagogy", "safety", "actionable")
 
@@ -97,6 +98,102 @@ def _check_grading_contract(case: dict, errors: list[str]) -> None:
             errors.append("deferred_rubric entries must be non-empty strings")
 
 
+def _check_dataset_contract(case: dict, errors: list[str]) -> None:
+    """`dataset_contract: {columns: [...], n_rows: N}` (D4) — a declarative claim about
+    the fixture named in `dataset:`, checked against the CSV itself. This is how a case's
+    prose narrative is kept honest: runner.py's inject_schema() pastes the real df.head()
+    into the prompt regardless of what the narrative claims, so a case whose story
+    describes different columns or a different row count than the fixture puts a flat
+    contradiction in front of the model on every run. Deliberately does not parse the
+    prose narrative itself — regexing free text for claimed columns/counts is fragile
+    and generates its own false failures; the author keeps the narrative and the
+    contract in sync by hand, and this checks the contract against ground truth.
+    """
+    if "dataset_contract" not in case:
+        return
+    contract = case["dataset_contract"]
+    if not isinstance(contract, dict):
+        errors.append("dataset_contract must be a mapping")
+        return
+
+    dataset = case.get("dataset")
+    if not dataset:
+        errors.append("dataset_contract requires a dataset: field to check it against")
+        return
+    if not Path(dataset).exists():
+        return  # _check_paths already reports the missing dataset
+
+    columns = contract.get("columns")
+    columns_ok = (isinstance(columns, list) and columns
+                  and all(isinstance(c, str) for c in columns))
+    if not columns_ok:
+        errors.append("dataset_contract.columns must be a non-empty list of strings")
+
+    n_rows = contract.get("n_rows")
+    n_rows_ok = isinstance(n_rows, int) and not isinstance(n_rows, bool) and n_rows > 0
+    if not n_rows_ok:
+        errors.append("dataset_contract.n_rows must be a positive integer")
+
+    if not (columns_ok and n_rows_ok):
+        return
+
+    with open(dataset, newline="") as f:
+        reader = csv.reader(f)
+        header = next(reader, [])
+        actual_rows = sum(1 for _ in reader)
+
+    if columns != header:
+        errors.append(
+            f"dataset_contract.columns {columns} does not match {dataset}'s actual "
+            f"header {header}")
+    if n_rows != actual_rows:
+        errors.append(
+            f"dataset_contract.n_rows {n_rows} does not match {dataset}'s actual row "
+            f"count {actual_rows}")
+
+
+def _check_artifact_fixture(case: dict, errors: list[str]) -> None:
+    """`input_mode: artifact` (D5) requires `artifact_fixture: {source, dest}` — the
+    checked-in fixture tree under `evals/fixtures/` and the sandbox-relative path where
+    runner.py's `_provision_artifact_fixture` copies it before invoking the skill.
+    Without this, a case claiming a project folder exists would either fabricate-proof
+    itself (if the runner trusted the claim) or fail every run against an empty sandbox
+    (if it didn't) — this is what makes the folder real for the duration of one run.
+    """
+    mode = case.get("input_mode")
+    fixture = case.get("artifact_fixture")
+
+    if mode == "artifact" and fixture is None:
+        errors.append("input_mode: artifact requires an artifact_fixture: {source, dest} block")
+        return
+    if fixture is None:
+        return
+    if mode != "artifact":
+        errors.append("artifact_fixture is only meaningful with input_mode: artifact")
+
+    if not isinstance(fixture, dict) or "source" not in fixture or "dest" not in fixture:
+        errors.append("artifact_fixture must be a mapping with source and dest")
+        return
+
+    source, dest = fixture["source"], fixture["dest"]
+    # Unlike `dest`, an absolute `source` is not itself unsafe -- there is no
+    # Path(workdir)/source join for it to defeat. What matters is where it resolves to,
+    # so containment is the authoritative check, not path style.
+    if not isinstance(source, str) or ".." in Path(source).parts:
+        errors.append(f"artifact_fixture.source must not contain '..': {source!r}")
+    elif not Path(source).resolve().is_relative_to(FIXTURES_ROOT):
+        errors.append(f"artifact_fixture.source must be under evals/fixtures/: {source!r}")
+    elif not Path(source).is_dir():
+        errors.append(f"artifact_fixture.source not found or not a directory: {source}")
+    else:
+        try:
+            reject_symlinks(Path(source))
+        except ValueError as e:
+            errors.append(f"artifact_fixture.source {e}")
+    if not isinstance(dest, str) or Path(dest).is_absolute() or ".." in Path(dest).parts:
+        errors.append(f"artifact_fixture.dest must be a relative path with no '..': {dest!r}")
+
+
 def _check_must_include(expected: dict, errors: list[str]) -> None:
     """`must_include` terms are strings or non-empty lists of alternate phrasings.
 
@@ -140,6 +237,8 @@ def validate_case(path: Path) -> list[str]:
     layer = _check_common(case, path, errors)
     _check_paths(case, errors)
     _check_grading_contract(case, errors)
+    _check_dataset_contract(case, errors)
+    _check_artifact_fixture(case, errors)
     expected = case.get("expected") or {}
 
     if layer == 0:
@@ -162,6 +261,14 @@ def validate_case(path: Path) -> list[str]:
                 errors.append("expected.must_flag must be a list")
         elif not _is_nonempty_list(rubric):
             errors.append("L2 needs expected.must_flag (use [] for a clean case) or a rubric")
+        # D9: `_check_severity_patterns` treats any value outside SEVERITIES as "no
+        # severity expected" and auto-passes -- a typo here would silently never be
+        # checked, at any threshold, on any run, forever.
+        severity = expected.get("severity")
+        if severity not in (None, "") and severity not in SEVERITIES:
+            errors.append(
+                f"expected.severity must be one of {sorted(SEVERITIES)} or empty, "
+                f"got {severity!r}")
 
     elif layer == 3:
         _check_single_skill(case, errors)
@@ -241,7 +348,13 @@ _COMMON_TOP = {"name", "description", "layer", "skill", "references", "user_mess
                # Grading contract (D1) — legal at every layer, consumed by
                # scorer.py's _judge_l4 (response_contract, deferred_rubric)
                # and by this validator only (input_mode).
-               "response_contract", "input_mode", "deferred_rubric"}
+               "response_contract", "input_mode", "deferred_rubric",
+               # Dataset contract (D4) — consumed by this validator only, checked
+               # against the dataset: fixture, never scored or read by the runner.
+               "dataset_contract",
+               # Artifact fixture (D5) — consumed by this validator and by
+               # runner.py's _provision_artifact_fixture; never scored.
+               "artifact_fixture"}
 
 # layer -> (extra top-level keys, allowed expected.* keys)
 _SCHEMA: dict[int, tuple[set[str], set[str]]] = {

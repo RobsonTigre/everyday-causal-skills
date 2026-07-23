@@ -2,6 +2,8 @@ name: dag_mbias
 description: DAG skill must detect M-bias structure and warn about conditioning on a pre-treatment collider
 layer: 2
 skill: causal-dag
+response_contract: first_turn
+input_mode: dataset
 references:
   - references/assumptions/dag.md
   - references/method-registry.md

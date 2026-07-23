@@ -132,6 +132,249 @@ def test_skill_timeout_is_terminal_not_retried():
     assert out[0]["invalid"] == "skill_timeout", out
 
 
+# --- D5: artifact fixture provisioning ---
+
+def test_link_plugin_dirs_makes_templates_and_references_readable():
+    # Regression test for a real bug this session: sandboxing run_case_cli's cwd broke
+    # every method skill's "Read the appropriate template from templates/r/X.md" —
+    # confirmed by a direct probe (empty cwd -> Read returns "does not exist"), and the
+    # model then silently improvised code instead of copying the template, with no
+    # visible error. templates/ and references/ must resolve from the sandbox exactly
+    # as they do from the real repo root.
+    with tempfile.TemporaryDirectory() as workdir:
+        runner._link_plugin_dirs(workdir)
+        linked_template = Path(workdir) / "templates" / "python" / "dag.md"
+        linked_reference = Path(workdir) / "references" / "lessons.md"
+        assert linked_template.read_text() == Path("templates/python/dag.md").read_text()
+        assert linked_reference.read_text() == Path("references/lessons.md").read_text()
+
+
+def test_link_plugin_dirs_does_not_expose_evals_or_docs():
+    with tempfile.TemporaryDirectory() as workdir:
+        runner._link_plugin_dirs(workdir)
+        assert not (Path(workdir) / "evals").exists()
+        assert not (Path(workdir) / "docs").exists()
+
+
+def test_provision_artifact_fixture_copies_tree_into_sandbox():
+    # source must resolve under evals/fixtures/ (confinement, see below) -- a real
+    # fixture lives there, so the probe dir does too rather than at system temp.
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir:
+        (Path(fixture_dir) / "plan.md").write_text("plan contents")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        runner._provision_artifact_fixture(case, workdir)
+        copied = Path(workdir) / "docs/causal-plans/probe/plan.md"
+        assert copied.read_text() == "plan contents"
+
+
+def test_provision_artifact_fixture_noop_without_artifact_input_mode():
+    with tempfile.TemporaryDirectory() as fixture_dir, tempfile.TemporaryDirectory() as workdir:
+        (Path(fixture_dir) / "plan.md").write_text("plan contents")
+        case = {"input_mode": "inline",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        runner._provision_artifact_fixture(case, workdir)
+        assert not (Path(workdir) / "docs").exists()
+
+
+# --- Fixture confinement (P1: Path(workdir) / abs_path silently discards workdir) ---
+
+def test_provision_artifact_fixture_rejects_absolute_dest():
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir, \
+            tempfile.TemporaryDirectory() as outside:
+        (Path(fixture_dir) / "plan.md").write_text("plan contents")
+        escape_target = str(Path(outside) / "probe")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": escape_target}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "dest" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for absolute dest")
+        assert not (Path(outside) / "probe").exists()
+
+
+def test_provision_artifact_fixture_rejects_dotdot_traversal():
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir:
+        (Path(fixture_dir) / "plan.md").write_text("plan contents")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "../../escape"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "dest" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for '..' traversal in dest")
+        assert not (Path(workdir).parent.parent / "escape").exists()
+
+
+def test_provision_artifact_fixture_rejects_symlink_escape():
+    # A relative-looking dest can still resolve outside workdir if a path component
+    # inside the sandbox is a symlink to somewhere else -- the string-level '..'/absolute
+    # checks can't see this; only resolving the final path and checking containment can.
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir, \
+            tempfile.TemporaryDirectory() as outside:
+        (Path(fixture_dir) / "plan.md").write_text("plan contents")
+        os.symlink(outside, Path(workdir) / "link")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "link/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "escapes" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for symlink escaping the sandbox")
+        assert not (Path(outside) / "probe").exists()
+
+
+# --- Fixture confinement: source side (D5 fixed dest confinement, missed source) ---
+
+def test_provision_artifact_fixture_rejects_source_outside_fixtures_root():
+    # The concrete threat: a source that IS a real, existing, readable directory --
+    # just not one under evals/fixtures/. shutil.copytree would happily copy it
+    # wholesale into the model-readable sandbox with no confinement check at all.
+    # An absolute path to a real directory outside evals/fixtures/ is exactly this case.
+    with tempfile.TemporaryDirectory() as outside, tempfile.TemporaryDirectory() as workdir:
+        (Path(outside) / "plan.md").write_text("plan contents")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": outside, "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "escapes evals/fixtures/" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for source outside evals/fixtures/")
+        assert not (Path(workdir) / "docs").exists()
+
+
+def test_provision_artifact_fixture_accepts_absolute_source_when_contained():
+    # Unlike dest (where an absolute value defeats the Path(workdir)/dest join), an
+    # absolute source is fine as long as it resolves inside evals/fixtures/ -- there is
+    # no equivalent join for source to defeat, so containment alone must decide this.
+    # tempfile.TemporaryDirectory(dir=...) always returns absolute paths, exercising
+    # exactly this.
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as workdir:
+        assert Path(fixture_dir).is_absolute(), fixture_dir
+        (Path(fixture_dir) / "plan.md").write_text("plan contents")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        runner._provision_artifact_fixture(case, workdir)
+        copied = Path(workdir) / "docs/causal-plans/probe/plan.md"
+        assert copied.read_text() == "plan contents"
+
+
+def test_provision_artifact_fixture_rejects_dotdot_source():
+    with tempfile.TemporaryDirectory() as workdir:
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": "../../etc", "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "source" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for '..' traversal in source")
+        assert not (Path(workdir) / "docs").exists()
+
+
+def test_provision_artifact_fixture_rejects_source_escaping_via_symlink():
+    # A relative-looking source can still resolve outside evals/fixtures/ if a path
+    # component is a symlink to somewhere else -- the string-level '..' check alone
+    # can't see this; only resolving the final path and checking containment can.
+    with tempfile.TemporaryDirectory() as outside, tempfile.TemporaryDirectory() as workdir:
+        link = Path("evals/fixtures/_test_probe_link")
+        try:
+            os.symlink(outside, link)
+            case = {"input_mode": "artifact",
+                    "artifact_fixture": {"source": "evals/fixtures/_test_probe_link",
+                                          "dest": "docs/causal-plans/probe"}}
+            try:
+                runner._provision_artifact_fixture(case, workdir)
+            except ValueError as e:
+                assert "escapes" in str(e), e
+            else:
+                raise AssertionError("expected ValueError for source escaping evals/fixtures/ via symlink")
+            assert not (Path(workdir) / "docs").exists()
+        finally:
+            link.unlink(missing_ok=True)
+
+
+def test_provision_artifact_fixture_rejects_symlinked_file_inside_confined_source():
+    # The confinement check in the prior two tests validates the SOURCE ROOT's own
+    # resolved path -- it never inspects what's inside a legitimately-confined directory.
+    # shutil.copytree's default symlinks=False DEREFERENCES symlinks during copy, so a
+    # symlink sitting inside an otherwise-confined fixture, pointing anywhere else on
+    # disk, gets its target's actual content copied in as a plain file. Reproduces the
+    # exact bug (verified manually with a symlink to /etc/hosts; using a synthetic
+    # "secret" file here so the test doesn't depend on /etc/hosts being readable).
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as outside, \
+            tempfile.TemporaryDirectory() as workdir:
+        (Path(fixture_dir) / "plan.md").write_text("legit content")
+        secret = Path(outside) / "secret.txt"
+        secret.write_text("should never leak into the sandbox")
+        os.symlink(secret, Path(fixture_dir) / "evil_link")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "symlink" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for a symlink inside the fixture source")
+        assert not (Path(workdir) / "docs").exists(), "nothing should have been copied at all"
+
+
+def test_provision_artifact_fixture_rejects_symlinked_dir_inside_confined_source():
+    with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir, \
+            tempfile.TemporaryDirectory() as outside, \
+            tempfile.TemporaryDirectory() as workdir:
+        (Path(fixture_dir) / "plan.md").write_text("legit content")
+        (Path(outside) / "secret.txt").write_text("should never leak into the sandbox")
+        os.symlink(outside, Path(fixture_dir) / "evil_dir")
+        case = {"input_mode": "artifact",
+                "artifact_fixture": {"source": fixture_dir, "dest": "docs/causal-plans/probe"}}
+        try:
+            runner._provision_artifact_fixture(case, workdir)
+        except ValueError as e:
+            assert "symlink" in str(e), e
+        else:
+            raise AssertionError("expected ValueError for a symlinked directory inside the fixture source")
+        assert not (Path(workdir) / "docs").exists(), "nothing should have been copied at all"
+
+
+def test_run_case_cli_provisions_fixture_before_invoking_the_skill():
+    # The fixture must already be on disk, at the declared dest, inside the sandbox
+    # cwd handed to the skill invocation -- not before the workdir exists, not after.
+    seen = {}
+
+    def fake(*a, **k):
+        cwd = k.get("cwd")
+        seen["cwd_passed"] = cwd is not None
+        seen["fixture_present"] = cwd is not None and (
+            Path(cwd) / "docs/causal-plans/probe/plan.md").exists()
+        return _ok()
+
+    real = runner.run_subprocess_grouped
+    runner.run_subprocess_grouped = fake
+    try:
+        with tempfile.TemporaryDirectory(dir="evals/fixtures") as fixture_dir:
+            (Path(fixture_dir) / "plan.md").write_text("plan contents")
+            case = dict(_L3_CASE, input_mode="artifact",
+                        artifact_fixture={"source": fixture_dir,
+                                           "dest": "docs/causal-plans/probe"})
+            runner.run_case_cli(case, _SKILL_CFG, 1)
+    finally:
+        runner.run_subprocess_grouped = real
+    assert seen["cwd_passed"], seen
+    assert seen["fixture_present"], seen
+
+
 def test_judge_error_reason_propagates_not_flattened():
     # runner.py previously hardcoded "judge_error" for every JudgeError, which
     # would have hidden the new judge_timeout/malformed_response distinctions.
@@ -303,6 +546,31 @@ def test_l2_gate_enforces_severity():
     assert case_gate(2, agg) == "FAIL", agg
 
 
+def test_l2_multi_flag_case_requires_every_declared_flag_not_just_one():
+    # D9: violation_detected = any(flag_answers) would pass a 2-flag case on a single
+    # hit. flags_coverage (fraction of declared flags caught) must now gate detection
+    # for cases declaring more than one flag -- a run that catches only 1 of 2 declared
+    # flags must NOT count as detected, even though violation_detected is True.
+    case = {"layer": 2, "expected": {"must_flag": ["relevance", "weak_instrument"]}}
+
+    partial = [{"violation_detected": True, "flags_coverage": 0.5, "severity_correct": True}] * 5
+    agg = aggregate(_runs(2, partial), case)
+    assert agg["detected"] == 0, agg
+    assert case_gate(2, agg) == "FAIL", agg
+
+    full = [{"violation_detected": True, "flags_coverage": 1.0, "severity_correct": True}] * 5
+    agg = aggregate(_runs(2, full), case)
+    assert agg["detected"] == 5, agg
+    assert case_gate(2, agg) == "PASS", agg
+
+    # Single-flag cases are unaffected: violation_detected alone still gates.
+    single_case = {"layer": 2, "expected": {"must_flag": ["parallel_trends"]}}
+    single = [{"violation_detected": True, "flags_coverage": 1.0, "severity_correct": True}] * 5
+    agg = aggregate(_runs(2, single), single_case)
+    assert agg["detected"] == 5, agg
+    assert case_gate(2, agg) == "PASS", agg
+
+
 def test_l4_gate_requires_every_populated_dimension():
     dims = ["pedagogy", "safety", "actionable"]
     strong = {"pedagogy": 0.9, "safety": 0.9, "actionable": 0.9, "dimensions_present": dims}
@@ -314,6 +582,26 @@ def test_l4_gate_requires_every_populated_dimension():
     agg = aggregate(_runs(4, [lopsided] * 5), {"layer": 4})
     assert agg["overall"] > 0.7, agg
     assert case_gate(4, agg) == "FAIL", agg
+
+
+def test_l4_old_ledger_runs_fall_back_to_the_cases_declared_dimensions():
+    # D9: runs recorded before `dimensions_present` existed carry no per-run marker.
+    # Guessing "all three dimensions present" would force a dimension this case never
+    # even declares a rubric for into a hard 0.0 average (scores.get(dim, 0.0)),
+    # failing a case that never had a safety obligation to begin with. The compat rule
+    # must fall back to the case's own on-file rubric dimensions instead.
+    case_two_dims = {"layer": 4, "rubric": {"pedagogy": ["Q1?"], "actionable": ["Q2?"]}}
+    legacy_runs = [{"pedagogy": 1.0, "actionable": 1.0}] * 5  # no dimensions_present key
+    agg = aggregate(_runs(4, legacy_runs), case_two_dims)
+    assert agg["pedagogy"] == 1.0 and agg["actionable"] == 1.0, agg
+    assert agg["safety"] is None, agg  # excluded, not forced to 0.0
+    assert agg["overall"] == 1.0, agg
+    assert case_gate(4, agg) == "PASS", agg
+
+    # A case with no rubric on file at all (or a bare legacy dict) still falls back to
+    # the old "assume all three" guess -- there is nothing else to go on.
+    agg_no_rubric = aggregate(_runs(4, legacy_runs), {"layer": 4})
+    assert agg_no_rubric["safety"] == 0.0, agg_no_rubric
 
 
 def test_l4_absent_dimension_is_skipped_not_zeroed():

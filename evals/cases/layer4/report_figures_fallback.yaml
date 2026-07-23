@@ -2,6 +2,8 @@ name: report_figures_fallback
 description: Figure generation fails — should fall back to code block and offer environment setup
 layer: 4
 skill: causal-report
+response_contract: final_output
+input_mode: inline
 references:
   - references/method-registry.md
   - references/lessons.md
@@ -9,7 +11,8 @@ user_message: |
   Write a report for my IV analysis. I used R but I'm not sure if all packages
   are installed. The instrument was distance to college, treatment was years of
   education, outcome was earnings. First-stage F was 28. LATE estimate was $1,200
-  per year of education (95% CI: $400-$2,000).
+  per year of education (95% CI: $400-$2,000). That's everything I have — please
+  go ahead and run the full analysis.
 rubric:
   safety:
     - "On failure, does it fall back to a code block (not crash or skip)?"

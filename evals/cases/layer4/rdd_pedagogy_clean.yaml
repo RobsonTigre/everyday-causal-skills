@@ -7,10 +7,13 @@ references:
   - references/method-registry.md
   - references/lessons.md
 dataset: evals/data/rdd_clean.csv
+dataset_contract:
+  columns: [student_id, test_score, scholarship, gpa]
+  n_rows: 2000
 user_message: |
-  Students scoring >= 70 on an entrance exam get admitted to an honors program.
-  I want to estimate the effect of the honors program on final GPA. I have data
-  on 5000 students. I use R and have never done an RDD before.
+  Students scoring >= 70 on an entrance exam get a scholarship. I want to estimate
+  the effect of the scholarship on final GPA. I have data on 2,000 students.
+  I use R and have never done an RDD before.
 rubric:
   pedagogy:
     - "Does the response explain the key insight of RDD — that students just above and below the cutoff are comparable?"

@@ -12,5 +12,5 @@ user_message: |
   students. I want to estimate the effect of the scholarship on GPA using RDD.
   I use R.
 expected:
-  must_flag: [manipulation, no_manipulation]
+  must_flag: [manipulation, manipulation_test]
   severity: fatal

@@ -7,10 +7,14 @@ references:
   - references/method-registry.md
   - references/lessons.md
 dataset: evals/data/timeseries_clean.csv
+dataset_contract:
+  columns: [time, outcome, post]
+  n_rows: 60
 user_message: |
-  Our company launched a major marketing campaign 6 months ago. I have monthly revenue
-  data for the past 4 years (48 months total). There's no control group — just our
-  company's time series. I want to estimate the campaign's effect. I use Python.
+  Our company launched a major marketing campaign 24 months ago. I have monthly
+  revenue data for the past 5 years (60 months total). There's no control group —
+  just our company's time series. I want to estimate the campaign's effect.
+  I use Python.
 rubric:
   pedagogy:
     - "Does the response explain the core idea — modeling what WOULD have happened without the intervention using pre-period patterns?"

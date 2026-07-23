@@ -2,13 +2,14 @@ name: roi_full_artifacts
 description: ROI with a complete DiD artifact set — normalization gate, per-period summing, waterfall, pipeline breakeven, range, six assumptions
 layer: 2
 skill: causal-roi
+input_mode: inline
 references:
   - references/roi-framework.md
   - references/method-registry.md
   - references/lessons.md
 user_message: |
-  My project folder docs/causal-plans/2026-06-01-checkout-redesign/ has the full
-  chain — treat the following as its contents. implementation.md: staggered DiD
+  Here's the full chain from my analysis — treat the following as the complete
+  input. implementation.md: staggered DiD
   (Callaway-Sant'Anna), ATT per-period event-study estimates that average to
   R$1,200 incremental profit per store per month over the post window (a monthly
   rate, not a cumulative total), 95% CI [800, 1600], 400 treated stores.

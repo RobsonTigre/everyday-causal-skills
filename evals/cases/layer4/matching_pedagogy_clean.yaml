@@ -7,11 +7,13 @@ references:
   - references/method-registry.md
   - references/lessons.md
 dataset: evals/data/matching_good_overlap.csv
+dataset_contract:
+  columns: [id, treatment, x1, x2, outcome]
+  n_rows: 1000
 user_message: |
-  I have observational data on 2000 patients. Half received a new drug, half got
-  standard care. I have rich baseline covariates: age, BMI, blood pressure, disease
-  severity score, comorbidity count. I want to estimate the treatment effect on
-  recovery time. I use R.
+  I have observational data on 1,000 patients. Half received a new drug, half got
+  standard care. I have two baseline covariates, x1 and x2. I want to estimate the
+  treatment effect on recovery time (the outcome column). I use R.
 rubric:
   pedagogy:
     - "Does the response explain that matching relies on conditional independence (no unmeasured confounders) and why this is a strong, untestable assumption?"

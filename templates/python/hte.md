@@ -123,6 +123,11 @@ plt.show()
 ### Variable importance:
 ```python
 varimp = est.feature_importances_
+
+print("\nImportant caveat: Variable importance measures splitting value, not causal")
+print("moderation. A variable that is important for the forest's predictions is not")
+print("necessarily a causal modifier — it could correlate with a true modifier.")
+
 feature_names = ["age", "income", "gender"]  # Match your X columns
 sorted_idx = np.argsort(varimp)[::-1]
 
@@ -280,6 +285,11 @@ pt = DRPolicyTree(max_depth=2, min_samples_leaf=50)
 pt.fit(Y, T, X=X, W=W)
 
 policy = pt.predict(X)
+
+print("\nThis is an exploratory targeting rule, not a deployment-ready policy.")
+print("Before operationalizing: (1) validate on held-out data, (2) run a confirmatory")
+print("experiment, (3) review for fairness and equity, (4) get domain expert review.")
+
 print(f"Policy tree treats: {policy.mean():.3f} of units")
 print(f"Threshold rule treats: {treat_rule.mean():.3f} of units")
 

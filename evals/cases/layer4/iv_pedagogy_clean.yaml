@@ -7,11 +7,15 @@ references:
   - references/method-registry.md
   - references/lessons.md
 dataset: evals/data/iv_strong.csv
+dataset_contract:
+  columns: [id, draft_number, served, earnings]
+  n_rows: 1000
 user_message: |
-  We ran a randomized encouragement design — randomly selected customers received
-  a phone call encouraging them to use our new savings product. I want to estimate
-  the effect of actually using the product on savings behavior. The phone call is
-  my instrument. I use Python. This is my first IV analysis.
+  I'm studying a historical draft lottery — a random draft number determined who
+  was called up, but not everyone drafted actually served, and some who weren't
+  drafted volunteered anyway. I want to estimate the effect of military service on
+  later earnings. The draft number is my instrument. I have data on 1,000 men.
+  I use Python. This is my first IV analysis.
 rubric:
   pedagogy:
     - "Does the response explain what LATE means and who the 'compliers' are in this context?"

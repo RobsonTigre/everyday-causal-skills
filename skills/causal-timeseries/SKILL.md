@@ -135,6 +135,8 @@ cat("Posterior probability of effect:", impact$summary$p[1], "\n")
 ```r
 library(CausalArima)
 
+date_vector <- as.Date(date_vector)  # must be Date class, not character
+
 result <- CausalArima(
   y = outcome_ts,
   dates = date_vector,
@@ -143,6 +145,12 @@ result <- CausalArima(
 )
 summary(result)
 plot(result)
+
+# Extract key numbers (summary() above prints a human-readable table only)
+y_post <- outcome_ts[date_vector >= intervention_date]
+cat("Temporal average causal effect:", mean(result$causal.effect), "\n")
+avg_effect_boot <- mean(y_post) - colMeans(result$boot$boot.distrib)
+cat("95% CI for temporal average effect:", quantile(avg_effect_boot, c(0.025, 0.975)), "\n")
 ```
 
 **CausalArima (Python)** — when no control series available:

@@ -15,10 +15,17 @@ user_message: |
   I've finished my attempt. I ran 2SLS using the encouragement as the instrument and
   estimated a LATE of about 1,850, with a first-stage F around 24.
 
-  Please debrief me now — reveal the data-generating process and the true LATE and
-  compare them against my estimate. Include the full DGP code in Python so I can
-  re-run it myself: have it print the true effect on its own line as ESTIMATE:<value>
-  (e.g. print(f'ESTIMATE:{true_late}')) and save the dataset as a CSV.
+  Please debrief me now. I need exactly two deliverables in your reply, both as
+  runnable code, not a prose description of what the DGP does:
+
+  1. The full `dgp.py` you generated for this exercise (the file you already save to
+     `docs/causal-exercises/.../dgp.py`), reproduced here as a code block so I can
+     re-run it myself. It must print the true effect on its own line as
+     ESTIMATE:<value> (e.g. print(f'ESTIMATE:{true_late}')) and save the dataset as a CSV.
+  2. A short debrief comparing my estimate to the true LATE and explaining any gap.
+
+  Do not summarize or describe the DGP code in prose instead of showing it — I want
+  to actually run it myself.
 expected:
   true_effect: null
   tolerance: null

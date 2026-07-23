@@ -79,9 +79,9 @@ Generate each section, presenting it to the user for review before moving to the
 
 One paragraph: what was tested, what was found, how confident we are.
 
-- **Business mode**: Lead with the bottom line. "The loyalty program caused a 12% lift in repeat purchases (95% CI: [8%, 16%])."
+- **Business mode**: Lead with the bottom line. "The loyalty program caused a 12 percentage point lift in repeat purchases (95% CI: [8, 16] pp)."
 - **Academic mode**: Write as an abstract. Include estimand, method, key finding, and primary limitation.
-- **Hybrid mode**: Bottom line with method name. "Using difference-in-differences, we estimate the loyalty program increased repeat purchases by 12% (95% CI: [8%, 16%])."
+- **Hybrid mode**: Bottom line with method name. "Using difference-in-differences, we estimate the loyalty program increased repeat purchases by 12 percentage points (95% CI: [8, 16] pp)."
 
 #### Section 2: Question to Be Answered & Design
 

@@ -9,7 +9,8 @@
 # --- Preflight: detect missing packages (does NOT install) ---
 import importlib.util
 
-# import-name -> pip-name (they match unless noted)
+# import-name -> pip-name (they match unless noted). Needed regardless of which
+# estimation method below you use (segmented regression needs nothing beyond this).
 required = {
     "pandas": "pandas",
     "numpy": "numpy",
@@ -17,7 +18,6 @@ required = {
     "seaborn": "seaborn",
     "statsmodels": "statsmodels",
     "scipy": "scipy",
-    "causalimpact": "pycausalimpact",  # import name != pip name; NOT the `causalimpact` distribution
 }
 missing = [pip for mod, pip in required.items()
            if importlib.util.find_spec(mod) is None]
@@ -26,6 +26,21 @@ if missing:
     print("Install with: pip install " + " ".join(missing))
 else:
     print("All required Python packages are installed.")
+
+# Variant-only packages -- you need the ONE matching the method you actually use
+# below, not both. Missing ones are noted, not blocked: don't offer to install a
+# variant the user isn't using (see references/preflight.md, "Required vs optional").
+optional = {
+    "causalimpact": "pycausalimpact",  # needed only for CausalImpact (BSTS); NOT the `causalimpact` distribution
+    "pycausalarima": "pycausalarima",  # needed only for CausalArima (ARIMA-based)
+}
+missing_optional = [pip for mod, pip in optional.items()
+                     if importlib.util.find_spec(mod) is None]
+if missing_optional:
+    print("Optional packages not installed (only needed for the matching method):",
+          ", ".join(missing_optional))
+else:
+    print("All optional time-series packages are installed.")
 
 # Import
 import pandas as pd
