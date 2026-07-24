@@ -19,7 +19,7 @@ from pathlib import Path
 
 import yaml
 
-from scorer import (FIXTURES_ROOT, JudgeError, score_response, score_l5,
+from scorer import (FIXTURES_ROOT, JudgeError, l2_rubric, score_response, score_l5,
                     run_subprocess_grouped, reject_symlinks)
 
 
@@ -29,7 +29,8 @@ from scorer import (FIXTURES_ROOT, JudgeError, score_response, score_l5,
 DEFAULT_THRESHOLDS = {
     "layer0": {"trigger_accuracy": 0.9},
     "layer1": {"accuracy": 0.8},
-    "layer2": {"detection_rate": 0.8, "severity_accuracy": 0.7},
+    "layer2": {"detection_rate": 0.8, "severity_accuracy": 0.7,
+               "rubric_required_rate": 0.8},
     "layer3": {"runs_without_error": 0.9, "estimation_accuracy": 0.8,
                "guard_pass_rate": 1.0},
     "layer4": {"pedagogy": 0.7, "safety": 0.7, "actionable": 0.7},
@@ -57,13 +58,19 @@ def _meets(value: float, threshold: float) -> bool:
     return value >= threshold - _GATE_EPS
 
 
-def case_gate(layer: int, agg: dict, thresholds: dict | None = None) -> str:
+def case_gate(case: dict, agg: dict, thresholds: dict | None = None) -> str:
     """PASS / FAIL / UNMEASURED for one case, per the config.yaml contract.
 
     A metric that does not apply to a case (no ground truth, an unpopulated L4
     dimension) is skipped, never counted as a miss. No valid runs means the case
     was not measured — that is not a failure, it is a requeue.
+
+    Takes the whole case, not a layer number: since Package F the L2 gate depends
+    on which rubric criteria the case declares required, and D9 shipped precisely
+    because a caller handed the aggregation path a stripped `{"layer": n}` dict and
+    the fallback engaged in silence. Every caller must now supply the real case.
     """
+    layer = case["layer"]
     rate = agg.get("rate")
     if rate is None:
         return "UNMEASURED"
@@ -80,6 +87,26 @@ def case_gate(layer: int, agg: dict, thresholds: dict | None = None) -> str:
         valid = agg["runs_valid"]
         sev = agg.get("severity_ok", 0) / valid if valid else 0.0
         ok = _meets(rate, t("detection_rate")) and _meets(sev, t("severity_accuracy"))
+        # Package F: detection, severity and every required criterion are
+        # independently mandatory. Nothing here averages across criteria.
+        criteria = agg.get("rubric_criteria")
+        required = [e["id"] for e in l2_rubric(case)
+                    if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+        if criteria and not l2_rubric(case):
+            raise ValueError(
+                "aggregate carries rubric_criteria but the case declares no rubric — "
+                "the caller passed a stripped case dict, so every required criterion "
+                "would be silently dropped")
+        if required:
+            if not criteria:
+                return "UNMEASURED"   # pre-F ledger: no per-question answers on file
+            for cid in required:
+                # Derived from the counts, never the stored rate — see criterion_status.
+                status, crate = criterion_status(criteria.get(cid), valid)
+                if status != "ok":
+                    return "UNMEASURED"   # absent, partly answered, or self-contradicting
+                if not _meets(crate, t("rubric_required_rate")):
+                    ok = False
         return "PASS" if ok else "FAIL"
     if layer == 3:
         valid = agg["runs_valid"]
@@ -625,6 +652,79 @@ def run_case_l5_api(client, case: dict, config: dict, runs: int, debug: bool = F
 
 # --- Aggregation & Reporting ---
 
+def criterion_status(crit: dict | None, runs_valid: int) -> tuple[str, float | None]:
+    """Is one stored criterion block trustworthy and complete? -> (status, rate).
+
+    `("ok", rate)` and, otherwise, `("missing"|"partial"|"inconsistent", None)`.
+
+    The rate is DERIVED from the counts and the stored `rate` is never read. A
+    ledger is data, not testimony: `_rubric_criteria` cannot write a complete-looking
+    rate over an incomplete answer set today, but that invariant lived only in the
+    writer, and the one shape that must never reach the gate is exactly the one a
+    foreign or hand-edited ledger would carry. Deriving here costs a division and
+    makes the writer's correctness irrelevant to the gate's.
+
+    The full invariant, since a partial check is no check:
+    `0 <= passed <= answered == crit["valid"] == runs_valid`, each an honest int.
+    `type(v) is int`, not isinstance: bools are ints in Python, so `passed: true`
+    would otherwise be read as 1.
+
+    One helper, not three: the gate, the UNMEASURED reason and the verdict table all
+    have to agree on what "complete" means. Three copies would drift, and drift here
+    means a criterion the gate refused to grade rendered as a clean pass rate.
+    """
+    if not isinstance(crit, dict):
+        return "missing", None
+
+    passed, answered, cvalid = crit.get("passed"), crit.get("answered"), crit.get("valid")
+    if any(type(v) is not int for v in (passed, answered, cvalid)):
+        return "inconsistent", None
+    if cvalid != runs_valid or runs_valid <= 0:
+        return "inconsistent", None
+    if not 0 <= passed <= answered <= cvalid:
+        return "inconsistent", None
+    if answered != cvalid:
+        return "partial", None
+    return "ok", passed / cvalid
+
+
+def _rubric_criteria(valid: list[dict], case: dict) -> dict | None:
+    """Per-criterion L2 rubric results, or None when this is pre-F data.
+
+    The denominator is every valid run, never the subset that happens to carry an
+    answer. A required criterion answered in 4 of 5 valid runs reports
+    `rate: None`, not 4/4 — otherwise a measurement gap reads as a perfect score
+    and clears the gate. `answered` is kept alongside so the verdict can say which
+    of the two it was.
+
+    Returns None when no valid run carries `rubric_answers` at all: that is a
+    ledger written before Package F, and the gate must call it UNMEASURED rather
+    than infer anything from the old collapsed mean.
+    """
+    declared = [e for e in l2_rubric(case) if isinstance(e, dict) and e.get("id")]
+    if not declared:
+        return None
+    if not any("rubric_answers" in r["scores"] for r in valid):
+        return None
+
+    n = len(valid)
+    out = {}
+    for entry in declared:
+        cid = entry["id"]
+        answers = [r["scores"]["rubric_answers"][cid] for r in valid
+                   if cid in (r["scores"].get("rubric_answers") or {})]
+        passed = sum(1 for a in answers if a)
+        out[cid] = {
+            "question": entry.get("question", ""),
+            "required": entry.get("required") is True,
+            "passed": passed,
+            "answered": len(answers),
+            "valid": n,
+            "rate": passed / n if len(answers) == n else None,
+        }
+    return out
+
+
 def aggregate(runs: list[dict], case: dict) -> dict:
     """Summarise a case's runs. Values are typed — counts are ints, rates are
     floats or None. Markdown formatting happens at render time, so nothing here
@@ -670,10 +770,16 @@ def aggregate(runs: list[dict], case: dict) -> dict:
         out = {**base, "detected": detected, "severity_ok": severity_ok,
                "rate": detected / n}
         # Rubric coverage (informational): only present for rubric-bearing cases.
+        # Kept after Package F both for backward comparability and because its
+        # presence *without* `rubric_criteria` is how a pre-F ledger identifies
+        # itself to the gate.
         rubric_vals = [r["scores"]["rubric_coverage"] for r in valid
                        if r["scores"].get("rubric_coverage") is not None]
         if rubric_vals:
             out["rubric_coverage"] = sum(rubric_vals) / len(rubric_vals)
+        criteria = _rubric_criteria(valid, case)
+        if criteria is not None:
+            out["rubric_criteria"] = criteria
         # response_contract / deferred_rubric (D1): same propagation as L4's
         # branch above — static case metadata, same on every run, surfaced in
         # the verdict without affecting `rate`/detection at all.
@@ -794,7 +900,7 @@ def save_report(results: dict, config: dict, label: str = "run"):
         valid = f"{a.get('runs_valid', 0)}/{a.get('runs_total', 0)}"
         lines.append(
             f"| {c['name']} | L{layer} | {format_score(layer, a)} | {valid} "
-            f"| {case_gate(layer, a, config.get('thresholds'))} |")
+            f"| {case_gate(c, a, config.get('thresholds'))} |")
 
     lines.extend(["\n## Details\n"])
     for cr in results["cases"]:
@@ -815,12 +921,24 @@ def save_report(results: dict, config: dict, label: str = "run"):
     print(f"Report saved: {path}")
 
 
+def release_token(version: str) -> str:
+    """The one string that marks a row as a version's release evidence."""
+    return f"[release:{version}]"
+
+
 def save_history(results: dict, config: dict, notes: str = "",
-                 hist_path: Path | None = None):
+                 hist_path: Path | None = None, release_version: str | None = None):
     """Append a summary row to HISTORY.md for trend tracking.
 
     Unmeasured cases are excluded from both numerator and denominator — they are
     a gap in the measurement, not a failure of the skill.
+
+    With `release_version`, the row is keyed by an exact `[release:vX.Y.Z]` token
+    and *replaces* any existing row carrying that token: a re-run release sweep
+    for the same unpublished version is a correction, not a second opinion, and
+    two rows claiming to be the evidence for one version is worse than either.
+    The match is on the exact token only — historical rows say things like
+    "v0.1.0 release" in free text, and a looser match would eat them.
     """
     hist_path = Path(hist_path) if hist_path else Path("evals/results/HISTORY.md")
 
@@ -837,16 +955,25 @@ def save_history(results: dict, config: dict, notes: str = "",
         rate = agg.get("rate")
         if rate is None:
             continue  # unmeasured: contributes to neither column
-        valid = agg.get("runs_valid", 0) or 1
-        layer_stats[layer]["total"] += 1
-
         # The pass column is the release verdict, so it must be case_gate() and not a
         # second, drifting copy of it. The old inline logic ignored L1 false positives
         # and L3 guard/diagnostic gates, so HISTORY could report a case as passing that
         # the gate failed. The supplementary columns below are separate metrics, not
         # gates, and stay broken out.
-        if layer in (0, 1, 2, 3) and case_gate(layer, agg, thresholds) == "PASS":
+        gate = case_gate(cr["case"], agg, thresholds) if layer in (0, 1, 2, 3) else None
+        if gate == "UNMEASURED":
+            # Same rule as `rate is None` above, and the same treatment: the whole case
+            # sits out every column. Until Package F the gate could only withhold a
+            # verdict when there was no rate at all, so that check covered this. The
+            # rubric gate can now withhold one with a rate present — required criteria
+            # answered in only some runs — and the reason a case is unmeasured must not
+            # change whether it counts.
+            continue
+        layer_stats[layer]["total"] += 1
+        if gate == "PASS":
             layer_stats[layer]["pass"] += 1
+
+        valid = agg.get("runs_valid", 0) or 1
 
         if layer == 2:
             layer_stats[2]["sev_total"] += 1
@@ -883,6 +1010,9 @@ def save_history(results: dict, config: dict, notes: str = "",
     l4 = avg_pct(layer_stats[4]["scores"])
     l5 = avg_pct(layer_stats[5]["scores"])
 
+    if release_version:
+        token = release_token(release_version)
+        notes = f"{token} {notes}".strip()
     row = f"| {ts} | {model} | {l0} | {l1} | {l2_det} | {l2_sev} | {l3_run} | {l3_est} | {l4} | {l5} | {notes} |"
 
     if not hist_path.exists():
@@ -892,6 +1022,18 @@ def save_history(results: dict, config: dict, notes: str = "",
 |------|-------|------------|--------|-----------|-------------|------------|------------|--------|---------|-------|
 """
         hist_path.write_text(header + row + "\n")
+    elif release_version:
+        token = release_token(release_version)
+        lines = hist_path.read_text().splitlines()
+        replaced = False
+        for i, line in enumerate(lines):
+            if token in line:
+                lines[i] = row
+                replaced = True
+                break
+        if not replaced:
+            lines.append(row)
+        hist_path.write_text("\n".join(lines) + "\n")
     else:
         with open(hist_path, "a") as f:
             f.write(row + "\n")
@@ -950,7 +1092,7 @@ def main():
                 runs = run_case_api(client, case, config, args.runs, debug=args.debug_judge)
             agg = aggregate(runs, case)
             all_results["cases"].append({"case": case, "runs": runs, "aggregate": agg})
-            verdict = case_gate(case["layer"], agg, config.get("thresholds"))
+            verdict = case_gate(case, agg, config.get("thresholds"))
             print(f"{verdict} ({format_score(case['layer'], agg)}, "
                   f"{agg['runs_valid']}/{agg['runs_total']} valid)")
         except Exception as e:
@@ -975,7 +1117,7 @@ def main():
                     "name": cr["case"]["name"],
                     "layer": cr["case"]["layer"],
                     "aggregate": cr["aggregate"],
-                    "verdict": case_gate(cr["case"]["layer"], cr["aggregate"],
+                    "verdict": case_gate(cr["case"], cr["aggregate"],
                                          config.get("thresholds")),
                     "invalid_reasons": sorted({r["invalid"] for r in cr["runs"]
                                                if r.get("invalid")}),

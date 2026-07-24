@@ -7,11 +7,14 @@ a live `claude` CLI. Everything that decides a verdict is tested offline.
 import inspect
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -21,7 +24,6 @@ import runner  # noqa: E402
 import scorer  # noqa: E402
 import sweep  # noqa: E402
 from sweep import (  # noqa: E402
-    compile_verdict,
     fingerprint_mismatch,
     load_ledger,
     render_verdict_md,
@@ -29,13 +31,50 @@ from sweep import (  # noqa: E402
 )
 
 
-def _entry(layer, status="done", verdict_agg=None, attempts=1, valid=5, total=5):
+def _entry(layer, status="done", verdict_agg=None, attempts=1, valid=5, total=5,
+           case_fields=None):
     return {
         "path": f"evals/cases/layer{layer}/x.yaml", "layer": layer, "status": status,
         "attempts": attempts, "runs_valid": valid, "runs_total": total,
         "runner_exit": 0, "aggregate": verdict_agg, "verdict": None,
         "invalid_reasons": [], "updated": "2026-07-18T09:00:00",
+        # Extra case-file content (e.g. an L2 rubric) for the materialised case.
+        "case_fields": case_fields or {},
     }
+
+
+@contextmanager
+def _materialised_cases(ledger):
+    """Give a synthetic ledger real case files to point at.
+
+    Package F: compile_verdict loads each entry's case, because the L2 contract
+    (which criteria are required) lives in the case and not in the stored
+    aggregate. A ledger whose paths point nowhere is no longer gradeable — which
+    is the intended behaviour, so the tests supply real files rather than the
+    production code learning to shrug at missing ones.
+    """
+    root = Path(tempfile.mkdtemp())
+    real_root = sweep.REPO_ROOT
+    try:
+        for name, entry in ledger["cases"].items():
+            layer = entry["layer"]
+            d = root / "evals" / "cases" / f"layer{layer}"
+            d.mkdir(parents=True, exist_ok=True)
+            body = {"name": name, "layer": layer, "description": "synthetic",
+                    **(entry.get("case_fields") or {})}
+            (d / f"{name}.yaml").write_text(yaml.safe_dump(body))
+            entry["path"] = f"evals/cases/layer{layer}/{name}.yaml"
+        sweep.REPO_ROOT = root
+        yield root
+    finally:
+        sweep.REPO_ROOT = real_root
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def compile_verdict(ledger):
+    """Test-side wrapper: materialise the ledger's cases, then run the real thing."""
+    with _materialised_cases(ledger):
+        return sweep.compile_verdict(ledger)
 
 
 def _ledger(cases):
@@ -459,6 +498,194 @@ def test_run_case_slots_l4_legacy_runs_use_case_declared_rubric_dimensions():
         assert patch["verdict"] == "PASS", patch
 
 
+def _l2_rubric_case_body(*specs):
+    return {"expected": {"must_flag": []},
+            "rubric": [{"id": cid, "question": f"{cid}?", "required": req}
+                       for cid, req in specs]}
+
+
+def _l2_run_scores(answers):
+    return {"violation_detected": True, "flags_coverage": 1.0, "severity_correct": True,
+            "rubric_answers": answers,
+            "rubric_coverage": (sum(answers.values()) / len(answers)) if answers else 0.0}
+
+
+def test_run_case_slots_l2_required_criterion_gates_through_the_sweep_path():
+    """Package F's gate has to engage where the release sweep actually runs.
+
+    D9 shipped a correct `aggregate()` fix that never fired, because the sweep
+    handed it a stripped case dict. Unit-testing the gate alone would have missed
+    that, so the required-criterion rule is checked here, through run_case_slots.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        case_entry = _done_case_entry(
+            sweep_dir, "rubric_gated_case", 2,
+            _l2_rubric_case_body(("must_hold", True)),
+            [_l2_run_scores({"must_hold": i < 3}) for i in range(5)],   # 3/5
+        )
+        patch = _run_slots_without_rerunning("rubric_gated_case", case_entry, sweep_dir)
+
+        crit = patch["aggregate"]["rubric_criteria"]["must_hold"]
+        assert crit["passed"] == 3 and crit["valid"] == 5, crit
+        assert patch["verdict"] == "FAIL", patch   # detection is perfect; the criterion is not
+
+
+def test_run_case_slots_l2_partial_answers_are_unmeasured_through_the_sweep_path():
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        scores = [_l2_run_scores({"must_hold": True}) for _ in range(4)]
+        scores.append(_l2_run_scores({}))    # accepted run, no answer for the criterion
+        case_entry = _done_case_entry(
+            sweep_dir, "partial_answer_case", 2,
+            _l2_rubric_case_body(("must_hold", True)), scores)
+        patch = _run_slots_without_rerunning("partial_answer_case", case_entry, sweep_dir)
+
+        crit = patch["aggregate"]["rubric_criteria"]["must_hold"]
+        assert crit["answered"] == 4 and crit["valid"] == 5, crit
+        assert crit["rate"] is None, crit
+        assert patch["verdict"] == "UNMEASURED", patch
+
+
+def test_verdict_reports_a_legacy_l2_ledger_as_unmeasured_with_the_reason():
+    """A pre-F ledger has no per-question answers. Recompiling against it must say
+    so, rather than grading the case under the rule it was measured with."""
+    legacy_agg = {"runs_valid": 5, "runs_total": 5, "detected": 5, "severity_ok": 5,
+                  "rate": 1.0, "rubric_coverage": 1.0}
+    v = compile_verdict(_ledger({"old_case": _entry(
+        2, verdict_agg=legacy_agg,
+        case_fields=_l2_rubric_case_body(("must_hold", True)))}))
+
+    assert v["cases"]["old_case"]["verdict"] == "UNMEASURED", v["cases"]["old_case"]
+    reason = v["cases"]["old_case"]["unmeasured_reason"]
+    assert "predates" in reason and "rerun" in reason, reason
+    assert v["overall"] == "UNMEASURED", v["overall"]
+
+
+def test_verdict_markdown_reports_each_required_criterion_and_its_rate():
+    agg = {"runs_valid": 5, "runs_total": 5, "detected": 5, "severity_ok": 5, "rate": 1.0,
+           "rubric_criteria": {
+               "must_hold": {"question": "Does it hold?", "required": True,
+                             "passed": 4, "answered": 5, "valid": 5, "rate": 0.8},
+               "fyi": {"question": "Nice to have?", "required": False,
+                       "passed": 1, "answered": 5, "valid": 5, "rate": 0.2},
+           }}
+    v = compile_verdict(_ledger({"rubric_case": _entry(
+        2, verdict_agg=agg, case_fields=_l2_rubric_case_body(("must_hold", True),
+                                                             ("fyi", False)))}))
+    md = render_verdict_md(v)
+
+    assert "must_hold" in md and "fyi" in md, md
+    assert "4/5" in md, md                      # the rate as measured, not a mean
+    assert "required" in md.lower(), md
+    # An informational criterion must be visibly distinguishable from a gating one.
+    fyi_line = [ln for ln in md.splitlines() if "fyi" in ln][0]
+    assert "informational" in fyi_line.lower(), fyi_line
+
+
+def test_a_rejected_criterion_block_gets_a_reason_and_never_renders_as_a_rate():
+    """The gate, the reason and the table must agree on what "complete" means.
+
+    A forged `rate: 1.0` over 4-of-5 answers gates UNMEASURED. If the reason and the
+    renderer still keyed off the stored rate, the verdict would print a confident
+    `4/5` with no explanation — a case the gate refused to grade, rendered as a pass.
+    """
+    agg = {"runs_valid": 5, "runs_total": 5, "detected": 5, "severity_ok": 5, "rate": 1.0,
+           "rubric_criteria": {
+               "must_hold": {"question": "Does it hold?", "required": True,
+                             "passed": 4, "answered": 4, "valid": 5, "rate": 1.0},
+           }}
+    v = compile_verdict(_ledger({"rubric_case": _entry(
+        2, verdict_agg=agg,
+        case_fields=_l2_rubric_case_body(("must_hold", True)))}))
+    assert v["cases"]["rubric_case"]["verdict"] == "UNMEASURED", v["cases"]
+
+    reason = v["cases"]["rubric_case"]["unmeasured_reason"]
+    assert reason and "must_hold" in reason, reason
+    assert "4" in reason and "5" in reason, reason   # says how far short it fell
+
+    md = render_verdict_md(v)
+    crit_line = [ln for ln in md.splitlines()
+                 if "must_hold" in ln and ln.startswith("|")][0]
+    rate_cell = crit_line.split("|")[4].strip()
+    # No "N/M" anywhere in the cell: that form is the pass rate, and a gap must not
+    # be mistakable for one.
+    assert not re.search(r"\d+\s*/\s*\d+", rate_cell), rate_cell
+    assert rate_cell.startswith("—") and "answered" in rate_cell, rate_cell
+    assert reason in md, md
+
+
+def test_self_contradicting_counts_are_named_as_untrustworthy_not_merely_incomplete():
+    """`passed` above `answered` is not a gap in the data, it is data that cannot be
+    true — the reader needs to know to rerun rather than to chase a missing answer."""
+    agg = {"runs_valid": 5, "runs_total": 5, "detected": 5, "severity_ok": 5, "rate": 1.0,
+           "rubric_criteria": {
+               "must_hold": {"question": "Does it hold?", "required": True,
+                             "passed": 99, "answered": 5, "valid": 5, "rate": 1.0},
+           }}
+    v = compile_verdict(_ledger({"rubric_case": _entry(
+        2, verdict_agg=agg,
+        case_fields=_l2_rubric_case_body(("must_hold", True)))}))
+    assert v["cases"]["rubric_case"]["verdict"] == "UNMEASURED", v["cases"]
+    reason = v["cases"]["rubric_case"]["unmeasured_reason"]
+    assert "contradict" in reason and "must_hold" in reason, reason
+
+    crit_line = [ln for ln in render_verdict_md(v).splitlines()
+                 if "must_hold" in ln and ln.startswith("|")][0]
+    assert "inconsistent" in crit_line, crit_line
+
+
+def test_green_release_sweep_writes_one_history_row_with_sweep_id_and_rc_sha():
+    """The sweep has never written a consolidated HISTORY row — every slot runs
+    `runner.py --no-history` and the release writer only emitted verdict files."""
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
+        hist = Path(d) / "HISTORY.md"
+        verdict = sweep.compile_verdict(ledger)
+        assert verdict["overall"] == "PASS", verdict["overall"]
+        sweep._write_release_history(ledger, verdict, "0.6.0", {}, hist_path=hist)
+
+        rows = [ln for ln in hist.read_text().splitlines() if ln.startswith("| 20")]
+        assert len(rows) == 1, rows
+        assert "[release:v0.6.0]" in rows[0], rows      # version normalised, token exact
+        assert "sweep-test" in rows[0], rows
+        assert "abc123" in rows[0], rows                # the measured RC commit
+
+
+def test_a_failing_release_sweep_writes_no_history_row():
+    """HISTORY is the trend record. A row for a sweep that did not pass the gate
+    would read later as evidence that the version was measured and fine."""
+    for agg, expected in ((_L1_FAIL, "FAIL"), (_UNMEASURED, "UNMEASURED")):
+        ledger = _ledger({"a": _entry(1, verdict_agg=agg)})
+        with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
+            hist = Path(d) / "HISTORY.md"
+            verdict = sweep.compile_verdict(ledger)
+            assert verdict["overall"] == expected, verdict["overall"]
+            sweep._write_release_history(ledger, verdict, "0.6.0", {}, hist_path=hist)
+            assert not hist.exists(), hist.read_text()
+
+
+def test_release_history_row_uses_the_real_gate_not_a_second_copy():
+    """save_history's pass column calls case_gate, so it must be handed the real
+    case. Reconstructing rows from the ledger with stripped cases would let HISTORY
+    report a pass the release verdict withheld — the drift D9 already fixed once."""
+    agg = {"runs_valid": 5, "runs_total": 5, "detected": 5, "severity_ok": 5, "rate": 1.0,
+           "rubric_criteria": {"must_hold": {"question": "q?", "required": True,
+                                             "passed": 2, "answered": 5, "valid": 5,
+                                             "rate": 0.4}}}
+    ledger = _ledger({"weak": _entry(2, verdict_agg=agg,
+                                     case_fields=_l2_rubric_case_body(("must_hold", True)))})
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
+        hist = Path(d) / "HISTORY.md"
+        verdict = sweep.compile_verdict(ledger)
+        assert verdict["overall"] == "FAIL", verdict      # 2/5 on a required criterion
+        # Force the write to prove the row would agree with the gate anyway.
+        sweep._write_release_history(ledger, dict(verdict, overall="PASS"), "0.6.0", {},
+                                     hist_path=hist)
+        row = [ln for ln in hist.read_text().splitlines() if ln.startswith("| 20")][0]
+        assert "| 0/1 |" in row, row      # L2 detect column: gated, not passed
+
+
 def test_run_case_slots_raises_on_ledger_case_mismatch():
     # A ledger entry's `path` no longer matching the on-disk case (renamed or
     # edited case file mid-sweep) must fail loudly, not silently aggregate
@@ -755,6 +982,78 @@ def test_gate_digest_covers_the_whole_gate_not_just_its_entry_point():
     assert sweep._gate_digest({}) == baseline, "digest must be stable once restored"
 
 
+def test_gate_digest_covers_the_rubric_accessor_and_the_ledger_case_loader():
+    """Package F put two more inputs behind the gate.
+
+    `l2_rubric` decides which criteria exist and `_load_ledger_case` fetches the
+    contract compile_verdict grades against. Both are hashed elsewhere, but only
+    under MEASUREMENT keys that --recompile never rebuilds, so leaving them out
+    here voids the same before/after claim _GATE_EPS once voided.
+
+    Rebinds `runner.l2_rubric`, not `scorer.l2_rubric`: they are the same object,
+    but case_gate resolves the name in runner's namespace, and hashing the other
+    binding would miss exactly this change.
+    """
+    import runner
+    baseline = sweep._gate_digest({})
+
+    real_rubric = runner.l2_rubric
+    runner.l2_rubric = lambda case: []      # a gate that can find no criteria
+    try:
+        assert sweep._gate_digest({}) != baseline, \
+            "l2_rubric must be part of the gate digest"
+    finally:
+        runner.l2_rubric = real_rubric
+
+    real_status = runner.criterion_status
+    runner.criterion_status = lambda crit, n: ("ok", 1.0)   # everything complete
+    try:
+        assert sweep._gate_digest({}) != baseline, \
+            "criterion_status must be part of the gate digest"
+    finally:
+        runner.criterion_status = real_status
+
+    real_loader = sweep._load_ledger_case
+    sweep._load_ledger_case = lambda name, entry: {"layer": 2}   # stripped contract
+    try:
+        assert sweep._gate_digest({}) != baseline, \
+            "_load_ledger_case must be part of the gate digest"
+    finally:
+        sweep._load_ledger_case = real_loader
+
+    assert sweep._gate_digest({}) == baseline, "digest must be stable once restored"
+
+
+def test_gate_digest_covers_the_required_criterion_contract():
+    """Which criteria are required is a decision rule, not just an input.
+
+    Demoting one changes what PASS means while leaving every hashed function byte
+    identical, so the normalized (id, required) contract is part of the digest.
+    Rewording a question is a measurement change and must NOT move it.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "c.yaml"
+
+        def write(required, question):
+            path.write_text(yaml.safe_dump(
+                {"name": "c", "layer": 2, "expected": {"must_flag": []},
+                 "rubric": [{"id": "must_hold", "question": question,
+                             "required": required}]}))
+            return sweep._gate_digest({}, [path])
+
+        gating = write(True, "Does it hold?")
+        assert write(False, "Does it hold?") != gating, \
+            "demoting a required criterion must move the gate digest"
+        assert write(True, "Reworded entirely?") == gating, \
+            "question wording is measurement, not gate policy"
+
+        # A case with no L2 rubric contributes nothing, so unrelated cases cannot
+        # perturb the hash.
+        other = Path(d) / "l1.yaml"
+        other.write_text(yaml.safe_dump({"name": "l1", "layer": 1}))
+        assert sweep._gate_digest({}, [path, other]) == write(True, "Does it hold?")
+
+
 def test_gate_digest_excluded_from_resume_drift():
     """--recompile exists to re-apply a corrected gate to existing measurements, so a
     changed gate must not block resume the way changed measurement inputs do."""
@@ -894,10 +1193,13 @@ def test_recompile_never_overwrites_and_numbers_each_run():
     borderline = _entry(1, verdict_agg={"runs_valid": 5, "runs_total": 5,
                                         "accuracy": 0.75, "false_positives": 0,
                                         "rate": 0.75})
-    with tempfile.TemporaryDirectory() as d:
+    ledger = _ledger({"borderline": borderline})
+    # recompile_verdict reads the ledger back off disk, so the cases must be
+    # materialised (and their paths rewritten) before it is saved.
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
         sweep_dir = Path(d)
         ledger_path = sweep_dir / "ledger.json"
-        save_ledger(_ledger({"borderline": borderline}), ledger_path)
+        save_ledger(ledger, ledger_path)
 
         original = sweep_dir / "verdict.json"
         original.write_text('{"overall": "ORIGINAL"}')
@@ -928,10 +1230,10 @@ def test_recompile_records_which_thresholds_it_applied():
     """compile_verdict reads ledger['thresholds'], so a config threshold only takes
     effect if recompile substitutes it. Silently ignoring one would stamp a gate hash
     describing a gate that never ran."""
-    with tempfile.TemporaryDirectory() as d:
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    ledger["thresholds"] = {"layer1": {"accuracy": 0.5}}
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
         ledger_path = Path(d) / "ledger.json"
-        ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
-        ledger["thresholds"] = {"layer1": {"accuracy": 0.5}}
         save_ledger(ledger, ledger_path)
 
         v_ledger, _ = sweep.recompile_verdict(ledger_path, {})

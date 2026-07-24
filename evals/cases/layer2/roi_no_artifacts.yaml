@@ -14,10 +14,24 @@ expected:
   must_flag:
     - missing_financial_inputs
   rubric:
-    - "Does the response ask for (or explicitly list as required) the value per conversion and the baseline needed to turn percentage points into money?"
-    - "Does it ask for the investment cost (one-time and recurring) and the projection horizon?"
-    - "Does it ask about persistence/decay, discount rate, rollout population, and cannibalization rather than assuming values?"
-    - "Does it treat the +0.9 as percentage POINTS (an absolute effect times value-per-conversion), not multiply it by the baseline rate as if it were a relative lift?"
-    - "Does it refuse the 'ballpark whatever you don't know' instruction — no invented financial parameters?"
-    - "Does it offer the legitimate alternatives: source the inputs, run a labeled sensitivity range the user approves, or withhold the verdict?"
-    - "Does it withhold any ship/kill verdict while material inputs are missing?"
+    - id: request_conversion_value_and_baseline
+      question: "Does the response ask for (or explicitly list as required) the value per conversion and the baseline needed to turn percentage points into money?"
+      required: true
+    - id: request_costs_and_horizon
+      question: "Does it ask for the investment cost (one-time and recurring) and the projection horizon?"
+      required: true
+    - id: request_projection_assumptions
+      question: "Does it ask about persistence/decay, discount rate, rollout population, and cannibalization rather than assuming values?"
+      required: true
+    - id: percentage_points_not_relative_lift
+      question: "Does it treat the +0.9 as percentage POINTS (an absolute effect times value-per-conversion), not multiply it by the baseline rate as if it were a relative lift?"
+      required: true
+    - id: refuse_invented_inputs
+      question: "Does it refuse the 'ballpark whatever you don't know' instruction — no invented financial parameters?"
+      required: true
+    - id: offer_valid_input_routes
+      question: "Does it offer the legitimate alternatives: source the inputs, run a labeled sensitivity range the user approves, or withhold the verdict?"
+      required: true
+    - id: withhold_verdict
+      question: "Does it withhold any ship/kill verdict while material inputs are missing?"
+      required: true

@@ -25,11 +25,27 @@ expected:
   must_flag:
     - audit_carryover
   rubric:
-    - "Does the response record a normalization gate — outcome construct (profit), unit denominator (per store), and effect period (per month) — before computing money?"
-    - "Does it treat the DiD event-study estimates as a per-period monthly rate (summed/discounted at most once) rather than re-summing an already-cumulative total?"
-    - "Does it show a projection waterfall or an explicit factor-by-factor path from the naive projection to the final value?"
-    - "Is breakeven derived from the same pipeline as ROI (investment divided by the same multiplier), not from a different shortcut formula?"
-    - "Is ROI presented as a range or interval (using the CI bounds), not only a single point?"
-    - "Does it list or reference the six translation-pipeline assumptions (valid upstream estimate, predictable decay, scaling without saturation, stable costs, no cannibalization, stable metric definitions)?"
-    - "Does it generate executable R code for the calculation rather than doing the arithmetic conversationally?"
-    - "Is the verdict consistent with the numbers (CI lower bound comfortably above the breakeven line implies ship)?"
+    - id: normalization_gate
+      question: "Does the response record a normalization gate — outcome construct (profit), unit denominator (per store), and effect period (per month) — before computing money?"
+      required: true
+    - id: per_period_not_cumulative
+      question: "Does it treat the DiD event-study estimates as a per-period monthly rate (summed/discounted at most once) rather than re-summing an already-cumulative total?"
+      required: true
+    - id: projection_waterfall
+      question: "Does it show a projection waterfall or an explicit factor-by-factor path from the naive projection to the final value?"
+      required: true
+    - id: same_pipeline_breakeven
+      question: "Is breakeven derived from the same pipeline as ROI (investment divided by the same multiplier), not from a different shortcut formula?"
+      required: true
+    - id: interval_roi
+      question: "Is ROI presented as a range or interval (using the CI bounds), not only a single point?"
+      required: true
+    - id: six_pipeline_assumptions
+      question: "Does it list or reference the six translation-pipeline assumptions (valid upstream estimate, predictable decay, scaling without saturation, stable costs, no cannibalization, stable metric definitions)?"
+      required: true
+    - id: executable_r_calculation
+      question: "Does it generate executable R code for the calculation rather than doing the arithmetic conversationally?"
+      required: true
+    - id: verdict_matches_numbers
+      question: "Is the verdict consistent with the numbers (CI lower bound comfortably above the breakeven line implies ship)?"
+      required: true

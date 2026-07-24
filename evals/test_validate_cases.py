@@ -6,6 +6,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from validate_cases import validate_case, validate_tree, warn_case  # noqa: E402
 
@@ -591,6 +593,220 @@ def test_d3_interview_guards_are_exactly_four_first_turn_skill_specific_cases():
             assert q not in seen_questions, (
                 f"{name} shares a rubric line with {seen_questions.get(q)}: {q!r}")
             seen_questions[q] = name
+
+
+# --- Package F: L2 rubric entries are objects, and only at layer 2 ---
+
+L2_HEAD = """
+name: {name}
+description: fine
+layer: 2
+skill: causal-dag
+user_message: hello
+expected:
+  must_flag: []
+"""
+
+
+def _l2(body: str, name: str = "good_l2") -> str:
+    return L2_HEAD.format(name=name) + body
+
+
+L2_GOOD = _l2("""
+rubric:
+  - id: first_criterion
+    question: "Q1?"
+    required: true
+  - id: second_criterion
+    question: "Q2?"
+    required: false
+""")
+
+
+def _errs(text, name="good_l2.yaml"):
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer2", name, text)
+        return validate_case(p)
+
+
+def test_l2_object_rubric_passes():
+    assert _errs(L2_GOOD) == [], _errs(L2_GOOD)
+
+
+def test_l2_string_rubric_is_rejected():
+    # The pre-F shape. Accepting it silently would leave the criterion unmeasurable:
+    # no id means no per-question answer, and the gate can never see it.
+    errs = _errs(_l2('rubric:\n  - "Q1?"\n'))
+    assert any("mapping" in e for e in errs), errs
+
+
+def test_l2_duplicate_ids_rejected():
+    errs = _errs(_l2("""
+rubric:
+  - id: same_id
+    question: "Q1?"
+    required: true
+  - id: same_id
+    question: "Q2?"
+    required: true
+"""))
+    assert any("duplicate" in e for e in errs), errs
+
+
+def test_l2_non_snake_case_id_rejected():
+    for bad in ("CamelCase", "has spaces", "9leading_digit", "trailing_"):
+        errs = _errs(_l2(f"""
+rubric:
+  - id: "{bad}"
+    question: "Q1?"
+    required: true
+"""))
+        assert any("snake_case" in e for e in errs), (bad, errs)
+
+
+def test_l2_empty_question_rejected():
+    errs = _errs(_l2("""
+rubric:
+  - id: ok_id
+    question: "   "
+    required: true
+"""))
+    assert any("question" in e for e in errs), errs
+
+
+def test_l2_non_boolean_required_rejected():
+    # "yes" and 1 are both truthy — a case meaning "required" would silently get a
+    # non-bool that later compares unequal to True.
+    for bad in ('"yes"', "1"):
+        errs = _errs(_l2(f"""
+rubric:
+  - id: ok_id
+    question: "Q1?"
+    required: {bad}
+"""))
+        assert any("required" in e for e in errs), (bad, errs)
+
+
+def test_l2_missing_and_unknown_fields_rejected():
+    missing = _errs(_l2("""
+rubric:
+  - id: ok_id
+    question: "Q1?"
+"""))
+    assert any("required" in e for e in missing), missing
+
+    unknown = _errs(_l2("""
+rubric:
+  - id: ok_id
+    question: "Q1?"
+    required: true
+    weight: 2
+"""))
+    assert any("unknown" in e for e in unknown), unknown
+
+
+def test_l2_rubric_declared_in_both_locations_rejected():
+    # Both locations are individually legal and both are in use (5 cases top-level,
+    # 3 under expected). Declaring both is not: scorer.py takes expected.rubric and
+    # silently drops the other list.
+    errs = _errs("""
+name: dual_l2
+description: fine
+layer: 2
+skill: causal-dag
+user_message: hello
+expected:
+  must_flag: []
+  rubric:
+    - id: under_expected
+      question: "Q1?"
+      required: true
+rubric:
+  - id: top_level
+    question: "Q2?"
+    required: true
+""", name="dual_l2.yaml")
+    assert any("both" in e for e in errs), errs
+
+
+def test_object_rubric_requirement_is_layer2_only():
+    """L1/L4/L5 rubrics are different shapes and must keep validating.
+
+    L1 and L5 use flat string lists, L4 a dict of dimension -> string list. A
+    generic "rubric entries must be objects" check would break 60+ cases.
+    """
+    l1 = """
+name: good_l1
+description: fine
+layer: 1
+skill: causal-did
+user_message: hello
+expected:
+  rubric:
+    - "Is DiD the right method?"
+"""
+    with tempfile.TemporaryDirectory() as t:
+        assert validate_case(_write(t, "layer1", "good_l1.yaml", l1)) == []
+        assert validate_case(_write(t, "layer4", "good_l4.yaml", L4_GOOD)) == []
+        assert validate_case(_write(t, "layer5", "good_l5.yaml", L5_GOOD)) == []
+
+
+#: The approved L2 gate policy: every criterion each case declares, by exact id.
+#: Counts alone would let a rename through, and a required-only list would let an
+#: extra informational criterion in — which cannot weaken the gate directly but does
+#: add a question to the judge prompt, moving the model's answers to the ones that do.
+#: This is the committed copy of the list; `tasks/todo.md` is gitignored.
+APPROVED_L2_CRITERIA = {
+    "dag_clean_confounder": ["backdoor_parental_path", "identifiable_design",
+                             "minimal_parental_adjustment_set"],
+    "dag_frontdoor": ["complete_mediation_no_affinity_to_visits",
+                      "frontdoor_identification", "no_observed_backdoor_set"],
+    "report_full_artifacts": ["all_nine_sections", "artifact_specific_details",
+                              "hybrid_mode_tone", "no_fabricated_estimates"],
+    "report_no_artifacts": ["interview_required_details", "no_fabricated_estimates"],
+    "report_partial_artifacts": ["identify_missing_plan_and_audit",
+                                 "produce_caveated_partial_report",
+                                 "recommend_planner_and_auditor"],
+    "roi_full_artifacts": ["executable_r_calculation", "interval_roi",
+                           "normalization_gate", "per_period_not_cumulative",
+                           "projection_waterfall", "same_pipeline_breakeven",
+                           "six_pipeline_assumptions", "verdict_matches_numbers"],
+    "roi_late_scaling": ["apply_complier_share", "exposure_not_compliance",
+                         "normalize_time_and_margin",
+                         "reject_full_population_scaling"],
+    "roi_no_artifacts": ["offer_valid_input_routes",
+                         "percentage_points_not_relative_lift",
+                         "refuse_invented_inputs",
+                         "request_conversion_value_and_baseline",
+                         "request_costs_and_horizon", "request_projection_assumptions",
+                         "withhold_verdict"],
+}
+
+
+def test_shipped_l2_cases_declare_the_34_required_criteria():
+    """The release gate is only as real as the cases behind it.
+
+    Asserts the exact id list per case and that every entry gates, so a rename, a
+    demotion to informational, a deletion or a quiet addition all fail loudly rather
+    than reshaping the gate in silence.
+    """
+    root = Path(__file__).resolve().parent / "cases" / "layer2"
+    total = 0
+    for name, ids in APPROVED_L2_CRITERIA.items():
+        case = yaml.safe_load((root / f"{name}.yaml").read_text())
+        rubric = (case.get("expected") or {}).get("rubric") or case.get("rubric") or []
+        assert all(isinstance(r, dict) for r in rubric), name
+        assert sorted(r.get("id") for r in rubric) == sorted(ids), name
+        demoted = [r.get("id") for r in rubric if r.get("required") is not True]
+        assert not demoted, (name, "not required", demoted)
+        total += len(rubric)
+    assert total == 34, total
+
+    # No ninth case grew a rubric without being added to the approved list above.
+    declared = {p.stem for p in root.glob("*.yaml")
+                if ((yaml.safe_load(p.read_text()) or {}).get("expected") or {}).get("rubric")
+                or (yaml.safe_load(p.read_text()) or {}).get("rubric")}
+    assert declared == set(APPROVED_L2_CRITERIA), declared ^ set(APPROVED_L2_CRITERIA)
 
 
 def _run_all():

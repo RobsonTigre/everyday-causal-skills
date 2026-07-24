@@ -18,7 +18,15 @@ expected:
     - late_extrapolation
   severity: fatal
   rubric:
-    - "Does the response apply the complier share (31%) when scaling the LATE, or insist it must be applied?"
-    - "Does it explain that 'the feature is on for everyone' (product exposure) is not the same as the complier share?"
-    - "Does it refuse to compute or endorse the user's full-population multiplication as proposed?"
-    - "Does it also convert the 60-day revenue effect to the decision time base and apply the margin before any ROI arithmetic?"
+    - id: apply_complier_share
+      question: "Does the response apply the complier share (31%) when scaling the LATE, or insist it must be applied?"
+      required: true
+    - id: exposure_not_compliance
+      question: "Does it explain that 'the feature is on for everyone' (product exposure) is not the same as the complier share?"
+      required: true
+    - id: reject_full_population_scaling
+      question: "Does it refuse to compute or endorse the user's full-population multiplication as proposed?"
+      required: true
+    - id: normalize_time_and_margin
+      question: "Does it also convert the 60-day revenue effect to the decision time base and apply the margin before any ROI arithmetic?"
+      required: true

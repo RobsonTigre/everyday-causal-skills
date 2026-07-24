@@ -18,6 +18,12 @@ user_message: |
 expected:
   must_flag: [no_backdoor_adjustment]
 rubric:
-  - "Does it recognise that no valid backdoor adjustment set exists, because brand affinity is unobserved?"
-  - "Does it identify the front-door criterion as the way to identify the effect here?"
-  - "Does it explain that website visits mediate the whole effect of ad exposure and are unaffected by brand affinity?"
+  - id: no_observed_backdoor_set
+    question: "Does it recognise that no valid backdoor adjustment set exists, because brand affinity is unobserved?"
+    required: true
+  - id: frontdoor_identification
+    question: "Does it identify the front-door criterion as the way to identify the effect here?"
+    required: true
+  - id: complete_mediation_no_affinity_to_visits
+    question: "Does it explain that website visits mediate the whole effect of ad exposure and are unaffected by brand affinity?"
+    required: true

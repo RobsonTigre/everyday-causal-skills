@@ -20,6 +20,12 @@ expected:
     - missing_plan
     - missing_audit
 rubric:
-  - "Does the report skill identify that plan.md and audit.md are missing?"
-  - "Does it recommend /causal-planner and /causal-auditor by name to fill those gaps?"
-  - "Does it still produce a report from what's available, with caveats about missing sections?"
+  - id: identify_missing_plan_and_audit
+    question: "Does the report skill identify that plan.md and audit.md are missing?"
+    required: true
+  - id: recommend_planner_and_auditor
+    question: "Does it recommend /causal-planner and /causal-auditor by name to fill those gaps?"
+    required: true
+  - id: produce_caveated_partial_report
+    question: "Does it still produce a report from what's available, with caveats about missing sections?"
+    required: true

@@ -39,8 +39,28 @@ All notable changes to this plugin are documented here. The format is based on
   versions, and the actual execution interpreter. Release verdict mode now
   rejects dirty or untracked measurement inputs and records measurement and
   gate digests separately.
+- **Per-criterion L2 rubric gate.** L2 rubric entries are now
+  `{id, question, required}` objects, the judge returns one answer per criterion
+  instead of a single collapsed mean, and 34 criteria across eight cases are
+  gated individually at ≥4/5 valid runs (`layer2.rubric_required_rate`).
+  Detection, severity and every required criterion must pass independently. The
+  verdict reports each criterion's rate and whether it gated.
+- A green release sweep now writes one consolidated `HISTORY.md` row, keyed by an
+  exact `[release:vX.Y.Z]` token: re-running a sweep for the same unpublished
+  version replaces that row instead of appending a second one. Failed or
+  unmeasured sweeps write no row.
 
 ### Changed
+
+- `case_gate()` takes the whole case rather than a layer number, so every caller
+  gates on the contract the case actually declares. Two consumers (the release
+  verdict and the HISTORY pass column) previously derived verdicts from the
+  aggregate alone, which is how a gate fix could apply to one and not the other.
+- Rubric results that are incomplete are reported as UNMEASURED, never scored
+  over the subset of runs that answered: a required criterion answered in four of
+  five valid runs reads as a measurement gap, not as 4/4. Ledgers written before
+  this gate existed are UNMEASURED for the same reason, with the verdict saying
+  which of the two it was.
 
 - `/causal-report` now consumes `roi.md`/`roi-results.csv` for monetary
   figures. It quotes money numbers from the ROI artifact or explicit user

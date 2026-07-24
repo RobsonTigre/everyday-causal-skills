@@ -237,34 +237,69 @@ def test_l2_no_rubric_is_unchanged():
     assert out["violation_detected"] is True
 
 
+def _rubric(*pairs):
+    """Package F object-form rubric: [{id, question, required}, ...]."""
+    return [{"id": i, "question": q, "required": r} for i, q, r in pairs]
+
+
 def test_l2_rubric_appended_after_flags_and_severity():
     exp = {"must_flag": ["overlap"], "severity": "fatal"}
-    rubric = ["Q1?", "Q2?"]
+    rubric = _rubric(("first_q", "Q1?", True), ("second_q", "Q2?", True))
     out, seen = _with_fake_judge([True, True, True, False],
                                  lambda: _judge_l2("resp", exp, rubric=rubric))
     assert seen["num_questions"] == 4, seen
     assert out["violation_detected"] is True   # index 0 still the flag answer
     assert out["rubric_coverage"] == 0.5, out  # 1 of 2 rubric questions passed
+    # The point of Package F: which criterion passed, not just how many.
+    assert out["rubric_answers"] == {"first_q": True, "second_q": False}, out
 
 
 def test_l2_clean_case_with_rubric():
     exp = {}  # no must_flag -> clean branch (question 0 = false-alarm check)
-    rubric = ["Q1?", "Q2?", "Q3?"]
+    rubric = _rubric(("q_one", "Q1?", True), ("q_two", "Q2?", True),
+                     ("q_three", "Q3?", False))
     out, seen = _with_fake_judge([False, True, True, False],
                                  lambda: _judge_l2("resp", exp, rubric=rubric))
     assert seen["num_questions"] == 4, seen
     assert out["violation_detected"] is True   # no false alarm
     assert abs(out["rubric_coverage"] - 2 / 3) < 1e-9, out
+    # The clean branch is exactly where 11 shipped rubric questions were computed
+    # and then dropped before any gate could see them.
+    assert out["rubric_answers"] == {"q_one": True, "q_two": True, "q_three": False}, out
+
+
+def test_l2_rubric_question_text_reaches_the_judge():
+    exp = {"must_flag": ["overlap"]}
+    rubric = _rubric(("only_q", "Is the tone right?", True))
+    _, seen = _with_fake_judge([True, True],
+                               lambda: _judge_l2("resp", exp, rubric=rubric))
+    assert "Is the tone right?" in seen["prompt"], seen["prompt"]
+    assert "only_q" not in seen["prompt"], "ids are keys, not judge-facing text"
 
 
 def test_l2_case_level_rubric_revived_via_score_response():
     # report_* cases carry rubric at the top level of the case, not under expected.
     case = {"layer": 2, "name": "t", "expected": {},
-            "rubric": ["Does it include all sections?"]}
+            "rubric": _rubric(("all_sections", "Does it include all sections?", True))}
     out, seen = _with_fake_judge([False, True],
                                  lambda: score_response(case, "resp"))
     assert seen["num_questions"] == 2, seen
     assert out["rubric_coverage"] == 1.0, out
+    assert out["rubric_answers"] == {"all_sections": True}, out
+
+
+def test_l2_legacy_string_rubric_scores_coverage_but_yields_no_ids():
+    """The validator rejects string rubrics at L2, so this cannot reach a real sweep.
+
+    If one ever did, the right failure is a missing answer — which the gate turns
+    into UNMEASURED — not an exception thrown after the model calls are already
+    spent, and not a silent pass.
+    """
+    exp = {"must_flag": ["overlap"]}
+    out, _ = _with_fake_judge([True, True],
+                              lambda: _judge_l2("resp", exp, rubric=["Q1?"]))
+    assert out["rubric_coverage"] == 1.0, out
+    assert out["rubric_answers"] == {}, out
 
 
 # --- "Nothing executed" must be distinguishable from "code ran and crashed" ---

@@ -71,6 +71,7 @@ thresholds:
   layer2:
     detection_rate: 0.8
     severity_accuracy: 0.7
+    rubric_required_rate: 0.8     # each required criterion, ≥4/5 runs — not an average
   layer3:
     runs_without_error: 0.9
     estimation_accuracy: 0.8
