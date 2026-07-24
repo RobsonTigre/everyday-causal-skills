@@ -95,6 +95,13 @@ Work through the interview in this exact order (later answers depend on
 earlier ones). Apply the normalization rules and validation ranges from
 `references/roi-framework.md` §1–§3 and §7.
 
+When no artifacts supply these values, surface **every** item below as an explicit ask —
+including cannibalization/SUTVA (item 10). Do not silently drop a required input because you
+judge it negligible: if you suspect cannibalization is small, still ask, and if it stays
+unknown, put it in a user-approved labeled range or withhold the verdict — **never infer
+zero from silence.** Assuming a parameter is zero because no one mentioned it is inventing
+it, which §7 forbids. A skipped input reads as an assumed one.
+
 1. **Currency + units** — currency symbol (default from artifacts, confirmed
    once, used verbatim, never converted); time base of the estimate. Mixed
    currencies → FATAL block.

@@ -15,6 +15,9 @@ user_message: |
   at docs/causal-plans/2026-03-15-loyalty-program/ has plan.md, dag.md,
   implementation.md, analysis.py, and audit.md. Please write a hybrid-mode
   report. That's everything I have — please go ahead and run the full analysis.
+  Use Python for any figures, and write out all nine sections in full in this
+  one reply — I won't be able to answer follow-up questions, so don't ask me
+  anything first; just produce the complete report now.
 rubric:
   - id: all_nine_sections
     question: "Does the report include all 9 sections?"

@@ -809,6 +809,64 @@ def test_shipped_l2_cases_declare_the_34_required_criteria():
     assert declared == set(APPROVED_L2_CRITERIA), declared ^ set(APPROVED_L2_CRITERIA)
 
 
+# --- Package F calibration-repair contracts (2026-07-24) ---
+# Structural pins for the repairs that closed the 4 calibration FAILs. These assert the
+# prompts and safety rule are PRESENT, not that a model obeys them — only recalibration
+# proves behaviour. Their job is to stop a future edit from silently reverting a fix.
+
+_L2_ROOT = Path(__file__).resolve().parent / "cases" / "layer2"
+_SKILLS = Path(__file__).resolve().parents[1] / "skills"
+
+
+def _norm(s: str) -> str:
+    """Collapse whitespace so a pin survives line wrapping — YAML `|` block scalars and
+    markdown both keep hard line breaks, so a phrase can straddle two lines verbatim."""
+    return " ".join(s.split())
+
+
+def _case_msg(name: str) -> str:
+    return _norm(yaml.safe_load((_L2_ROOT / f"{name}.yaml").read_text())["user_message"])
+
+
+def _skill_text(name: str) -> str:
+    return _norm((_SKILLS / name / "SKILL.md").read_text())
+
+
+def test_report_cases_pin_single_turn_python_directive():
+    """The report contract fix: both cases must ask for the whole report in one reply
+    (the skill is multi-turn by default) and pre-answer figures as Python (the
+    loyalty-program fixture ships analysis.py)."""
+    for name in ("report_full_artifacts", "report_partial_artifacts"):
+        msg = _case_msg(name)
+        assert "in this one reply" in msg, name
+        assert "don't ask me anything first" in msg, name
+        assert "Use Python for any figures" in msg, name
+
+
+def test_roi_late_scaling_pins_cost_and_time_inputs():
+    """The normalize_time_and_margin fix: the prompt must confirm the margin is
+    after-cost and give an unambiguous integer period count, or the skill correctly
+    withholds and the criterion stays unreachable."""
+    msg = _case_msg("roi_late_scaling")
+    assert "contribution margin after all variable costs" in msg
+    assert "six non-overlapping 60-day periods" in msg
+    assert "no decay" in msg
+
+
+def test_roi_skill_never_defaults_cannibalization_to_zero():
+    """The cannibalization intake fix must not violate the no-invented-parameters policy:
+    a missing value is asked for, ranged, or withheld — never assumed zero on silence."""
+    text = _skill_text("causal-roi")
+    assert "assume no cannibalization unless" not in text.lower(), \
+        "reintroduced the silence-authorizes-zero escape hatch §7 forbids"
+    assert "never infer zero from silence" in text
+
+
+def test_report_skill_names_every_gap_skill():
+    """The /causal-planner fix: a gap judged non-blocking must still name its fill-skill."""
+    assert "including ones you judge non-blocking" in _skill_text("causal-report")
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

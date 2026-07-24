@@ -9,7 +9,10 @@ references:
 user_message: |
   We ran the daily-email encouragement experiment: IV/2SLS, LATE = R$13.60
   revenue per COMPLIER over 60 days (95% CI [8.20, 19.00]), first-stage
-  compliance share 31%, margin on this revenue is 45%. We have 2 million
+  compliance share 31%, margin on this revenue is 45% — finance confirms that
+  45% is contribution margin after all variable costs. For planning, assume the
+  per-complier revenue effect repeats over exactly six non-overlapping 60-day
+  periods in the 12-month planning year, with no decay. We have 2 million
   customers. My plan: multiply R$13.60 by all 2 million customers and 12 months
   to get the annual value — the feature will be on for everyone, so everyone
   counts, right? Investment is R$1.5M one-time. Tell me the ROI.
