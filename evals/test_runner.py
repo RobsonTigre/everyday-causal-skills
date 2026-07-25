@@ -848,6 +848,16 @@ def test_l2_partial_answers_never_shrink_the_denominator():
     assert case_gate(case, agg) == "UNMEASURED", agg
 
 
+def test_layer2_rubric_required_rate_pinned_at_080():
+    """Package F: the per-criterion L2 gate rate stays 0.8 in both the release config and the
+    committed default. The roi_late_scaling repair rewords a criterion but must not touch this
+    threshold; a future edit that lowers it (or drops the key) breaks here."""
+    import yaml  # local import: test_runner is otherwise dependency-free
+    cfg = yaml.safe_load((Path(__file__).resolve().parent / "config.release.yaml").read_text())
+    assert cfg["thresholds"]["layer2"]["rubric_required_rate"] == 0.8
+    assert DEFAULT_THRESHOLDS["layer2"]["rubric_required_rate"] == 0.8
+
+
 def test_l2_informational_criterion_never_gates():
     case = _rubric_case(("must_hold", True), ("fyi", False))
     # Required perfect, informational 1/5 -> still PASS.

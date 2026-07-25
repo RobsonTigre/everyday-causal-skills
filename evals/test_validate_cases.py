@@ -867,6 +867,70 @@ def test_report_skill_names_every_gap_skill():
     assert "including ones you judge non-blocking" in _skill_text("causal-report")
 
 
+def _framework_text() -> str:
+    return _norm((Path(__file__).resolve().parents[1] / "references" / "roi-framework.md").read_text())
+
+
+def _roi_late_scaling_rubric():
+    case = yaml.safe_load((_L2_ROOT / "roi_late_scaling.yaml").read_text())
+    return case["expected"]["rubric"]
+
+
+def test_roi_late_scaling_criterion_pins_corrected_normalization_contract():
+    """The normalize_time_and_margin fix: the criterion must ask for the framework's real gate
+    (keep the 60-day base, apply the margin, express the horizon as six 60-day periods) and must
+    NOT ask the model to annualize the base-period effect ('decision time base'), which the
+    canonical pipeline does not do. ID and required flag stay put."""
+    crit = next(c for c in _roi_late_scaling_rubric() if c["id"] == "normalize_time_and_margin")
+    assert crit["required"] is True
+    q = _norm(crit["question"])
+    for phrase in ("60 days as the base period", "45% contribution margin",
+                   "six 60-day periods", "before any ROI calculation"):
+        assert phrase in q, phrase
+    assert "decision time base" not in q, "old annualization wording must be gone"
+
+
+def test_roi_gate_emitted_before_projection_in_skill_and_framework():
+    """The gate-deferral fix, pinned in BOTH the skill and the canonical framework: the
+    normalization gate is emitted from its own inputs before the projection inputs, keeps the
+    base period as measured, expresses the horizon as a count of base periods, and computes
+    ΔProfit₀ from the §2 recipe for the construct (not a hardcoded universal × margin)."""
+    skill, fw = _skill_text("causal-roi"), _framework_text()
+    for text in (skill, fw):
+        assert "base period kept as measured" in text
+        assert ("never annualized" in text) or ("not annualized" in text)
+        assert "as a count of base periods" in text
+    assert "§2 recipe for the construct" in skill
+    assert "before any projection question" in skill
+    assert "before the projection inputs" in fw
+    # Round 2: T comes from the collected horizon convention, not a calendar mapping, and the
+    # horizon is no longer re-collected in Stage 2b.
+    assert "Horizon convention" in skill
+    assert "do not assume 12 months is automatically six 60-day periods" in skill
+    assert "Horizon + discount rate" not in skill
+    assert "not a calendar mapping" in fw
+
+
+def test_roi_carveout_bounds_by_hand_math_to_gate_result():
+    """The self-contradiction fix, pinned in BOTH files: the gate's own §2 result may be shown
+    without an executed script, but complier/population scaling, time aggregation, and the
+    downstream pipeline stay script-only."""
+    skill, fw = _skill_text("causal-roi"), _framework_text()
+    assert "No conversational arithmetic beyond the normalization gate" in skill
+    assert "even when no execution or file-write tool is available" in skill
+    assert "never claim a script ran" in skill
+    for still_forbidden in ("complier/population scaling", "time aggregation across periods",
+                            "the waterfall, PV, ROI, breakeven, and verdict"):
+        assert still_forbidden in skill, still_forbidden
+    assert "only from the Stage 3 executed script" in skill
+    assert "may be shown without an executed script" in fw
+    assert "no projection, ROI, breakeven, or verdict proceeds until" in fw
+    # Round 2: the residual arithmetic contradiction is gone — only downstream numbers are
+    # script-gated, and the final roi.md re-computes the gate's ΔProfit₀ via the Stage 3 script.
+    assert "If the script didn't compute a downstream number" in skill
+    assert "including the gate's ΔProfit₀" in skill
+
+
 def _run_all():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

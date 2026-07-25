@@ -65,11 +65,17 @@ one the estimate is.
 netted inside the causal outcome? Which remain to subtract here? Every cost
 must appear in exactly one place (§3).
 
-**Normalization gate record** (written to `roi.md`): outcome construct, effect
-scale (points vs percent), unit denominator, effect period, conversions applied
-with sources, cost-inclusion audit result, resulting ΔProfit₀ (value + units).
-No calculation proceeds until the record is complete or each gap is explicitly
-labeled `unknown`.
+**Normalization gate record** — recorded as soon as its own inputs (construct,
+effect scale, denominator, base period, unit economics, horizon convention) are
+known, before the projection inputs; written to `roi.md` when file-writing is
+available, otherwise shown in the reply: outcome construct, effect scale (points
+vs percent), unit denominator, **base period kept as measured — not annualized
+here**, conversions applied with sources, cost-inclusion audit result, the
+**projection horizon T as a count of base periods** (from the user's stated
+horizon convention, not a calendar mapping), and the resulting ΔProfit₀ (value +
+units) from the recipe above. The gate's single normalization result may be shown without an
+executed script; no projection, ROI, breakeven, or verdict proceeds until the
+remaining inputs are sourced or each gap is explicitly labeled `unknown`.
 
 ---
 

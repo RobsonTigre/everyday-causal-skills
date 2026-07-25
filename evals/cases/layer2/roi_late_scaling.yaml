@@ -31,5 +31,5 @@ expected:
       question: "Does it refuse to compute or endorse the user's full-population multiplication as proposed?"
       required: true
     - id: normalize_time_and_margin
-      question: "Does it also convert the 60-day revenue effect to the decision time base and apply the margin before any ROI arithmetic?"
+      question: "Does the response establish the normalization gate by keeping 60 days as the base period, explicitly applying the 45% contribution margin to the per-complier revenue effect, and representing the 12-month horizon as six 60-day periods before any ROI calculation?"
       required: true
