@@ -891,6 +891,59 @@ def test_roi_late_scaling_criterion_pins_corrected_normalization_contract():
     assert "decision time base" not in q, "old annualization wording must be gone"
 
 
+# --- causal-roi three-mode execution-gate repair (2026-07-26) ---
+# Structural guards for the fallback-contract fix that closed the roi_full_artifacts
+# manual-calculation leak and the roi_no_artifacts deferred-interview leak. They pin the
+# instructions PRESENT (or, for the retired escape hatch, ABSENT) — behaviour is proven by
+# the later calibration, not here.
+
+def test_roi_skill_pins_three_mode_execution_contract():
+    """causal-roi must carry the three-mode response contract: Mode A (inputs missing) asks
+    every 2a/2b input now and wins on any gap; Mode B (no execution) emits the gate + script
+    then stops with no downstream value outside the code block; Mode C requires real execution
+    or user-supplied raw output. The evasion labels that leaked must be named as non-authorizing."""
+    text = _skill_text("causal-roi")
+    assert "pick exactly one mode by execution state" in text
+    assert "Mode A takes precedence" in text
+    assert "a deferred ask is a missing ask" in text
+    # Mode B may attempt/repair execution (no contradiction) but must not report
+    # downstream results or enter Stage 4 until successful output is inspected.
+    assert "attempt Stage 3 normally" in text
+    assert "do not report Stage 3 downstream results or enter Stage 4" in text
+    assert "state no downstream number" in text
+    assert "No label rescues a hand-computed number" in text
+    for evasion in ("hand-traced", "manually assembled", "closed-form",
+                    "simple arithmetic", "draft", "high-confidence",
+                    "unverified", "please run to confirm"):
+        assert evasion in text, evasion
+    # Mode B is keyed on the OUTCOME (no inspected output), not tool availability;
+    # partial/failed output stays in Mode B and never authorizes Stage 4.
+    assert "successful execution output has not been obtained and inspected" in text
+    assert "partial or failed output never authorizes Stage 4" in text
+    # Mode C: real execution or user-supplied raw output only; a failed/partial/
+    # claimed execution is not evidence.
+    assert "execution completed and output seen" in text
+    assert "the user supplied the actual raw output from that same script" in text
+    assert "A claimed, failed, or partial execution" in text
+
+
+def test_roi_skill_common_issues_scoped_to_execution():
+    """The conflicting-instruction fix: the old unscoped 'show both numbers' escape hatch must
+    be gone, replaced by an execution-scoped rule (both numbers only after the script runs)."""
+    text = _skill_text("causal-roi")
+    assert "If the user pushes for it, show both numbers" not in text, \
+        "reintroduced the unscoped show-both-numbers instruction that licensed hand-computing"
+    assert "Once the script has run (Mode C), show both" in text
+
+
+def test_roi_framework_pins_execution_boundary():
+    """The framework must mirror the skill's execution gate: every section-5 downstream value
+    comes only from an executed script whose output has been seen."""
+    text = _framework_text()
+    assert "Execution boundary." in text
+    assert "only from an executed script whose output has been seen" in text
+
+
 def test_roi_gate_emitted_before_projection_in_skill_and_framework():
     """The gate-deferral fix, pinned in BOTH the skill and the canonical framework: the
     normalization gate is emitted from its own inputs before the projection inputs, keeps the

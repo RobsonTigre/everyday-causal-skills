@@ -181,6 +181,20 @@ Valid only under the conditions in §8.
 - Time bases inconsistent (effect period ≠ pipeline period ≠ recurring-cost
   period) and not convertible → FATAL input error.
 
+**Execution boundary.** Everything in this section — the waterfall, `M`,
+`EFFECTIVE_PERIODS`, `PV_INCREMENTAL_PROFIT`, `PV_INVESTMENT`, `NET_PROFIT`,
+`ROI` and its interval, `BREAKEVEN_EFFECT`, the sensitivity grid, and the §6
+verdict — is produced **only from an executed script whose output has been seen**
+(the skill's Mode C). Until successful execution output has been obtained and
+inspected — whether because no execution tool is available, a dependency awaits
+install approval, or the run errors, is denied permission, times out, or returns
+partial/unparsable output (all Mode B) — produce the §2 normalization gate
+(ΔProfit₀) and the complete runnable script, then stop: none of the downstream
+values above are stated outside the script. Attempt execution when available, but
+partial or failed output does not authorize the §6 verdict. A hand-traced,
+manually-assembled, "closed-form", or otherwise-caveated number is not execution
+output.
+
 ---
 
 ## 6. Decision matrix

@@ -50,6 +50,53 @@ number comes from a generated, executed script.
   effect), the waterfall, PV, ROI, breakeven, and verdict. If the script
   didn't compute a downstream number, it doesn't get reported.
 
+## Response contract — pick exactly one mode by execution state
+
+Before writing the answer, decide which mode applies and follow it. The modes
+are mutually exclusive; when in doubt, use the earlier (more conservative) mode.
+
+- **Mode A — any required input is missing.** Ask for **every** missing Stage 2a
+  and Stage 2b input in *this* response (currency/units, outcome construct &
+  cost-inclusion, unit denominator, unit economics, horizon convention;
+  population/rollout, transport, investment, discount rate, persistence/survival,
+  cannibalization/SUTVA, hurdle & margin buffer). Promising to "ask later", a
+  "second pass", or "a follow-up interview" does **not** satisfy this — a
+  deferred ask is a missing ask. Mode A takes precedence: if anything is missing
+  you are in Mode A, however complete the rest looks.
+- **Mode B — all inputs present, but successful execution output has not been
+  obtained and inspected.** Keyed on the outcome, not tool availability: this
+  covers no execution tool this session, a missing dependency or install awaiting
+  approval, a permission failure, a script error or crash, a timeout, and
+  incomplete or unparsable output. When execution IS available, attempt Stage 3
+  normally — but until it succeeds and you have inspected complete output the
+  response stays in Mode B, and partial or failed output never authorizes Stage 4.
+  Produce (or fix) the normalization gate record, the provenance/input record, the
+  complete runnable script, and run instructions. You may run or repair the
+  script, but **do not report Stage 3 downstream results or enter Stage 4** until
+  successful complete output has been inspected. **Outside the code block, state no
+  downstream number**: no
+  waterfall value, PV, PV of investment, ROI, ROI interval, breakeven,
+  sensitivity result, machine-readable `KEY: value`, or verdict. You may and
+  should describe the *structure* — the factor-by-factor waterfall path
+  (naive → decay → rollout → transport → net-incrementality → survival →
+  discounting → final) and that ROI will be reported as an interval from the CI
+  bounds — without the numbers. Formulas, branch labels, and `print`/`cat`
+  statements **inside** the generated script are allowed; they are not an
+  asserted result. **No label rescues a hand-computed number**: "hand-traced",
+  "manually assembled", "closed-form", "simple arithmetic", "draft",
+  "high-confidence", "unverified", and "please run to confirm" do not authorize a
+  downstream value. Fully-specified inputs, user urgency, and "don't block me" do
+  not override this gate — you hand back the script, not the answer.
+- **Mode C — execution completed and output seen.** Only now produce the full
+  Stage 4 one-pager and verdict. "Execution completed and output seen" means
+  either (i) you successfully ran the generated script and inspected its output,
+  or (ii) the user supplied the actual raw output from that same script (the
+  required `KEY: value` lines or `roi-results.csv`). On the user-executed path,
+  label the output's provenance and confirm the inputs and required keys match
+  the script before Stage 4. A claimed, failed, or partial execution, a
+  manually-assembled block, reconstructed numbers, or a "please run to confirm"
+  disclaimer is **not** execution evidence — that is Mode B.
+
 ## Stage 1: Collection
 
 **Goal**: Gather the causal estimate and its provenance; set the severity
@@ -99,6 +146,9 @@ Ask: "Do you want the calculation script in R or Python?" (infer from
 **Goal**: Reduce the causal result to **ΔProfit₀ — incremental profit per
 identified unit per base period** — then collect the projection parameters.
 Run this in two steps: **normalization inputs first, then projection inputs**.
+The two steps are a *compute* order — emit the normalization gate before any
+projection math — not an *ask* order: when inputs are missing, Mode A asks for
+every 2a and 2b input in the same turn; never defer some to a later turn.
 Apply the normalization rules and validation ranges from
 `references/roi-framework.md` §1–§3 and §7. **When artifacts do not supply
 these values, surface every item below — across both Stage 2a and Stage 2b — as
@@ -309,8 +359,10 @@ round UP.
 ## Common Issues
 
 - **The naive big number.** Effect × population × 12 is the first row of the
-  waterfall, never the headline. If the user pushes for it, show both numbers
-  and what the discounts are for.
+  waterfall, never the headline. Once the script has run (Mode C), show both the
+  naive and the final number and what the discounts are for; without execution
+  (Mode B), explain which factors discount the naive number and why — the
+  waterfall structure — without stating the downstream values.
 - **LATE over-scaling.** The most expensive mistake in this skill: a
   per-complier effect quietly multiplied by the full population. Complier
   share ≠ product adoption.
