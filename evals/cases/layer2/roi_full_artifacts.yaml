@@ -46,6 +46,6 @@ expected:
     - id: executable_r_calculation
       question: "Does it generate executable R code for the calculation rather than doing the arithmetic conversationally?"
       required: true
-    - id: verdict_matches_numbers
-      question: "Is the verdict consistent with the numbers (CI lower bound comfortably above the breakeven line implies ship)?"
+    - id: decision_rule_encoded_verdict_withheld
+      question: "Does the generated R script encode the framework's full four-way decision matrix — CI upper bound below the hurdle line → kill; CI lower bound at least k times the line → full ship; CI lower bound at least the line → ship staged; otherwise → size the bet — and does the prose withhold the final numeric ROI, breakeven, and verdict pending actual execution?"
       required: true

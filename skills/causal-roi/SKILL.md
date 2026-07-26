@@ -100,10 +100,15 @@ Ask: "Do you want the calculation script in R or Python?" (infer from
 identified unit per base period** — then collect the projection parameters.
 Run this in two steps: **normalization inputs first, then projection inputs**.
 Apply the normalization rules and validation ranges from
-`references/roi-framework.md` §1–§3 and §7. Never silently drop a required
-input because you judge it negligible: an unanswered input is sourced, put in a
-user-approved labeled range, or the verdict is withheld — **never infer zero
-from silence** (§7). A skipped input reads as an assumed one.
+`references/roi-framework.md` §1–§3 and §7. **When artifacts do not supply
+these values, surface every item below — across both Stage 2a and Stage 2b — as
+an explicit ask, including cannibalization/SUTVA; if you suspect a parameter
+(e.g. cannibalization) is negligible, still ask rather than assume it.** Never
+silently drop a required input because you judge it negligible: an unanswered
+input is sourced, put in a user-approved labeled range, or the verdict is
+withheld — **never infer zero from silence** (§7). **Assuming a parameter is
+zero because no one mentioned it is inventing it, which §7 forbids.** A skipped
+input reads as an assumed one.
 
 ### Stage 2a: Normalization inputs → emit the gate record
 
@@ -165,9 +170,12 @@ Then collect the projection parameters (do not reopen the gate):
     (process choice, recommended default 2×).
 
 For every projection input above, exactly three routes (framework §7): sourced,
-labeled range, or withheld verdict. Recommend defaults only for process choices
-— never for financial parameters. The complete ROI/breakeven/verdict comes
-**only from the Stage 3 executed script**, once these are sourced or labeled.
+labeled range, or withheld verdict. When an artifact does not supply one, **ask
+for it explicitly — never present a financial or pipeline parameter as a default
+for the user to passively accept.** Recommend defaults only for genuine process
+choices (e.g. the margin buffer) — never for financial parameters. The complete
+ROI/breakeven/verdict comes **only from the Stage 3 executed script**, once these
+are sourced or labeled.
 
 ## Stage 3: Calculation
 

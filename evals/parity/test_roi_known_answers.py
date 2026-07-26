@@ -218,6 +218,37 @@ def test_l3_eval_case_numbers():
     _close(v.get("VERDICT_CODE"), 1.0, name="VERDICT_CODE")
 
 
+def test_l3_roi_full_artifacts_case_numbers():
+    # The exact input set used by the L3 eval case roi_full_artifacts_r (the
+    # execution-backed counterpart to L2 roi_full_artifacts): 400 stores, effect
+    # R$1200 profit/store/month, CI [800, 1600], T=12, lambda=s=transport=
+    # net_incr=1, r=0.008/month, full rollout, INV = 900k one-time + 20k/month
+    # recurring, hurdle=breakeven confirmed, buffer=2x.
+    # Hand math (roi-framework section 5), NOT read back from the recipe:
+    #   EFFECTIVE_PERIODS = sum_{t=0..11} 1/1.008^t          = 11.4898035
+    #   M   = 400 * 11.4898035                               = 4595.9214
+    #   INV = 900000 + 20000 * 11.4898035                    = 1129796.07
+    #   PV  = 1200 * M = 5515105.69;  NET = PV - INV         = 4385309.62
+    #   ROI = NET/INV                                        = 3.8815055
+    #   ROI_LO = (800*M - INV)/INV = 2.2543370; ROI_HI = (1600*M-INV)/INV = 5.5086740
+    #   BREAKEVEN = INV/M = 245.8258; line = 245.8258, 2*line = 491.6516
+    #   dp0_lo = 800 >= 2*line -> comfortable -> VERDICT_CODE = 2 (ship, full rollout)
+    r = _run_roi(horizon=12, n=400.0, rollout=1.0, recurring=20000.0,
+                 effect_raw=1200.0, ci_lo_raw=800.0, ci_hi_raw=1600.0,
+                 discount=0.008, one_time=900000.0)
+    assert r["ran"], r["error"]
+    v = r["vals"]
+    _close(v.get("EFFECTIVE_PERIODS"), 11.4898035, tol=1e-6, name="EFFECTIVE_PERIODS")
+    _close(v.get("PV_INCREMENTAL_PROFIT_PER_UNIT"), 13787.7642, tol=1e-2, name="PV_PER_UNIT")
+    _close(v.get("PV_INCREMENTAL_PROFIT"), 5515105.69, tol=1e-1, name="PV")
+    _close(v.get("NET_PROFIT"), 4385309.62, tol=1e-1, name="NET_PROFIT")
+    _close(v.get("ROI"), 3.8815055, tol=1e-6, name="ROI")
+    _close(v.get("ROI_LO"), 2.2543370, tol=1e-6, name="ROI_LO")
+    _close(v.get("ROI_HI"), 5.5086740, tol=1e-6, name="ROI_HI")
+    _close(v.get("BREAKEVEN_EFFECT"), 245.8258028, tol=1e-3, name="BREAKEVEN")
+    _close(v.get("VERDICT_CODE"), 2.0, name="VERDICT_CODE")
+
+
 def test_invalid_inputs_rejected():
     # Growing effect (lambda > 1) is rejected in v1.
     r = _run_roi(persistence=1.5)

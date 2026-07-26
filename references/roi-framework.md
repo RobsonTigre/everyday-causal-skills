@@ -289,7 +289,8 @@ Two machine-readable outputs, written by the generated script:
 **(a) `KEY: value` stdout lines** — the parity contract. One line per scalar:
 `EFFECTIVE_PERIODS`, `PV_INCREMENTAL_PROFIT_PER_UNIT`,
 `PV_INCREMENTAL_PROFIT`, `NET_PROFIT`, `ROI`, `ROI_LO`, `ROI_HI`,
-`BREAKEVEN_EFFECT`.
+`BREAKEVEN_EFFECT`, `VERDICT_CODE` (−1 kill / 0 size the bet / 1 ship
+staged / 2 ship — full rollout).
 
 **(b) `roi-results.csv`** — the inter-skill data contract consumed by
 `/causal-report`. Long format, one row per metric × scenario:
