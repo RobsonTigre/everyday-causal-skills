@@ -71,7 +71,9 @@ are mutually exclusive; when in doubt, use the earlier (more conservative) mode.
   normally — but until it succeeds and you have inspected complete output the
   response stays in Mode B, and partial or failed output never authorizes Stage 4.
   Produce (or fix) the normalization gate record, the provenance/input record, the
-  complete runnable script, and run instructions. You may run or repair the
+  complete runnable script, run instructions, and the **six pipeline assumptions
+  (framework §9), each marked checked / assumed / unknown** (a qualitative
+  disclosure that needs no execution). You may run or repair the
   script, but **do not report Stage 3 downstream results or enter Stage 4** until
   successful complete output has been inspected. **Outside the code block, state no
   downstream number**: no

@@ -944,6 +944,26 @@ def test_roi_framework_pins_execution_boundary():
     assert "only from an executed script whose output has been seen" in text
 
 
+def test_roi_skill_mode_b_discloses_six_assumptions():
+    """Repair-induced regression fix: the six pipeline assumptions must be disclosed WITHIN the
+    Mode B deliverable (they are qualitative, need no execution). Scoped to the Mode B block —
+    'six pipeline assumptions' and 'checked / assumed / unknown' already appear in Stage 4 §8 and
+    the Verification Gate, so a whole-file assertion would false-green."""
+    text = _skill_text("causal-roi")
+    b = text.index("Mode B")
+    c = text.index("Mode C", b)
+    mode_b = text[b:c]
+    assert "six pipeline assumptions" in mode_b, "Mode B must require the six pipeline assumptions"
+    assert "checked / assumed / unknown" in mode_b, "Mode B must mark them checked/assumed/unknown"
+
+
+def test_roi_framework_mode_b_discloses_six_assumptions():
+    """The framework §9 must agree with the skill: the six-assumptions disclosure is no longer
+    placed only in a one-pager — it is also disclosed in the Mode B script-and-stop response."""
+    text = _framework_text()
+    assert "disclosed in the Mode B script-and-stop response" in text
+
+
 def test_roi_gate_emitted_before_projection_in_skill_and_framework():
     """The gate-deferral fix, pinned in BOTH the skill and the canonical framework: the
     normalization gate is emitted from its own inputs before the projection inputs, keeps the

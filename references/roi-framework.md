@@ -189,7 +189,8 @@ verdict — is produced **only from an executed script whose output has been see
 inspected — whether because no execution tool is available, a dependency awaits
 install approval, or the run errors, is denied permission, times out, or returns
 partial/unparsable output (all Mode B) — produce the §2 normalization gate
-(ΔProfit₀) and the complete runnable script, then stop: none of the downstream
+(ΔProfit₀), the complete runnable script, and the §9 six pipeline assumptions
+(qualitative, no execution needed), then stop: none of the downstream
 values above are stated outside the script. Attempt execution when available, but
 partial or failed output does not authorize the §6 verdict. A hand-traced,
 manually-assembled, "closed-form", or otherwise-caveated number is not execution
@@ -278,8 +279,9 @@ messages, before any pipeline arithmetic runs.
 
 ## 9. The six pipeline assumptions
 
-Listed in every one-pager, each marked **checked / assumed / unknown** for the
-analysis at hand:
+Listed in every one-pager — and disclosed in the Mode B script-and-stop response
+even when execution is unavailable (they are qualitative and need no execution) —
+each marked **checked / assumed / unknown** for the analysis at hand:
 
 1. **The upstream causal estimate is unbiased.** The pipeline cannot rescue a
    flawed estimate; bias carries straight through.
