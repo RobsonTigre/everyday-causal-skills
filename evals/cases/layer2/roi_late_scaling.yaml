@@ -9,7 +9,10 @@ references:
 user_message: |
   We ran the daily-email encouragement experiment: IV/2SLS, LATE = R$13.60
   revenue per COMPLIER over 60 days (95% CI [8.20, 19.00]), first-stage
-  compliance share 31%, margin on this revenue is 45%. We have 2 million
+  compliance share 31%, margin on this revenue is 45% — finance confirms that
+  45% is contribution margin after all variable costs. For planning, assume the
+  per-complier revenue effect repeats over exactly six non-overlapping 60-day
+  periods in the 12-month planning year, with no decay. We have 2 million
   customers. My plan: multiply R$13.60 by all 2 million customers and 12 months
   to get the annual value — the feature will be on for everyone, so everyone
   counts, right? Investment is R$1.5M one-time. Tell me the ROI.
@@ -18,7 +21,15 @@ expected:
     - late_extrapolation
   severity: fatal
   rubric:
-    - "Does the response apply the complier share (31%) when scaling the LATE, or insist it must be applied?"
-    - "Does it explain that 'the feature is on for everyone' (product exposure) is not the same as the complier share?"
-    - "Does it refuse to compute or endorse the user's full-population multiplication as proposed?"
-    - "Does it also convert the 60-day revenue effect to the decision time base and apply the margin before any ROI arithmetic?"
+    - id: apply_complier_share
+      question: "Does the response apply the complier share (31%) when scaling the LATE, or insist it must be applied?"
+      required: true
+    - id: exposure_not_compliance
+      question: "Does it explain that 'the feature is on for everyone' (product exposure) is not the same as the complier share?"
+      required: true
+    - id: reject_full_population_scaling
+      question: "Does it refuse to compute or endorse the user's full-population multiplication as proposed?"
+      required: true
+    - id: normalize_time_and_margin
+      question: "Does the response establish the normalization gate by keeping 60 days as the base period, explicitly applying the 45% contribution margin to the per-complier revenue effect, and representing the 12-month horizon as six 60-day periods before any ROI calculation?"
+      required: true

@@ -65,11 +65,17 @@ one the estimate is.
 netted inside the causal outcome? Which remain to subtract here? Every cost
 must appear in exactly one place (§3).
 
-**Normalization gate record** (written to `roi.md`): outcome construct, effect
-scale (points vs percent), unit denominator, effect period, conversions applied
-with sources, cost-inclusion audit result, resulting ΔProfit₀ (value + units).
-No calculation proceeds until the record is complete or each gap is explicitly
-labeled `unknown`.
+**Normalization gate record** — recorded as soon as its own inputs (construct,
+effect scale, denominator, base period, unit economics, horizon convention) are
+known, before the projection inputs; written to `roi.md` when file-writing is
+available, otherwise shown in the reply: outcome construct, effect scale (points
+vs percent), unit denominator, **base period kept as measured — not annualized
+here**, conversions applied with sources, cost-inclusion audit result, the
+**projection horizon T as a count of base periods** (from the user's stated
+horizon convention, not a calendar mapping), and the resulting ΔProfit₀ (value +
+units) from the recipe above. The gate's single normalization result may be shown without an
+executed script; no projection, ROI, breakeven, or verdict proceeds until the
+remaining inputs are sourced or each gap is explicitly labeled `unknown`.
 
 ---
 
@@ -175,6 +181,21 @@ Valid only under the conditions in §8.
 - Time bases inconsistent (effect period ≠ pipeline period ≠ recurring-cost
   period) and not convertible → FATAL input error.
 
+**Execution boundary.** Everything in this section — the waterfall, `M`,
+`EFFECTIVE_PERIODS`, `PV_INCREMENTAL_PROFIT`, `PV_INVESTMENT`, `NET_PROFIT`,
+`ROI` and its interval, `BREAKEVEN_EFFECT`, the sensitivity grid, and the §6
+verdict — is produced **only from an executed script whose output has been seen**
+(the skill's Mode C). Until successful execution output has been obtained and
+inspected — whether because no execution tool is available, a dependency awaits
+install approval, or the run errors, is denied permission, times out, or returns
+partial/unparsable output (all Mode B) — produce the §2 normalization gate
+(ΔProfit₀), the complete runnable script, and the §9 six pipeline assumptions
+(qualitative, no execution needed), then stop: none of the downstream
+values above are stated outside the script. Attempt execution when available, but
+partial or failed output does not authorize the §6 verdict. A hand-traced,
+manually-assembled, "closed-form", or otherwise-caveated number is not execution
+output.
+
 ---
 
 ## 6. Decision matrix
@@ -258,8 +279,9 @@ messages, before any pipeline arithmetic runs.
 
 ## 9. The six pipeline assumptions
 
-Listed in every one-pager, each marked **checked / assumed / unknown** for the
-analysis at hand:
+Listed in every one-pager — and disclosed in the Mode B script-and-stop response
+even when execution is unavailable (they are qualitative and need no execution) —
+each marked **checked / assumed / unknown** for the analysis at hand:
 
 1. **The upstream causal estimate is unbiased.** The pipeline cannot rescue a
    flawed estimate; bias carries straight through.
@@ -283,7 +305,8 @@ Two machine-readable outputs, written by the generated script:
 **(a) `KEY: value` stdout lines** — the parity contract. One line per scalar:
 `EFFECTIVE_PERIODS`, `PV_INCREMENTAL_PROFIT_PER_UNIT`,
 `PV_INCREMENTAL_PROFIT`, `NET_PROFIT`, `ROI`, `ROI_LO`, `ROI_HI`,
-`BREAKEVEN_EFFECT`.
+`BREAKEVEN_EFFECT`, `VERDICT_CODE` (−1 kill / 0 size the bet / 1 ship
+staged / 2 ship — full rollout).
 
 **(b) `roi-results.csv`** — the inter-skill data contract consumed by
 `/causal-report`. Long format, one row per metric × scenario:

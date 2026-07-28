@@ -6,6 +6,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import yaml
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from validate_cases import validate_case, validate_tree, warn_case  # noqa: E402
 
@@ -591,6 +593,416 @@ def test_d3_interview_guards_are_exactly_four_first_turn_skill_specific_cases():
             assert q not in seen_questions, (
                 f"{name} shares a rubric line with {seen_questions.get(q)}: {q!r}")
             seen_questions[q] = name
+
+
+# --- Package F: L2 rubric entries are objects, and only at layer 2 ---
+
+L2_HEAD = """
+name: {name}
+description: fine
+layer: 2
+skill: causal-dag
+user_message: hello
+expected:
+  must_flag: []
+"""
+
+
+def _l2(body: str, name: str = "good_l2") -> str:
+    return L2_HEAD.format(name=name) + body
+
+
+L2_GOOD = _l2("""
+rubric:
+  - id: first_criterion
+    question: "Q1?"
+    required: true
+  - id: second_criterion
+    question: "Q2?"
+    required: false
+""")
+
+
+def _errs(text, name="good_l2.yaml"):
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer2", name, text)
+        return validate_case(p)
+
+
+def test_l2_object_rubric_passes():
+    assert _errs(L2_GOOD) == [], _errs(L2_GOOD)
+
+
+def test_l2_string_rubric_is_rejected():
+    # The pre-F shape. Accepting it silently would leave the criterion unmeasurable:
+    # no id means no per-question answer, and the gate can never see it.
+    errs = _errs(_l2('rubric:\n  - "Q1?"\n'))
+    assert any("mapping" in e for e in errs), errs
+
+
+def test_l2_duplicate_ids_rejected():
+    errs = _errs(_l2("""
+rubric:
+  - id: same_id
+    question: "Q1?"
+    required: true
+  - id: same_id
+    question: "Q2?"
+    required: true
+"""))
+    assert any("duplicate" in e for e in errs), errs
+
+
+def test_l2_non_snake_case_id_rejected():
+    for bad in ("CamelCase", "has spaces", "9leading_digit", "trailing_"):
+        errs = _errs(_l2(f"""
+rubric:
+  - id: "{bad}"
+    question: "Q1?"
+    required: true
+"""))
+        assert any("snake_case" in e for e in errs), (bad, errs)
+
+
+def test_l2_empty_question_rejected():
+    errs = _errs(_l2("""
+rubric:
+  - id: ok_id
+    question: "   "
+    required: true
+"""))
+    assert any("question" in e for e in errs), errs
+
+
+def test_l2_non_boolean_required_rejected():
+    # "yes" and 1 are both truthy — a case meaning "required" would silently get a
+    # non-bool that later compares unequal to True.
+    for bad in ('"yes"', "1"):
+        errs = _errs(_l2(f"""
+rubric:
+  - id: ok_id
+    question: "Q1?"
+    required: {bad}
+"""))
+        assert any("required" in e for e in errs), (bad, errs)
+
+
+def test_l2_missing_and_unknown_fields_rejected():
+    missing = _errs(_l2("""
+rubric:
+  - id: ok_id
+    question: "Q1?"
+"""))
+    assert any("required" in e for e in missing), missing
+
+    unknown = _errs(_l2("""
+rubric:
+  - id: ok_id
+    question: "Q1?"
+    required: true
+    weight: 2
+"""))
+    assert any("unknown" in e for e in unknown), unknown
+
+
+def test_l2_rubric_declared_in_both_locations_rejected():
+    # Both locations are individually legal and both are in use (5 cases top-level,
+    # 3 under expected). Declaring both is not: scorer.py takes expected.rubric and
+    # silently drops the other list.
+    errs = _errs("""
+name: dual_l2
+description: fine
+layer: 2
+skill: causal-dag
+user_message: hello
+expected:
+  must_flag: []
+  rubric:
+    - id: under_expected
+      question: "Q1?"
+      required: true
+rubric:
+  - id: top_level
+    question: "Q2?"
+    required: true
+""", name="dual_l2.yaml")
+    assert any("both" in e for e in errs), errs
+
+
+def test_object_rubric_requirement_is_layer2_only():
+    """L1/L4/L5 rubrics are different shapes and must keep validating.
+
+    L1 and L5 use flat string lists, L4 a dict of dimension -> string list. A
+    generic "rubric entries must be objects" check would break 60+ cases.
+    """
+    l1 = """
+name: good_l1
+description: fine
+layer: 1
+skill: causal-did
+user_message: hello
+expected:
+  rubric:
+    - "Is DiD the right method?"
+"""
+    with tempfile.TemporaryDirectory() as t:
+        assert validate_case(_write(t, "layer1", "good_l1.yaml", l1)) == []
+        assert validate_case(_write(t, "layer4", "good_l4.yaml", L4_GOOD)) == []
+        assert validate_case(_write(t, "layer5", "good_l5.yaml", L5_GOOD)) == []
+
+
+#: The approved L2 gate policy: every criterion each case declares, by exact id.
+#: Counts alone would let a rename through, and a required-only list would let an
+#: extra informational criterion in — which cannot weaken the gate directly but does
+#: add a question to the judge prompt, moving the model's answers to the ones that do.
+#: This is the committed copy of the list; `tasks/todo.md` is gitignored.
+APPROVED_L2_CRITERIA = {
+    "dag_clean_confounder": ["backdoor_parental_path", "identifiable_design",
+                             "minimal_parental_adjustment_set"],
+    "dag_frontdoor": ["complete_mediation_no_affinity_to_visits",
+                      "frontdoor_identification", "no_observed_backdoor_set"],
+    "report_full_artifacts": ["all_nine_sections", "artifact_specific_details",
+                              "hybrid_mode_tone", "no_fabricated_estimates"],
+    "report_no_artifacts": ["interview_required_details", "no_fabricated_estimates"],
+    "report_partial_artifacts": ["identify_missing_plan_and_audit",
+                                 "produce_caveated_partial_report",
+                                 "recommend_planner_and_auditor"],
+    "roi_full_artifacts": ["executable_r_calculation", "interval_roi",
+                           "normalization_gate", "per_period_not_cumulative",
+                           "projection_waterfall", "same_pipeline_breakeven",
+                           "six_pipeline_assumptions",
+                           "decision_rule_encoded_verdict_withheld"],
+    "roi_late_scaling": ["apply_complier_share", "exposure_not_compliance",
+                         "normalize_time_and_margin",
+                         "reject_full_population_scaling"],
+    "roi_no_artifacts": ["offer_valid_input_routes",
+                         "percentage_points_not_relative_lift",
+                         "refuse_invented_inputs",
+                         "request_conversion_value_and_baseline",
+                         "request_costs_and_horizon", "request_projection_assumptions",
+                         "withhold_verdict"],
+}
+
+
+def test_shipped_l2_cases_declare_the_34_required_criteria():
+    """The release gate is only as real as the cases behind it.
+
+    Asserts the exact id list per case and that every entry gates, so a rename, a
+    demotion to informational, a deletion or a quiet addition all fail loudly rather
+    than reshaping the gate in silence.
+    """
+    root = Path(__file__).resolve().parent / "cases" / "layer2"
+    total = 0
+    for name, ids in APPROVED_L2_CRITERIA.items():
+        case = yaml.safe_load((root / f"{name}.yaml").read_text())
+        rubric = (case.get("expected") or {}).get("rubric") or case.get("rubric") or []
+        assert all(isinstance(r, dict) for r in rubric), name
+        assert sorted(r.get("id") for r in rubric) == sorted(ids), name
+        demoted = [r.get("id") for r in rubric if r.get("required") is not True]
+        assert not demoted, (name, "not required", demoted)
+        total += len(rubric)
+    assert total == 34, total
+
+    # No ninth case grew a rubric without being added to the approved list above.
+    declared = {p.stem for p in root.glob("*.yaml")
+                if ((yaml.safe_load(p.read_text()) or {}).get("expected") or {}).get("rubric")
+                or (yaml.safe_load(p.read_text()) or {}).get("rubric")}
+    assert declared == set(APPROVED_L2_CRITERIA), declared ^ set(APPROVED_L2_CRITERIA)
+
+
+# --- Package F calibration-repair contracts (2026-07-24) ---
+# Structural pins for the repairs that closed the 4 calibration FAILs. These assert the
+# prompts and safety rule are PRESENT, not that a model obeys them — only recalibration
+# proves behaviour. Their job is to stop a future edit from silently reverting a fix.
+
+_L2_ROOT = Path(__file__).resolve().parent / "cases" / "layer2"
+_SKILLS = Path(__file__).resolve().parents[1] / "skills"
+
+
+def _norm(s: str) -> str:
+    """Collapse whitespace so a pin survives line wrapping — YAML `|` block scalars and
+    markdown both keep hard line breaks, so a phrase can straddle two lines verbatim."""
+    return " ".join(s.split())
+
+
+def _case_msg(name: str) -> str:
+    return _norm(yaml.safe_load((_L2_ROOT / f"{name}.yaml").read_text())["user_message"])
+
+
+def _skill_text(name: str) -> str:
+    return _norm((_SKILLS / name / "SKILL.md").read_text())
+
+
+def test_report_cases_pin_single_turn_python_directive():
+    """The report contract fix: both cases must ask for the whole report in one reply
+    (the skill is multi-turn by default) and pre-answer figures as Python (the
+    loyalty-program fixture ships analysis.py)."""
+    for name in ("report_full_artifacts", "report_partial_artifacts"):
+        msg = _case_msg(name)
+        assert "in this one reply" in msg, name
+        assert "don't ask me anything first" in msg, name
+        assert "Use Python for any figures" in msg, name
+
+
+def test_roi_late_scaling_pins_cost_and_time_inputs():
+    """The normalize_time_and_margin fix: the prompt must confirm the margin is
+    after-cost and give an unambiguous integer period count, or the skill correctly
+    withholds and the criterion stays unreachable."""
+    msg = _case_msg("roi_late_scaling")
+    assert "contribution margin after all variable costs" in msg
+    assert "six non-overlapping 60-day periods" in msg
+    assert "no decay" in msg
+
+
+def test_roi_skill_never_defaults_cannibalization_to_zero():
+    """The cannibalization intake fix must not violate the no-invented-parameters policy:
+    a missing value is asked for, ranged, or withheld — never assumed zero on silence."""
+    text = _skill_text("causal-roi")
+    assert "assume no cannibalization unless" not in text.lower(), \
+        "reintroduced the silence-authorizes-zero escape hatch §7 forbids"
+    assert "never infer zero from silence" in text
+
+
+def test_report_skill_names_every_gap_skill():
+    """The /causal-planner fix: a gap judged non-blocking must still name its fill-skill."""
+    assert "including ones you judge non-blocking" in _skill_text("causal-report")
+
+
+def _framework_text() -> str:
+    return _norm((Path(__file__).resolve().parents[1] / "references" / "roi-framework.md").read_text())
+
+
+def _roi_late_scaling_rubric():
+    case = yaml.safe_load((_L2_ROOT / "roi_late_scaling.yaml").read_text())
+    return case["expected"]["rubric"]
+
+
+def test_roi_late_scaling_criterion_pins_corrected_normalization_contract():
+    """The normalize_time_and_margin fix: the criterion must ask for the framework's real gate
+    (keep the 60-day base, apply the margin, express the horizon as six 60-day periods) and must
+    NOT ask the model to annualize the base-period effect ('decision time base'), which the
+    canonical pipeline does not do. ID and required flag stay put."""
+    crit = next(c for c in _roi_late_scaling_rubric() if c["id"] == "normalize_time_and_margin")
+    assert crit["required"] is True
+    q = _norm(crit["question"])
+    for phrase in ("60 days as the base period", "45% contribution margin",
+                   "six 60-day periods", "before any ROI calculation"):
+        assert phrase in q, phrase
+    assert "decision time base" not in q, "old annualization wording must be gone"
+
+
+# --- causal-roi three-mode execution-gate repair (2026-07-26) ---
+# Structural guards for the fallback-contract fix that closed the roi_full_artifacts
+# manual-calculation leak and the roi_no_artifacts deferred-interview leak. They pin the
+# instructions PRESENT (or, for the retired escape hatch, ABSENT) — behaviour is proven by
+# the later calibration, not here.
+
+def test_roi_skill_pins_three_mode_execution_contract():
+    """causal-roi must carry the three-mode response contract: Mode A (inputs missing) asks
+    every 2a/2b input now and wins on any gap; Mode B (no execution) emits the gate + script
+    then stops with no downstream value outside the code block; Mode C requires real execution
+    or user-supplied raw output. The evasion labels that leaked must be named as non-authorizing."""
+    text = _skill_text("causal-roi")
+    assert "pick exactly one mode by execution state" in text
+    assert "Mode A takes precedence" in text
+    assert "a deferred ask is a missing ask" in text
+    # Mode B may attempt/repair execution (no contradiction) but must not report
+    # downstream results or enter Stage 4 until successful output is inspected.
+    assert "attempt Stage 3 normally" in text
+    assert "do not report Stage 3 downstream results or enter Stage 4" in text
+    assert "state no downstream number" in text
+    assert "No label rescues a hand-computed number" in text
+    for evasion in ("hand-traced", "manually assembled", "closed-form",
+                    "simple arithmetic", "draft", "high-confidence",
+                    "unverified", "please run to confirm"):
+        assert evasion in text, evasion
+    # Mode B is keyed on the OUTCOME (no inspected output), not tool availability;
+    # partial/failed output stays in Mode B and never authorizes Stage 4.
+    assert "successful execution output has not been obtained and inspected" in text
+    assert "partial or failed output never authorizes Stage 4" in text
+    # Mode C: real execution or user-supplied raw output only; a failed/partial/
+    # claimed execution is not evidence.
+    assert "execution completed and output seen" in text
+    assert "the user supplied the actual raw output from that same script" in text
+    assert "A claimed, failed, or partial execution" in text
+
+
+def test_roi_skill_common_issues_scoped_to_execution():
+    """The conflicting-instruction fix: the old unscoped 'show both numbers' escape hatch must
+    be gone, replaced by an execution-scoped rule (both numbers only after the script runs)."""
+    text = _skill_text("causal-roi")
+    assert "If the user pushes for it, show both numbers" not in text, \
+        "reintroduced the unscoped show-both-numbers instruction that licensed hand-computing"
+    assert "Once the script has run (Mode C), show both" in text
+
+
+def test_roi_framework_pins_execution_boundary():
+    """The framework must mirror the skill's execution gate: every section-5 downstream value
+    comes only from an executed script whose output has been seen."""
+    text = _framework_text()
+    assert "Execution boundary." in text
+    assert "only from an executed script whose output has been seen" in text
+
+
+def test_roi_skill_mode_b_discloses_six_assumptions():
+    """Repair-induced regression fix: the six pipeline assumptions must be disclosed WITHIN the
+    Mode B deliverable (they are qualitative, need no execution). Scoped to the Mode B block —
+    'six pipeline assumptions' and 'checked / assumed / unknown' already appear in Stage 4 §8 and
+    the Verification Gate, so a whole-file assertion would false-green."""
+    text = _skill_text("causal-roi")
+    b = text.index("Mode B")
+    c = text.index("Mode C", b)
+    mode_b = text[b:c]
+    assert "six pipeline assumptions" in mode_b, "Mode B must require the six pipeline assumptions"
+    assert "checked / assumed / unknown" in mode_b, "Mode B must mark them checked/assumed/unknown"
+
+
+def test_roi_framework_mode_b_discloses_six_assumptions():
+    """The framework §9 must agree with the skill: the six-assumptions disclosure is no longer
+    placed only in a one-pager — it is also disclosed in the Mode B script-and-stop response."""
+    text = _framework_text()
+    assert "disclosed in the Mode B script-and-stop response" in text
+
+
+def test_roi_gate_emitted_before_projection_in_skill_and_framework():
+    """The gate-deferral fix, pinned in BOTH the skill and the canonical framework: the
+    normalization gate is emitted from its own inputs before the projection inputs, keeps the
+    base period as measured, expresses the horizon as a count of base periods, and computes
+    ΔProfit₀ from the §2 recipe for the construct (not a hardcoded universal × margin)."""
+    skill, fw = _skill_text("causal-roi"), _framework_text()
+    for text in (skill, fw):
+        assert "base period kept as measured" in text
+        assert ("never annualized" in text) or ("not annualized" in text)
+        assert "as a count of base periods" in text
+    assert "§2 recipe for the construct" in skill
+    assert "before any projection question" in skill
+    assert "before the projection inputs" in fw
+    # Round 2: T comes from the collected horizon convention, not a calendar mapping, and the
+    # horizon is no longer re-collected in Stage 2b.
+    assert "Horizon convention" in skill
+    assert "do not assume 12 months is automatically six 60-day periods" in skill
+    assert "Horizon + discount rate" not in skill
+    assert "not a calendar mapping" in fw
+
+
+def test_roi_carveout_bounds_by_hand_math_to_gate_result():
+    """The self-contradiction fix, pinned in BOTH files: the gate's own §2 result may be shown
+    without an executed script, but complier/population scaling, time aggregation, and the
+    downstream pipeline stay script-only."""
+    skill, fw = _skill_text("causal-roi"), _framework_text()
+    assert "No conversational arithmetic beyond the normalization gate" in skill
+    assert "even when no execution or file-write tool is available" in skill
+    assert "never claim a script ran" in skill
+    for still_forbidden in ("complier/population scaling", "time aggregation across periods",
+                            "the waterfall, PV, ROI, breakeven, and verdict"):
+        assert still_forbidden in skill, still_forbidden
+    assert "only from the Stage 3 executed script" in skill
+    assert "may be shown without an executed script" in fw
+    assert "no projection, ROI, breakeven, or verdict proceeds until" in fw
+    # Round 2: the residual arithmetic contradiction is gone — only downstream numbers are
+    # script-gated, and the final roi.md re-computes the gate's ΔProfit₀ via the Stage 3 script.
+    assert "If the script didn't compute a downstream number" in skill
+    assert "including the gate's ΔProfit₀" in skill
 
 
 def _run_all():

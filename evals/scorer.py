@@ -300,6 +300,21 @@ Would you load this skill for this user message? Answer with exactly YES or NO, 
     }
 
 
+def l2_rubric(case: dict) -> list:
+    """The L2 rubric a case declares, from either legal location.
+
+    One accessor, because the scorer (which asks the questions), the aggregate
+    (which counts the answers) and the gate (which enforces the required ones)
+    must agree on where the rubric lives. Two copies of this lookup would drift,
+    and drift here means a criterion that is asked but never gated.
+    """
+    expected = case.get("expected") or {}
+    rubric = expected.get("rubric")
+    if rubric is None:
+        rubric = case.get("rubric")
+    return rubric or []
+
+
 def score_response(case: dict, response: str, config: dict | None = None, debug: bool = False) -> dict:
     """Score a response against expected outcomes based on layer."""
     layer = case["layer"]
@@ -316,7 +331,7 @@ def score_response(case: dict, response: str, config: dict | None = None, debug:
     elif layer == 2:
         # Rubric questions may live under expected.rubric or at case level
         # (the report_* cases carry a top-level rubric).
-        rubric = expected.get("rubric") or case.get("rubric") or []
+        rubric = l2_rubric(case)
         scores = _score_layer2(response, expected, config, debug, rubric=rubric)
         # response_contract / deferred_rubric (D1): declarative case metadata,
         # not judge output. _judge_l2 only receives `expected` + `rubric`, not
@@ -445,6 +460,14 @@ def _judge_l2(response: str, case_expected: dict, config: dict | None = None, de
     or the case-level rubric field). Rubric questions are appended AFTER the
     flag/severity questions so existing answer indices are unchanged; their
     pass fraction is returned as `rubric_coverage` (absent when no rubric).
+
+    Package F: entries are `{id, question, required}` objects, and the per-question
+    answers come back as `rubric_answers: {id: bool}` so the gate can hold each
+    criterion to its own rate instead of a single collapsed mean. Bare strings are
+    still scored into `rubric_coverage` but contribute no id — the validator
+    rejects that shape at L2, and if one ever slipped through, a missing answer
+    reads as UNMEASURED at the gate rather than exploding here, after the model
+    calls for this run have already been paid for.
     """
     must_flag = case_expected.get("must_flag", [])
     severity = case_expected.get("severity", "")
@@ -500,7 +523,8 @@ def _judge_l2(response: str, case_expected: dict, config: dict | None = None, de
 
     # Optional rubric questions go LAST so flag/severity answer indices stay stable.
     rubric_start = len(questions)
-    questions.extend(rubric)
+    rubric_ids = [e.get("id") if isinstance(e, dict) else None for e in rubric]
+    questions.extend(e["question"] if isinstance(e, dict) else e for e in rubric)
 
     numbered = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
     prompt = f"""You are evaluating a causal inference assistant's response. Read the response carefully, then answer each question.
@@ -520,7 +544,10 @@ Questions:
 
     rubric_answers = answers[rubric_start:] if rubric else []
     rubric_extra = (
-        {"rubric_coverage": sum(rubric_answers) / len(rubric_answers)} if rubric else {}
+        {"rubric_coverage": sum(rubric_answers) / len(rubric_answers),
+         "rubric_answers": {cid: bool(a) for cid, a in zip(rubric_ids, rubric_answers)
+                            if cid is not None}}
+        if rubric else {}
     )
 
     if rubric_type == "clean":

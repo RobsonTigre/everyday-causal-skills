@@ -15,8 +15,19 @@ user_message: |
   at docs/causal-plans/2026-03-15-loyalty-program/ has plan.md, dag.md,
   implementation.md, analysis.py, and audit.md. Please write a hybrid-mode
   report. That's everything I have — please go ahead and run the full analysis.
+  Use Python for any figures, and write out all nine sections in full in this
+  one reply — I won't be able to answer follow-up questions, so don't ask me
+  anything first; just produce the complete report now.
 rubric:
-  - "Does the report include all 9 sections?"
-  - "Does the report pull specific details from the artifacts (not generic method descriptions)?"
-  - "Is the tone consistent with hybrid mode (accessible but rigorous)?"
-  - "Does it avoid fabricating any estimates not present in the artifacts?"
+  - id: all_nine_sections
+    question: "Does the report include all 9 sections?"
+    required: true
+  - id: artifact_specific_details
+    question: "Does the report pull specific details from the artifacts (not generic method descriptions)?"
+    required: true
+  - id: hybrid_mode_tone
+    question: "Is the tone consistent with hybrid mode (accessible but rigorous)?"
+    required: true
+  - id: no_fabricated_estimates
+    question: "Does it avoid fabricating any estimates not present in the artifacts?"
+    required: true

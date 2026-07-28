@@ -11,6 +11,7 @@ Exits 0 when every case is well formed, 1 with a per-case list otherwise.
 from __future__ import annotations
 
 import csv
+import re
 import sys
 from pathlib import Path
 
@@ -46,6 +47,72 @@ def _check_common(case: dict, path: Path, errors: list[str]) -> int | None:
     elif dir_layer is not None and layer != dir_layer:
         errors.append(f"layer {layer} but lives in {path.parent.name}")
     return layer
+
+
+_L2_RUBRIC_FIELDS = {"id", "question", "required"}
+_SNAKE_CASE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
+
+
+def _check_l2_rubric(case: dict, expected: dict, errors: list[str]) -> None:
+    """L2 rubric entries are `{id, question, required}` objects — Package F.
+
+    Scoped to layer 2 on purpose. L1 and L5 rubrics are flat lists of question
+    strings and L4's is a dict of dimension -> questions; a generic element check
+    would reject 60+ valid cases.
+
+    The `id` is what makes a criterion gateable: the judge's answers come back as
+    a positional array, and without a stable key per question there is no way to
+    say "this specific criterion passed in 4 of 5 runs". `required` is explicit
+    rather than defaulted so promoting a criterion into the release gate is always
+    a visible edit to the case file.
+    """
+    under_expected = expected.get("rubric")
+    top_level = case.get("rubric")
+    if under_expected is not None and top_level is not None:
+        errors.append(
+            "rubric declared in both expected.rubric and top-level rubric — "
+            "scorer.py takes expected.rubric and silently drops the other")
+        return
+
+    rubric = under_expected if under_expected is not None else top_level
+    if rubric is None:
+        return
+    if not isinstance(rubric, list):
+        errors.append("L2 rubric must be a list")
+        return
+
+    seen: set[str] = set()
+    for i, entry in enumerate(rubric):
+        where = f"L2 rubric[{i}]"
+        if not isinstance(entry, dict):
+            errors.append(
+                f"{where} must be a mapping with {sorted(_L2_RUBRIC_FIELDS)} "
+                f"(a bare question string cannot be gated — it has no id)")
+            continue
+
+        unknown = set(entry) - _L2_RUBRIC_FIELDS
+        if unknown:
+            errors.append(f"{where} has unknown field(s): {sorted(unknown)}")
+        missing = _L2_RUBRIC_FIELDS - set(entry)
+        if missing:
+            errors.append(f"{where} is missing {sorted(missing)}")
+
+        cid = entry.get("id")
+        if "id" in entry:
+            if not isinstance(cid, str) or not _SNAKE_CASE.match(cid):
+                errors.append(f"{where} id must be snake_case, got {cid!r}")
+            elif cid in seen:
+                errors.append(f"{where} duplicate id {cid!r}")
+            else:
+                seen.add(cid)
+
+        question = entry.get("question")
+        if "question" in entry and (not isinstance(question, str) or not question.strip()):
+            errors.append(f"{where} question must be a non-empty string")
+
+        if "required" in entry and not isinstance(entry["required"], bool):
+            errors.append(
+                f"{where} required must be true or false, got {entry['required']!r}")
 
 
 def _check_paths(case: dict, errors: list[str]) -> None:
@@ -253,6 +320,7 @@ def validate_case(path: Path) -> list[str]:
 
     elif layer == 2:
         _check_single_skill(case, errors)
+        _check_l2_rubric(case, expected, errors)
         rubric = expected.get("rubric") or case.get("rubric")
         if "must_flag" in expected:
             # An explicit [] is a deliberate clean case: it scores whether the

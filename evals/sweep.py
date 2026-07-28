@@ -133,17 +133,49 @@ def _manifest_contents() -> dict:
     return out
 
 
-def _gate_digest(config: dict) -> str:
+def _l2_gate_contract(case_paths) -> list:
+    """Which L2 criteria are required — normalized, so only policy moves the hash.
+
+    Sorted by id and reduced to `(id, required)`: rewording a question or reordering
+    the rubric is a measurement change (`cases_sha256` carries it), while adding,
+    renaming or demoting a criterion changes what PASS means and belongs in the gate.
+    """
+    out = []
+    for p in sorted(str(x) for x in case_paths):
+        try:
+            case = yaml.safe_load(Path(p).read_text()) or {}
+        except Exception:  # noqa: BLE001 — an unreadable case is the validator's job
+            out.append([Path(p).stem, "unreadable"])
+            continue
+        if case.get("layer") != 2:
+            continue
+        entries = sorted((e.get("id"), e.get("required") is True)
+                         for e in runner.l2_rubric(case) if isinstance(e, dict))
+        if entries:
+            out.append([Path(p).stem, entries])
+    return out
+
+
+def _gate_digest(config: dict, case_paths=()) -> str:
     """Everything that decides PASS/FAIL, separate from what was measured.
 
     Split out so --recompile can prove it changed only the decision rule and not
     the measurement it is re-deciding.
+
+    Package F put two more inputs behind the gate: `l2_rubric`, which resolves which
+    criteria exist, and each L2 case's `required` flags. Both are hashed elsewhere —
+    in `harness_sha256` and `cases_sha256` — but those are MEASUREMENT keys, and
+    `recompile_verdict` never rebuilds the fingerprint. Left out here, gutting the
+    accessor or demoting a criterion would leave this digest byte-identical while the
+    gate genuinely changed, which is the same way `_GATE_EPS` once invalidated the
+    before/after claim --recompile stamps.
     """
     import inspect
     h = hashlib.sha256()
     h.update(json.dumps(config.get("thresholds") or runner.DEFAULT_THRESHOLDS,
                         sort_keys=True).encode())
     h.update(json.dumps(runner.DEFAULT_THRESHOLDS, sort_keys=True).encode())
+    h.update(json.dumps(_l2_gate_contract(case_paths), sort_keys=True).encode())
 
     # The whole gate, not just its entry point. case_gate calls _meets and _threshold but
     # does not define them, so hashing case_gate alone left the comparison logic and the
@@ -152,7 +184,14 @@ def _gate_digest(config: dict) -> str:
     # compile_verdict is included because it decides verdicts too: it assigns UNMEASURED
     # and owns the whole rollup (any FAIL -> FAIL; else any UNMEASURED -> UNMEASURED).
     # Replacing it wholesale previously left this digest byte-identical.
-    for fn in (runner.case_gate, runner._meets, runner._threshold, compile_verdict):
+    # `runner.l2_rubric`, not `scorer.l2_rubric`: they are the same object today, but
+    # case_gate resolves the name in runner's namespace, and hashing the other binding
+    # would miss a rebinding of the one the gate actually calls. `_load_ledger_case` is
+    # here because compile_verdict depends on it for the contract, exactly as case_gate
+    # depends on _meets.
+    for fn in (runner.case_gate, runner._meets, runner._threshold,
+               runner.l2_rubric, runner.criterion_status,
+               _load_ledger_case, compile_verdict):
         try:
             h.update(inspect.getsource(fn).encode())
         except (OSError, TypeError):  # source unavailable (frozen/zipped)
@@ -340,7 +379,7 @@ def build_fingerprint(config: dict, case_paths: list[str],
         "cases_sha256": h.hexdigest(),
         "harness_sha256": harness.hexdigest(),
         "content_sha256": _content_digest(config_path),
-        "gate_sha256": _gate_digest(config),
+        "gate_sha256": _gate_digest(config, case_paths),
         "config_path": str(config_path) if config_path else None,
         "case_count": len(case_paths),
         # Requested vs invoked. What actually served the request is recorded by the
@@ -632,6 +671,75 @@ def run_one_slot(name: str, slot_index: int, config_path: str, sweep_dir: Path) 
     return records[0] if records else None
 
 
+def _load_ledger_case(name: str, case_entry: dict) -> dict:
+    """Load the case a ledger entry points at, asserting the two agree.
+
+    D9: aggregation and gating both read the case contract (`expected.must_flag`,
+    the L2 rubric, the L4 dimensions). Handing either a stripped stand-in silently
+    reverts to a weaker rule, so the real file is loaded — and checked against the
+    ledger, since a mismatched path would substitute one case's contract for
+    another's just as quietly.
+    """
+    case = runner.load_case(str(REPO_ROOT / case_entry["path"]))
+    if Path(case_entry["path"]).stem != name or case["layer"] != case_entry["layer"]:
+        raise ValueError(
+            f"ledger/case mismatch for {name!r}: case_entry declares path="
+            f"{case_entry['path']!r} layer={case_entry['layer']!r}, but the file "
+            f"there is named {Path(case_entry['path']).stem!r} with layer="
+            f"{case.get('layer')!r}"
+        )
+    return case
+
+
+def _unmeasured_reason(case: dict, agg: dict) -> str | None:
+    """Why an L2 case with required criteria came back UNMEASURED.
+
+    A verdict that just says UNMEASURED sends the reader back to the ledger to
+    work out whether the data is old or the run is incomplete; those need
+    different fixes (recompile vs. rerun), so the verdict says which.
+
+    Classified through `runner.criterion_status`, the same helper the gate uses.
+    Deciding here from the stored `rate` instead would leave a criterion the gate
+    rejected on its counts with no reason printed at all — UNMEASURED and silent.
+    """
+    required = [e["id"] for e in runner.l2_rubric(case)
+                if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+    if not required:
+        return None
+    criteria = agg.get("rubric_criteria")
+    if not criteria:
+        return ("ledger predates the per-criterion rubric gate — no per-question "
+                "answers on file; rerun this case, do not recompile")
+
+    runs_valid = agg.get("runs_valid") or 0
+    buckets: dict[str, list[str]] = {}
+    for cid in required:
+        status, _ = runner.criterion_status(criteria.get(cid), runs_valid)
+        if status != "ok":
+            buckets.setdefault(status, []).append(cid)
+
+    parts = []
+    if buckets.get("missing"):
+        parts.append("no answer block at all: " + ", ".join(sorted(buckets["missing"])))
+    if buckets.get("partial"):
+        # Split by whether anyone answered: nothing at all points at the judge or the
+        # rubric wiring, a partial count at specific runs.
+        never = sorted(c for c in buckets["partial"]
+                       if not (criteria.get(c) or {}).get("answered"))
+        some = sorted(c for c in buckets["partial"] if c not in never)
+        if never:
+            parts.append("never answered in any valid run: " + ", ".join(never))
+        for cid in some:
+            crit = criteria[cid]
+            parts.append(f"{cid} answered in only {crit.get('answered')} of "
+                         f"{runs_valid} valid runs")
+    if buckets.get("inconsistent"):
+        parts.append(
+            "counts contradict themselves (untrustworthy ledger, rerun — do not "
+            "recompile): " + ", ".join(sorted(buckets["inconsistent"])))
+    return "; ".join(parts) if parts else None
+
+
 def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Path,
                    runs: int, thresholds: dict | None) -> dict:
     """Run only a case's not-yet-accepted slots. Pure: reads `case_entry` but
@@ -670,18 +778,11 @@ def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Pat
             "error": f"only {len(accepted)} of {len(slots)} runs measured",
         }
 
-    case = runner.load_case(str(REPO_ROOT / case_entry["path"]))
-    if Path(case_entry["path"]).stem != name or case["layer"] != case_entry["layer"]:
-        raise ValueError(
-            f"ledger/case mismatch for {name!r}: case_entry declares path="
-            f"{case_entry['path']!r} layer={case_entry['layer']!r}, but the file "
-            f"there is named {Path(case_entry['path']).stem!r} with layer="
-            f"{case.get('layer')!r}"
-        )
+    case = _load_ledger_case(name, case_entry)
     agg = runner.aggregate(accepted, case)
     return {
         "status": "done", "slots": slots, "aggregate": agg,
-        "verdict": runner.case_gate(case_entry["layer"], agg, thresholds),
+        "verdict": runner.case_gate(case, agg, thresholds),
         "invalid_reasons": sorted({r["invalid"] for r in accepted if r.get("invalid")}),
         "runs_valid": agg.get("runs_valid"), "runs_total": agg.get("runs_total"),
         "error": None,
@@ -759,13 +860,24 @@ def run_wave(ledger: dict, names: list[str], config_path: str, sweep_dir: Path,
 # --- Verdict ---
 
 def compile_verdict(ledger: dict) -> dict:
-    """Apply the gate to every case and roll up per layer."""
+    """Apply the gate to every case and roll up per layer.
+
+    Each entry's case file is loaded and handed to the gate, because since
+    Package F the L2 contract lives in the case (which criteria are required),
+    not in the stored aggregate. A `--recompile` against a pre-F ledger therefore
+    reports UNMEASURED for those cases instead of quietly grading them under the
+    old rule — the same failure mode D9 fixed on the aggregation path.
+    """
     thresholds = ledger.get("thresholds")
     per_case, layers = {}, {}
     for name, entry in sorted(ledger["cases"].items()):
         layer = entry["layer"]
+        legacy_reason = None
         if entry["status"] == "done" and entry.get("aggregate"):
-            verdict = runner.case_gate(layer, entry["aggregate"], thresholds)
+            case = _load_ledger_case(name, entry)
+            verdict = runner.case_gate(case, entry["aggregate"], thresholds)
+            if verdict == "UNMEASURED":
+                legacy_reason = _unmeasured_reason(case, entry["aggregate"])
         else:
             verdict = "UNMEASURED"
         per_case[name] = {
@@ -774,6 +886,7 @@ def compile_verdict(ledger: dict) -> dict:
             "aggregate": entry.get("aggregate"),
             "invalid_reasons": entry.get("invalid_reasons", []),
             "error": entry.get("error"),
+            "unmeasured_reason": legacy_reason,
         }
         bucket = layers.setdefault(layer, {"PASS": 0, "FAIL": 0, "UNMEASURED": 0})
         bucket[verdict] += 1
@@ -874,6 +987,47 @@ def render_verdict_md(verdict: dict) -> str:
         valid = f"{c['runs_valid']}/{c['runs_total']}" if c["runs_valid"] is not None else "—"
         lines.append(f"| {name} | L{c['layer']} | {c['verdict']} | {valid} |")
 
+    # Package F: per-criterion L2 rubric results. The JSON stays the machine-readable
+    # source; this table is what makes a FAIL diagnosable without opening it — which
+    # criterion missed, at what rate, and whether it was gating at all.
+    rubric_cases = {name: (c.get("aggregate") or {}).get("rubric_criteria")
+                    for name, c in verdict["cases"].items()}
+    rubric_cases = {name: crit for name, crit in rubric_cases.items() if crit}
+    if rubric_cases:
+        lines += ["", "## L2 rubric criteria", "",
+                  "| Case | Criterion | Status | Rate | Question |",
+                  "|------|-----------|--------|------|----------|"]
+        for name in sorted(rubric_cases):
+            runs_valid = ((verdict["cases"][name].get("aggregate") or {})
+                          .get("runs_valid") or 0)
+            for cid, crit in sorted(rubric_cases[name].items()):
+                status = "required" if crit.get("required") else "informational"
+                # Classified by the gate's own helper, not by reading `rate`: a block
+                # the gate rejected must never print as a bare `4/5`, which is what
+                # trusting a stored rate over contradictory counts would produce.
+                state, crate = runner.criterion_status(crit, runs_valid)
+                if state == "ok":
+                    rate = f"{crit.get('passed', 0)}/{crit.get('valid', 0)}"
+                elif state == "partial":
+                    # "nobody answered" and "answered in only some runs" are both gaps,
+                    # and reporting either as a rate over the runs that answered would
+                    # hide it.
+                    # "4 of 5", not "4/5": the slash form is the pass rate one column
+                    # over, and a gap must not be mistakable for a score.
+                    rate = f"— ({crit.get('answered', 0)} of {runs_valid} runs answered)"
+                else:
+                    rate = (f"— ({state}: passed {crit.get('passed')}, answered "
+                            f"{crit.get('answered')}, valid {crit.get('valid')}, "
+                            f"{runs_valid} valid runs)")
+                lines.append(f"| {name} | {cid} | {status} | {rate} "
+                             f"| {crit.get('question', '')} |")
+
+    unmeasured = {name: c["unmeasured_reason"] for name, c in verdict["cases"].items()
+                  if c.get("unmeasured_reason")}
+    if unmeasured:
+        lines += ["", "### Why these are UNMEASURED", ""]
+        lines.extend(f"- **{name}**: {reason}" for name, reason in sorted(unmeasured.items()))
+
     # D1: rubric criteria a case's triage moved out of grading because they
     # cannot be reached in one turn (response_contract: first_turn). Reported
     # here so they stay visible as a migration list — never scored, never
@@ -923,8 +1077,11 @@ def recompile_verdict(ledger_path: Path, config: dict) -> tuple[dict, Path]:
     verdict["thresholds_source"] = thresholds_source
     verdict["thresholds_applied"] = ledger.get("thresholds") or runner.DEFAULT_THRESHOLDS
     verdict["gate_sha256_before"] = gate_before
+    # The contract as APPLIED: the same case files compile_verdict just loaded, so the
+    # stamped hash describes the gate that actually ran, not the one the sweep recorded.
     verdict["gate_sha256_after"] = _gate_digest(
-        {"thresholds": ledger.get("thresholds")})
+        {"thresholds": ledger.get("thresholds")},
+        [REPO_ROOT / e["path"] for e in ledger["cases"].values() if e.get("path")])
     verdict["measurement_unchanged"] = True  # no models were run
 
     # Check BOTH extensions: an orphan .md (from an interrupted write) would otherwise
@@ -937,6 +1094,41 @@ def recompile_verdict(ledger_path: Path, config: dict) -> tuple[dict, Path]:
     out_md = sweep_dir / f"verdict-recompiled-{n}.md"
     out_md.write_text(render_verdict_md(verdict))
     return verdict, out_md
+
+
+def _write_release_history(ledger: dict, verdict: dict, version: str, config: dict,
+                           hist_path: Path | None = None) -> None:
+    """One consolidated HISTORY row for a green release sweep.
+
+    Until now no sweep ever wrote one: every slot runs `runner.py --no-history`
+    (each slot is one run of one case, not a result), and the release writer
+    emitted only verdict.md/json. The row is reconstructed from the ledger here,
+    once, after the verdict is known.
+
+    Only a PASS is recorded. A row for a sweep that failed its gate would read
+    later as evidence the version was measured and fine. Each case is loaded from
+    disk rather than stubbed, because `save_history` re-applies `case_gate` for
+    its pass column and a stripped case would let that column disagree with the
+    verdict — the drift D9 already had to fix once.
+    """
+    if verdict["overall"] != "PASS":
+        return
+    if not version.startswith("v"):
+        version = f"v{version}"
+
+    cases = []
+    for name, entry in sorted(ledger["cases"].items()):
+        agg = entry.get("aggregate")
+        if agg:
+            cases.append({"case": _load_ledger_case(name, entry), "aggregate": agg})
+
+    fp = ledger.get("fingerprint") or {}
+    results = {"runs": ledger.get("runs_per_case"), "backend": "cli", "cases": cases}
+    cfg = {"model": fp.get("model") or config.get("model") or "unknown",
+           "thresholds": ledger.get("thresholds") or config.get("thresholds") or {}}
+    notes = f"sweep {ledger['sweep_id']} · RC {fp.get('commit', 'unknown')}"
+    runner.save_history(results, cfg, notes=notes, hist_path=hist_path,
+                        release_version=version)
 
 
 def _write_release_verdict(verdict: dict, version: str) -> Path:
@@ -1141,6 +1333,7 @@ def main() -> int:
     print(f"Verdict: {sweep_dir / 'verdict.md'}")
     if release:
         _write_release_verdict(verdict, release)
+        _write_release_history(ledger, verdict, release, config)
 
     if verdict["overall"] == "PASS":
         return 0

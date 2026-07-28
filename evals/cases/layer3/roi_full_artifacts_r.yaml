@@ -1,0 +1,55 @@
+name: roi_full_artifacts_r
+description: >-
+  Execution-backed counterpart to the L2 roi_full_artifacts case — the same
+  400-store DiD scenario, fully specified, must build and run in R and produce
+  the full-ship verdict. Named pipeline outputs are checked against values
+  HAND-DERIVED from references/roi-framework.md §5 (see
+  evals/parity/test_roi_known_answers.py::test_l3_roi_full_artifacts_case_numbers).
+layer: 3
+skill: causal-roi
+references:
+  - references/roi-framework.md
+  - references/lessons.md
+language: r
+user_message: |
+  Everything is specified — no interview needed, just build and run the calculation
+  in R (base R only). Staggered DiD (Callaway-Sant'Anna) event-study estimates
+  average to R$1,200 incremental PROFIT per store per month over the post window
+  (a monthly rate, already net of all variable costs, not a cumulative total),
+  95% CI [R$800, R$1,600]. 400 treated stores; full rollout at launch to those
+  same 400 stores, no expansion. Horizon: 12 monthly base periods. Persistence
+  1.0 (no decay), no store churn (survival 1.0). Same stores, same period —
+  transport and net incrementality are both 1.0. Monthly discount rate 0.8%.
+  Investment: R$900,000 one-time plus R$20,000/month maintenance. Hurdle:
+  breakeven (ROI ≥ 0), confirmed; use a 2x margin-of-safety buffer. Give me ONE
+  complete R script in a single code block that prints the machine-readable
+  KEY: value lines, and state the verdict.
+expected:
+  code_runs: true
+  values:
+    # HAND-DERIVED from roi-framework §5 closed forms on the inputs above
+    # (effect 1200, CI [800,1600], N=400/period, rollout=lambda=s=transport=
+    # net_incr=1, r=0.008, T=12, INV = 900000 + 20000 * EFFECTIVE_PERIODS):
+    #   EFFECTIVE_PERIODS = sum_{t=0..11} 1/1.008^t          = 11.4898035
+    #   M   = 400 * EFFECTIVE_PERIODS                        = 4595.921413
+    #   INV = 900000 + 20000 * 11.4898035                    = 1129796.0706
+    #   PV  = 1200 * M                                       = 5515105.6948
+    #   NET = PV - INV                                       = 4385309.6242
+    #   ROI = NET / INV                                      = 3.8815055
+    #   ROI_LO = (800*M - INV)/INV                           = 2.2543370
+    #   ROI_HI = (1600*M - INV)/INV                          = 5.5086740
+    #   BREAKEVEN = INV / M                                  = 245.8258
+    #   line = (1+0)*INV/M = 245.8258; k*line = 491.6516;
+    #   dp0_lo = 800 >= k*line -> VERDICT_CODE = 2 (ship, full rollout)
+    EFFECTIVE_PERIODS: { value: 11.4898035, tol: 0.0001 }
+    PV_INCREMENTAL_PROFIT_PER_UNIT: { value: 13787.7642, tol: 0.01 }
+    PV_INCREMENTAL_PROFIT: { value: 5515105.69, tol: 1.0 }
+    NET_PROFIT: { value: 4385309.62, tol: 1.0 }
+    ROI: { value: 3.8815055, tol: 0.0001 }
+    ROI_LO: { value: 2.2543370, tol: 0.0001 }
+    ROI_HI: { value: 5.5086740, tol: 0.0001 }
+    BREAKEVEN_EFFECT: { value: 245.8258, tol: 0.05 }
+    VERDICT_CODE: { value: 2, tol: 0 }
+  must_include:
+    - ["full rollout", "full-scale rollout"]
+    - breakeven

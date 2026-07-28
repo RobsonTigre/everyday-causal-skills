@@ -26,6 +26,12 @@ expected:
   # which nothing read — they are graded questions now.
   must_flag: []
 rubric:
-  - "Does it identify the backdoor path running through the parental variables (parental education and parental income)?"
-  - "Does it identify {parental education, parental income} as the minimally sufficient adjustment set that blocks the backdoor paths?"
-  - "Does it correctly treat this as an identifiable design rather than reporting a violation?"
+  - id: backdoor_parental_path
+    question: "Does it identify the backdoor path running through the parental variables (parental education and parental income)?"
+    required: true
+  - id: minimal_parental_adjustment_set
+    question: "Does it identify {parental education, parental income} as the minimally sufficient adjustment set that blocks the backdoor paths?"
+    required: true
+  - id: identifiable_design
+    question: "Does it correctly treat this as an identifiable design rather than reporting a violation?"
+    required: true

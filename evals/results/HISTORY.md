@@ -1,5 +1,15 @@
 # Eval History
 
+**Gate change.** The first row whose Notes carry a `[release:vX.Y.Z]` token is
+the first measured under the per-criterion L2 rubric gate, where each required
+criterion must pass independently at >=4/5 valid runs and an incompletely
+answered criterion is reported as UNMEASURED rather than scored over the runs
+that happened to answer. Every row above that one was produced under earlier
+pass definitions -- a single collapsed rubric mean, and a pass column that did
+not gate on the case's declared contract. Those rows are still valid records of
+what was measured at the time; they are simply not comparable to the rows below
+them, and no trend should be read straight across the boundary.
+
 | Date | Model | L0 Trigger | L1 Acc | L2 Detect | L2 Severity | L3 Runs OK | L3 Est Acc | L4 Exp | L5 Wkfl | Notes |
 |------|-------|------------|--------|-----------|-------------|------------|------------|--------|---------|-------|
 | 2026-03-31 23:32 | claude-sonnet-4-20250514 | -- | 8/8 | 7/8 | 3/8 | 2/4 | 3/4 | -- | -- | v0.0.1 baseline (pre-fix) |

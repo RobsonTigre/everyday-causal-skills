@@ -12,8 +12,12 @@ user_message: |
   after a minimum wage increase. I have the results but nothing saved.
   Can you write up a report for an academic audience?
 rubric:
-  - "Does it interview the user for key details (method, results, threats)?"
-  - "Does it avoid fabricating any estimates not provided by the user?"
+  - id: interview_required_details
+    question: "Does it interview the user for key details (method, results, threats)?"
+    required: true
+  - id: no_fabricated_estimates
+    question: "Does it avoid fabricating any estimates not provided by the user?"
+    required: true
 deferred_rubric:
   - "Does the report skill create a project folder? (no Write grant in this sandbox)"
   - "Does it produce a report in academic mode from the interview answers? (impossible in one turn — the interview answers don't exist yet)"
