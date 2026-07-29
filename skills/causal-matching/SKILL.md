@@ -39,6 +39,31 @@ You guide users through a complete matching / propensity score / doubly-robust a
 6. "Do you want an ATT (average treatment effect on the treated) or ATE (average treatment effect on everyone)?"
 7. "R or Python?"
 
+**When the prompt already supplies treatment, outcome, covariates, estimand, and
+language**: Confirm those facts briefly rather than repeating the full intake. In the
+same response, explain that matching creates a comparison among units with similar
+observed pre-treatment covariates, state that unmeasured confounding remains, and
+give a bounded next-step plan:
+
+1. estimate propensity scores and inspect common support;
+2. choose matching or weighting for the stated ATT/ATE;
+3. verify post-adjustment balance with standardized mean differences;
+4. estimate the effect with a confidence interval; and
+5. run overlap/specification and hidden-bias sensitivity checks.
+
+If overlap is visibly poor, quantify the unsupported region, explain that trimming
+changes the target population, and offer a narrower overlap-population estimand or a
+stronger design. If diagnostics establish good overlap, describe it as adequate
+while still recommending routine balance checks; asking for a check is not evidence
+of a known violation.
+
+**Canonical runnable block**: When emitting executable code, put
+the exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside
+exactly one correct-language code fence. Do not indent it or add other text on
+that line. That fence must contain the complete program to run.
+Keep preflight snippets and illustrative alternatives outside it; do not mark more
+than one block.
+
 **Determine variant**:
 - Good overlap, want transparency → Propensity Score Matching (PSM) with MatchIt
 - Large sample, want efficiency → Inverse Probability Weighting (IPW/PSW)

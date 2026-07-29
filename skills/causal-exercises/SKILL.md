@@ -26,6 +26,11 @@ Generate realistic causal inference exercises with simulated data. The true effe
 - **Always include at least one complication**: Even "Basic" exercises should have one realistic wrinkle (e.g., slightly noisy data, an obvious but important assumption to check). Pure textbook setups teach nothing about real practice.
 - **Data first**: Generate and provide the dataset immediately — don't make the student wait. They should be able to start exploring within seconds.
 - **Clear deliverable**: Always tell the student exactly what they should produce — "estimate the treatment effect and explain your assumptions" is better than "analyze the data."
+- **Canonical runnable block**: When showing a DGP or solution program, put the
+  exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside
+  exactly one correct-language code fence. Do not indent it or add other text
+  on that line. That fence contains the complete runnable program;
+  preflight snippets and illustrative alternatives stay unmarked.
 
 ## Exercise Flow
 

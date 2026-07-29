@@ -9,6 +9,9 @@ references:
 user_message: |
   I want to practice instrumental variables. I use R. Give me an exercise
   that will help me understand when an instrument is valid and when it isn't.
+  Make it Intermediate difficulty. Generate the complete exercise now, including
+  runnable data-generation code and the requested deliverable; do not stop to ask
+  me to choose more parameters.
 rubric:
   pedagogy:
     - "Does the scenario teach the student about instrument validity through the scenario design itself (not just by telling them)?"

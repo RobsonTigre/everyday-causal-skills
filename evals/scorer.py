@@ -554,6 +554,8 @@ Questions:
         false_alarm = answers[0]
         return {
             "violation_detected": not false_alarm,
+            "flag_answers": {},
+            "false_alarm_answer": bool(false_alarm),
             "flags_coverage": 1.0 if not false_alarm else 0.0,
             "severity_correct": not false_alarm,
             **rubric_extra,
@@ -566,6 +568,8 @@ Questions:
         severity_answer = pattern_pass or judge_answer
         return {
             "violation_detected": any(flag_answers),
+            "flag_answers": {flag: bool(answer)
+                             for flag, answer in zip(must_flag, flag_answers)},
             "flags_coverage": sum(flag_answers) / len(flag_answers) if flag_answers else 1.0,
             "severity_correct": severity_answer,
             **rubric_extra,
@@ -634,7 +638,12 @@ Questions:
     #
     # Which dimensions the case actually populates — the gate scores only these,
     # so an absent dimension is skipped rather than counted as a 0.0.
+    question_answers = {
+        dim: [bool(answer) for answer in answers[start:end]]
+        for dim, (start, end) in dim_ranges.items()
+    }
     return {**dim_scores, "overall": overall, "dimensions_present": sorted(dim_ranges),
+            "question_answers": question_answers,
             "response_contract": case.get("response_contract"),
             "deferred_rubric": case.get("deferred_rubric") or []}
 
@@ -713,9 +722,61 @@ def must_include_alternates(term) -> tuple[str, list[str]]:
         f"must_include term must be a string or a list of strings, got {type(term).__name__}")
 
 
+def _select_l3_program(response: str, language: str) -> dict:
+    """Select the one program whose exact bytes L3 may inspect and execute.
+
+    A stable sentinel lets a response include setup snippets or illustrative
+    alternatives without making fence order part of the measurement contract.
+    The fallback exists for backwards compatibility, but only when there is
+    exactly one fence in the case's declared language.
+    """
+    wanted = language.lower()
+    aliases = {"python": {"python", "py"}, "r": {"r"}}
+    accepted = aliases.get(wanted, {wanted})
+    fences = []
+    for match in re.finditer(r"```([^\n`]*)\n(.*?)```", response, re.DOTALL):
+        info = match.group(1).strip()
+        fence_language = info.split()[0].lower() if info else ""
+        if fence_language not in accepted:
+            continue
+        body = match.group(2)
+        first_nonblank = next(
+            (line for line in body.splitlines() if line.strip()), None)
+        marked = first_nonblank == "# EVAL_EXECUTABLE"
+        fences.append({
+            "language": fence_language,
+            "body": body,
+            "marked": marked,
+            "index": len(fences),
+        })
+
+    marked = [f for f in fences if f["marked"]]
+    if len(marked) == 1:
+        return {"program": marked[0]["body"], "error": None,
+                "selection": "sentinel", "candidate_count": len(fences)}
+    if len(marked) > 1:
+        return {"program": None,
+                "error": "ambiguous executable program: multiple correct-language "
+                         "fences contain # EVAL_EXECUTABLE",
+                "selection": "ambiguous", "candidate_count": len(fences)}
+    if len(fences) == 1:
+        return {"program": fences[0]["body"], "error": None,
+                "selection": "single_fallback", "candidate_count": 1}
+    if not fences:
+        return {"program": None,
+                "error": f"no {language} fenced program found",
+                "selection": "missing", "candidate_count": 0}
+    return {"program": None,
+            "error": "ambiguous executable program: multiple unmarked "
+                     f"{language} fences",
+            "selection": "ambiguous", "candidate_count": len(fences)}
+
+
 def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     """Score implementation quality — includes code execution."""
-    code_blocks = re.findall(r"```(?:python|r|R)\n(.*?)```", response, re.DOTALL)
+    language = case.get("language", "python")
+    selected = _select_l3_program(response, language)
+    program = selected["program"]
 
     must_include = expected.get("must_include", [])
     resp_lower = response.lower()
@@ -725,29 +786,32 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
         included[canonical] = any(
             alt.lower().replace("_", " ") in resp_lower for alt in alternates)
 
-    # Code-scoped guard: match only inside fenced code blocks, not prose.
-    code_text = "\n".join(code_blocks).lower()
+    # Code-scoped guards apply to exactly the selected bytes. Empty guard sets
+    # are not applicable, rather than a synthetic passing measurement.
+    code_text = (program or "").lower()
     must_not_include = expected.get("must_not_include", [])
     must_include_code = expected.get("must_include_code", [])
     must_not_results = {t: (t.lower() in code_text) for t in must_not_include}   # True = violation
     code_presence = {t: (t.lower() in code_text) for t in must_include_code}      # False = missing
-    guard_passed = (not any(must_not_results.values())) and all(code_presence.values())
+    guard_applicable = bool(must_not_include or must_include_code)
+    guard_passed = (
+        (not any(must_not_results.values())) and all(code_presence.values())
+        if guard_applicable and program is not None else
+        (False if guard_applicable else None)
+    )
 
     true_effect = expected.get("true_effect")
     expected_values = expected.get("values") or {}
-    is_exercise = (true_effect is None and not expected_values
-                   and any("ESTIMATE:" in cb for cb in code_blocks))
+    execution_mode = case.get("execution_mode", "standard")
+    is_exercise = execution_mode == "exercise"
+    required_output = case.get("required_output")
 
     # Nothing-executed must be distinguishable from executed-and-crashed. Leaving this
     # as error=None made a prose-only reply look identical to a failing script, which is
     # exactly how exercise_dgp_iv read as a crash in 4 of 5 runs when in fact no code
     # was ever produced. The default below is overwritten whenever execution happens.
-    if not code_blocks:
-        _why_not = ("no runnable code block found in the response — expected a "
-                    f"{case.get('language', 'python')} block")
-    elif is_exercise:
-        _why_not = ("no runnable code found — this exercise case needs a code block "
-                    "printing an ESTIMATE: line to recover ground truth")
+    if program is None:
+        _why_not = selected["error"]
     else:
         _why_not = ("no runnable code was executed — the response has code but the case "
                     "declares neither `dataset` nor `expected.code_runs`, so nothing "
@@ -755,22 +819,28 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     exec_result = {"ran": False, "error": _why_not, "estimate": None}
 
     if is_exercise:
-        # Exercise case: find and run the DGP block to extract runtime ground truth
-        dgp_block = next((cb for cb in code_blocks if "ESTIMATE:" in cb), None)
-        if dgp_block:
+        # Exercise mode is a case contract, never inferred from response text.
+        if program is not None:
             exec_result = _execute_code(
-                dgp_block,
-                language=case.get("language", "python"),
+                program,
+                language=language,
                 requires=case.get("requires"),
             )
-    elif code_blocks and (case.get("dataset") or expected.get("code_runs")):
+    elif program is not None and (case.get("dataset") or expected.get("code_runs")):
         # Standard L3 case or dataset-free case (e.g., DAG structural code)
         exec_result = _execute_code(
-            code_blocks[0],
-            language=case.get("language", "python"),
+            program,
+            language=language,
             dataset_path=case.get("dataset"),
             requires=case.get("requires"),
         )
+
+    required_output_ok = None
+    if required_output == "estimate":
+        required_output_ok = exec_result.get("estimate") is not None
+        if exec_result["ran"] and not required_output_ok:
+            exec_result["ran"] = False
+            exec_result["error"] = "required output missing: ESTIMATE:<number>"
 
     # Check estimation accuracy if ground truth provided (non-exercise cases only).
     # None means the gate does not apply to this case at all; a case that declares a
@@ -802,7 +872,10 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
             estimate_ok = all(values_results.values())
 
     return {
-        "has_code": len(code_blocks) > 0,
+        "has_code": program is not None,
+        "program_selection": selected["selection"],
+        "program_selection_error": selected["error"],
+        "program_candidate_count": selected["candidate_count"],
         "runs_without_error": exec_result["ran"],
         "execution_error": exec_result["error"],
         "estimate": exec_result["estimate"],
@@ -810,8 +883,11 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
         "diagnostic_coverage": sum(included.values()) / len(included) if included else 1.0,
         "must_include_results": included,
         "guard_passed": guard_passed,
+        "guard_applicable": guard_applicable,
         "must_not_include_results": must_not_results,
         "must_include_code_results": code_presence,
+        "required_output": required_output,
+        "required_output_ok": required_output_ok,
         "values_results": values_results,
     }
 

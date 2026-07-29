@@ -10,7 +10,11 @@ dataset: evals/data/rdd_bunching.csv
 user_message: |
   Students get a scholarship if their test score is >= 70. I have data on 2000
   students. I want to estimate the effect of the scholarship on GPA using RDD.
-  I use R.
+  The observed score distribution has a sharp jump at the cutoff: the one-point
+  bin from 69 to below 70 contains 18 students, while the bin from 70 to below 71
+  contains 120. A formal density test rejects continuity at 70 (p < 0.001).
+  Treat this as observed evidence of bunching, not something to infer from the
+  five-row preview. I use R.
 expected:
   must_flag: [manipulation, manipulation_test]
   severity: fatal

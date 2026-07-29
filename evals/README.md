@@ -36,8 +36,21 @@ Point the harness at this interpreter with `EVAL_PYTHON`, which `scorer.py` alre
 honours:
 
 ```bash
-EVAL_PYTHON="$PWD/.venv/bin/python" .venv/bin/python evals/sweep.py ...
+EVAL_PYTHON="$PWD/.venv/bin/python" .venv/bin/python -u evals/sweep.py ...
 ```
+
+For a release sweep, preserve the complete release command and let failures
+propagate:
+
+```bash
+EVAL_PYTHON="$PWD/.venv/bin/python" .venv/bin/python -u evals/sweep.py \
+  --runs 5 --workers 3 --config evals/config.release.yaml \
+  --release-verdict vX.Y.Z
+```
+
+Avoid piping this command through `tee`, because a default shell pipeline can
+hide the sweep's nonzero exit status. If a transcript is required, enable
+`set -o pipefail` in the shell before piping to `tee`.
 
 ## The `causalimpact` trap
 

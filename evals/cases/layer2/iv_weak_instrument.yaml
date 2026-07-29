@@ -9,7 +9,11 @@ references:
 dataset: evals/data/iv_weak.csv
 user_message: |
   I have data on 1000 individuals. I'm using distance to college as an instrument
-  for education to estimate the effect on earnings. I use Python.
+  for education to estimate the effect on earnings. The observed first-stage
+  regression estimates a distance coefficient of -0.0026, with F = 0.47 and
+  partial R-squared = 0.00047. Treat those as the full-sample first-stage
+  diagnostics rather than trying to infer strength from the five-row preview.
+  I use Python.
 expected:
   must_flag: [relevance, weak_instrument]
   severity: fatal

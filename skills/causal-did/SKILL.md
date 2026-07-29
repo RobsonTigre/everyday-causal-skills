@@ -38,6 +38,19 @@ You guide users through a complete difference-in-differences analysis following 
 5. "How many units and time periods?"
 6. "R or Python?"
 
+**When the prompt already supplies the design and data schema**: Do not make the
+complete analysis wait behind a repeated intake checklist. Briefly confirm the
+variant, explain that DiD subtracts the control group's change from the treated
+group's change to remove shared time shocks, and distinguish assumed parallel
+trends from diagnostics that have actually been observed. Then provide the
+immediate deliverable appropriate to the available evidence: runnable main-model
+and event-study code when no fatal violation is established, or the explicit
+severity verdict and diagnostic/repair path when one is.
+
+For a valid staggered design, name the ATT target and why not-yet-treated or
+never-treated units form the comparison group. Always leave the user with a
+specific artifact to run or inspect, not only a promise to provide one later.
+
 **Determine variant**:
 - Single treatment date, 2 groups → Classic 2x2 DiD
 - Single date, panel → TWFE with unit + time FE
@@ -136,6 +149,18 @@ print(res.overall_att, res.overall_se, res.overall_conf_int)
 ```
 Use `control_group="not_yet_treated"` when there are no never-treated units, and
 `covariates=[...]` for conditional parallel trends. `csdid` is broken for this project — do not use it.
+
+**Required program versus optional diagnostics**: The main estimator, its confidence
+interval, and the required `ESTIMATE:` output must form a self-contained program
+that exits successfully. Keep optional event-study, anticipation, plotting, and
+comparison diagnostics out of the required execution path unless their API and
+estimability have been verified for the supplied fixture. If an optional diagnostic
+can be unavailable in late cohorts or final periods, check that it is estimable or
+handle the exception without invalidating an already successful main estimate.
+Put the exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside
+exactly one correct-language code fence containing that complete required program.
+Do not indent it or add other text on that line. Do not mark
+preflight or illustrative alternatives.
 
 Adapt code to the user's variable names and data structure.
 

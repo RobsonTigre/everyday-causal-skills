@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime
@@ -642,6 +643,23 @@ def preflight(config: dict, attempts: int = 3, wait: float = 60.0,
 # ("status": "done") is never re-run; a requeue wave only re-attempts the
 # slots still missing.
 
+def _read_slot_output(path: Path, name: str) -> dict | None:
+    """Recover one valid, matching run record from a completed slot artifact."""
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    cases = data.get("cases") or []
+    if len(cases) != 1 or cases[0].get("name") != name:
+        return None
+    records = cases[0].get("run_records") or []
+    if len(records) != 1 or records[0].get("invalid"):
+        return None
+    return records[0]
+
+
 def run_one_slot(name: str, slot_index: int, config_path: str, sweep_dir: Path) -> dict | None:
     """Run exactly one measurement for a case in its own runner process.
 
@@ -650,6 +668,10 @@ def run_one_slot(name: str, slot_index: int, config_path: str, sweep_dir: Path) 
     output), which means this slot must be retried.
     """
     out_json = sweep_dir / f"case-{name}-slot{slot_index}.json"
+    recovered = _read_slot_output(out_json, name)
+    if recovered is not None:
+        return recovered
+
     cmd = [sys.executable, "evals/runner.py", "--case", name,
            "--runs", "1", "--config", config_path,
            "--json-out", str(out_json), "--no-history"]
@@ -741,11 +763,14 @@ def _unmeasured_reason(case: dict, agg: dict) -> str | None:
 
 
 def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Path,
-                   runs: int, thresholds: dict | None) -> dict:
-    """Run only a case's not-yet-accepted slots. Pure: reads `case_entry` but
-    never mutates it or the shared ledger — the caller applies the returned
-    patch. Returns a ledger entry patch (status, slots, and — once every slot
-    is accepted — aggregate/verdict/invalid_reasons)."""
+                   runs: int, thresholds: dict | None,
+                   checkpoint_slot=None) -> dict:
+    """Run only a case's not-yet-accepted slots.
+
+    `checkpoint_slot`, when supplied by the coordinator, durably records each
+    accepted slot before this worker starts the next one. The returned patch
+    still lets direct callers use the function without shared state.
+    """
     slots = [dict(s) for s in (case_entry.get("slots") or
                                [{"status": "pending", "result": None} for _ in range(runs)])]
 
@@ -764,6 +789,9 @@ def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Pat
         if result is not None and not result.get("invalid"):
             slot["status"] = "done"
             slot["result"] = result
+            slot.pop("last_error", None)
+            if checkpoint_slot is not None:
+                checkpoint_slot(i, dict(slot))
         else:
             slot["status"] = "pending"  # still missing — next requeue wave retries it
             slot["last_error"] = result.get("invalid") if result else None
@@ -807,6 +835,7 @@ def run_wave(ledger: dict, names: list[str], config_path: str, sweep_dir: Path,
     done = {"n": 0}
     total = len(names)
     stop = {"flag": False}
+    ledger_lock = threading.Lock()
 
     # Coordinator marks intent before dispatch, so a crash mid-wave leaves an
     # accurate "running" marker on disk for the next resume to reset.
@@ -815,11 +844,21 @@ def run_wave(ledger: dict, names: list[str], config_path: str, sweep_dir: Path,
     save_ledger(ledger, ledger_path)
 
     def work(name):
-        # Pure worker: no ledger mutation, no save_ledger — coordinator-only
-        # writes, so concurrent cases can never race on the shared ledger dict
-        # or its on-disk file.
         case_entry = ledger["cases"][name]
-        return name, run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds)
+
+        def checkpoint_slot(slot_index, slot):
+            # Workers may finish slots concurrently across cases. Serialize the
+            # in-memory mutation and atomic rename so every accepted slot reaches
+            # the ledger before another model call begins for this case.
+            with ledger_lock:
+                ledger["cases"][name]["slots"][slot_index] = slot
+                ledger["cases"][name]["updated"] = datetime.now().isoformat(
+                    timespec="seconds")
+                save_ledger(ledger, ledger_path)
+
+        return name, run_case_slots(
+            name, case_entry, config_path, sweep_dir, runs, thresholds,
+            checkpoint_slot=checkpoint_slot)
 
     remaining = list(names)
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -838,10 +877,11 @@ def run_wave(ledger: dict, names: list[str], config_path: str, sweep_dir: Path,
             for future in finished:
                 in_flight.pop(future)
                 name, patch = future.result()
-                ledger["cases"][name]["attempts"] += 1
-                patch["updated"] = datetime.now().isoformat(timespec="seconds")
-                ledger["cases"][name].update(patch)
-                save_ledger(ledger, ledger_path)
+                with ledger_lock:
+                    ledger["cases"][name]["attempts"] += 1
+                    patch["updated"] = datetime.now().isoformat(timespec="seconds")
+                    ledger["cases"][name].update(patch)
+                    save_ledger(ledger, ledger_path)
                 done["n"] += 1
                 entry = ledger["cases"][name]
                 flag = entry["verdict"] if entry["status"] == "done" else "UNMEASURED"

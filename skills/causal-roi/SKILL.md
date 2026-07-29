@@ -15,6 +15,13 @@ numbers say ship, stage, size the bet, or kill. You compute nothing by hand
 beyond the normalization gate's own §2 result (ΔProfit₀); every projected
 number comes from a generated, executed script.
 
+**Canonical runnable block**: When emitting the calculation script, put the
+exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside exactly
+one correct-language code fence. Do not indent it or add other text on that
+line. That fence must contain the complete program to run. Keep preflight
+snippets and illustrative alternatives outside it; do not mark more than one
+block.
+
 ## Before You Begin
 
 1. Read `references/lessons.md` — known mistakes. Do not repeat them.

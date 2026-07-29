@@ -349,6 +349,17 @@ def validate_case(path: Path) -> list[str]:
             errors.append(f"unsupported language: {lang}")
         if not expected:
             errors.append("L3 needs an expected block")
+        execution_mode = case.get("execution_mode", "standard")
+        if execution_mode not in ("standard", "exercise"):
+            errors.append("L3 execution_mode must be standard or exercise")
+        required_output = case.get("required_output")
+        if required_output not in (None, "estimate"):
+            errors.append("L3 required_output must be estimate when present")
+        if execution_mode == "exercise" and required_output != "estimate":
+            errors.append("L3 exercise mode needs required_output: estimate")
+        if required_output == "estimate" and execution_mode != "exercise":
+            errors.append(
+                "L3 required_output: estimate is only valid in exercise mode")
         _check_must_include(expected, errors)
 
     elif layer == 4:
@@ -430,7 +441,7 @@ _SCHEMA: dict[int, tuple[set[str], set[str]]] = {
     1: (set(), {"rubric", "method", "alternative_methods", "must_ask",
                 "must_not_recommend", "must_warn"}),
     2: ({"rubric"}, {"must_flag", "severity", "rubric"}),
-    3: ({"language", "requires"},
+    3: ({"language", "requires", "execution_mode", "required_output"},
         {"true_effect", "tolerance", "values", "values_tolerance", "code_runs",
          "must_include", "must_not_include", "must_include_code"}),
     4: ({"rubric"}, set()),

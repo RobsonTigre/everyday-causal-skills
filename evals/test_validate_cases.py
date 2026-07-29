@@ -504,7 +504,8 @@ def test_d2_migration_is_confined_to_the_approved_checkpoint_table():
     # D1 landed the mechanism with zero cases using it (superseded test:
     # test_real_case_tree_declares_no_grading_contract_fields_yet asserted exactly
     # that). D2, checkpoint-approved 2026-07-22 against the plan's rev. 3 table
-    # (lines 741-783), migrates exactly these 22 cases onto response_contract — no
+    # (lines 741-783), plus the instrument-recovery case repairs, migrates
+    # exactly these 25 cases onto response_contract — no
     # more, no fewer. `report_full_artifacts` / `report_partial_artifacts` needed
     # D5's fixture provisioning first (now done), so every approved case must be
     # migrated with the approved value.
@@ -521,6 +522,9 @@ def test_d2_migration_is_confined_to_the_approved_checkpoint_table():
         "hte_no_heterogeneity": "first_turn",
         "hte_poor_subgroup_overlap": "first_turn",
         "hte_post_treatment_modifier": "first_turn",
+        "experiments_pedagogy_clean": "final_output",
+        "exercise_dgp_did": "final_output",
+        "exercise_dgp_iv": "final_output",
         "report_full_artifacts": "final_output",
         "report_no_artifacts": "first_turn",
         "report_partial_artifacts": "final_output",

@@ -120,8 +120,10 @@ def case_gate(case: dict, agg: dict, thresholds: dict | None = None) -> str:
         # wrote the exact phrases. must_include alternates were built to cure that, but
         # only 2 of 21 L3 cases use them and neither of the two cases that demonstrated
         # the problem does. A wording matcher must not decide a release.
-        guard = agg.get("guard_ok", valid) / valid if valid else 0.0
-        ok = ok and _meets(guard, t("guard_pass_rate"))
+        guard_applicable = agg.get("guard_applicable", valid)
+        if guard_applicable:
+            guard = agg.get("guard_ok", 0) / guard_applicable
+            ok = ok and _meets(guard, t("guard_pass_rate"))
         return "PASS" if ok else "FAIL"
     if layer == 4:
         for dim in ("pedagogy", "safety", "actionable"):
@@ -798,9 +800,14 @@ def aggregate(runs: list[dict], case: dict) -> dict:
         applicable = [r for r in valid if r["scores"].get("estimation_accurate") is not None]
         est_ok = sum(1 for r in applicable if r["scores"]["estimation_accurate"] is True)
         diag = sum(r["scores"].get("diagnostic_coverage", 0) for r in valid) / n
-        guard = sum(1 for r in valid if r["scores"].get("guard_passed", True))
+        guard_applicable = [
+            r for r in valid if r["scores"].get("guard_applicable", True)
+        ]
+        guard = sum(1 for r in guard_applicable
+                    if r["scores"].get("guard_passed") is True)
         return {**base, "ran": ran, "est_ok": est_ok, "est_applicable": len(applicable),
-                "diagnostic_coverage": diag, "guard_ok": guard, "rate": ran / n}
+                "diagnostic_coverage": diag, "guard_ok": guard,
+                "guard_applicable": len(guard_applicable), "rate": ran / n}
 
     elif layer == 4:
         present = set()

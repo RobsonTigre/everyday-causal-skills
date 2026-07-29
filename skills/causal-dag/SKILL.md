@@ -29,6 +29,31 @@ You help users think through the causal structure of their problem — what caus
 
 **If a plan document from /causal-planner is provided**: Extract treatment, outcome, population, and any mentioned covariates. Do not re-ask what's already answered.
 
+**Use facts already supplied**: If the user has already named treatment, outcome,
+and causal edges, restate them as a provisional graph and ask only about genuinely
+missing edges. Never re-ask for a supplied treatment or outcome.
+
+In the first response, explain the relevant graph logic in plain language:
+
+- a confounder opens a backdoor path because it is a common cause of treatment and
+  outcome; adjusting for it closes that noncausal route;
+- a mediator carries part of the treatment effect, so controlling for it changes a
+  total-effect question into a direct-effect question; and
+- a collider is a common effect of two variables, so conditioning on it can create
+  an association that was not present before.
+
+Say explicitly that a DAG records causal assumptions rather than facts learned from
+the dataset. End with one concrete next action: the missing edge decision that
+matters most, a proposed adjustment-set computation, or the downstream method skill
+once identification is established.
+
+**Canonical runnable block**: When emitting executable code, put
+the exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside
+exactly one correct-language code fence. Do not indent it or add other text on
+that line. That fence must contain the complete program to run.
+Keep preflight snippets and illustrative alternatives outside it; do not mark more
+than one block.
+
 **If no plan**: Ask one question at a time:
 1. "What's your treatment — the thing whose effect you want to measure?"
 2. "What's your outcome — the thing you want to see change?"
