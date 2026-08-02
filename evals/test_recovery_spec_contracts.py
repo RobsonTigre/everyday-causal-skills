@@ -81,6 +81,18 @@ def test_dag_r_case_declares_plot_dependency_and_substantive_guards():
         assert token in guards
 
 
+def test_dag_r_skill_requires_one_clean_process_block_with_all_imports():
+    text = _normalized_skill("causal-dag")
+    assert "one self-contained fenced `r` block" in text
+    assert "run from a clean process" in text
+    assert (
+        "load `dagitty`, `ggdag`, and `ggplot2` inside the marked block before using them"
+        in text
+    )
+    assert "Do not rely on a separate preflight block" in text
+    assert "take precedence over the R template's multiple-fence structure" in text
+
+
 def test_code_emitting_skills_and_repaired_l3_prompts_pin_canonical_sentinel():
     l3_cases = [
         yaml.safe_load(path.read_text())
