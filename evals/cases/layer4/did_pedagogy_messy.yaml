@@ -2,6 +2,7 @@ name: did_pedagogy_messy
 description: DiD with staggered treatment and potential issues — skill must navigate complexity
 layer: 4
 skill: causal-did
+response_contract: first_turn
 references:
   - references/assumptions/did.md
   - references/method-registry.md

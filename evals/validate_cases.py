@@ -136,9 +136,12 @@ _INPUT_MODES = {"inline", "dataset", "artifact", "withheld"}
 
 
 def _check_grading_contract(case: dict, errors: list[str]) -> None:
-    """`response_contract` / `input_mode` / `deferred_rubric` — optional at every
-    layer; an absent field preserves current behaviour exactly. When present,
-    each must be well-formed:
+    """Validate the phase and reachability metadata used by the scorers.
+
+    `response_contract` is mandatory at Layer 4 so every experience-quality case
+    says which conversational phase its rubric grades. It remains optional at
+    other layers. `input_mode` and `deferred_rubric` are optional everywhere.
+    When present, fields must be well-formed:
 
     - response_contract: final_output (grade the finished artifact) or
       first_turn (grade turn one only — read by scorer.py's _judge_l4).
@@ -149,7 +152,9 @@ def _check_grading_contract(case: dict, errors: list[str]) -> None:
       the verdict, never scored, never judged.
     """
     contract = case.get("response_contract")
-    if contract is not None and contract not in _RESPONSE_CONTRACTS:
+    if case.get("layer") == 4 and contract is None:
+        errors.append("layer 4 cases must declare response_contract")
+    elif contract is not None and contract not in _RESPONSE_CONTRACTS:
         errors.append(
             f"response_contract must be one of {sorted(_RESPONSE_CONTRACTS)}, got {contract!r}")
 

@@ -2,6 +2,7 @@ name: iv_pedagogy_clean
 description: IV skill with strong instrument — must explain LATE and diagnostics clearly
 layer: 4
 skill: causal-iv
+response_contract: final_output
 references:
   - references/assumptions/iv.md
   - references/method-registry.md
@@ -15,7 +16,9 @@ user_message: |
   was called up, but not everyone drafted actually served, and some who weren't
   drafted volunteered anyway. I want to estimate the effect of military service on
   later earnings. The draft number is my instrument. I have data on 1,000 men.
-  I use Python. This is my first IV analysis.
+  I use Python. This is my first IV analysis. These are the final inputs. Give me
+  the complete explanation, diagnostics, and runnable Python analysis now; do not
+  stop for an intake question.
 rubric:
   pedagogy:
     - "Does the response explain what LATE means and who the 'compliers' are in this context?"

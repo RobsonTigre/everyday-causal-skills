@@ -22,4 +22,4 @@ rubric:
     - "Does the response avoid overpromising the reliability of the estimate?"
   actionable:
     - "Does the response produce a structured plan or clear next steps the user can follow?"
-    - "Does the response specify which skill to use next and what data preparation is needed?"
+    - "Does the first-turn response name the provisional /causal-did skill and specify the required long-panel preparation: store and week identifiers, outcome, treatment timing/cohort, and never-treated or not-yet-treated comparison indicators?"

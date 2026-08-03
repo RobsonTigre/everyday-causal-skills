@@ -2,6 +2,7 @@ name: auditor_subtle_flaw
 description: Analysis controls for a post-treatment variable — auditor must catch the subtle bias
 layer: 4
 skill: causal-auditor
+response_contract: final_output
 references:
   - references/assumptions/matching.md
   - references/method-registry.md

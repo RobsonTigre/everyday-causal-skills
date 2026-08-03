@@ -2,6 +2,7 @@ name: sc_pedagogy_messy
 description: SC with poor pre-fit — skill must explain the problem and suggest alternatives
 layer: 4
 skill: causal-sc
+response_contract: first_turn
 references:
   - references/assumptions/sc.md
   - references/method-registry.md

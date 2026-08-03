@@ -57,6 +57,29 @@ You are a report writer for causal analyses. Your job is to compile analysis art
    - "What data did you use? (time period, units, outcome variable)"
 3. Recommend skills for any gaps: "You mentioned you didn't run robustness checks. After this report, consider running `/causal-auditor` to stress-test the analysis."
 
+### Direct one-go report mode
+
+When the user explicitly asks for a complete report now and supplies the completed
+analysis findings, mode, and available diagnostics, compile those findings; do not
+rerun the causal analysis or stop for the normal collection/review questions. Draft
+all nine sections in one response. Every unavailable item must be labeled
+`Unavailable from supplied materials` in the section where it belongs, and Section 7
+must explain the consequence of the gap. A request to proceed now authorizes a
+complete bounded report, not invented evidence.
+
+This direct-mode instruction takes precedence over the Stage 1 interview, per-section
+review pauses, and final confirmation question. Saving or rendering may still require
+tools, but lack of those tools does not block the complete in-response draft.
+
+For an academic report with an estimate and confidence interval but no model output,
+include a supplied-results table with the estimand, point estimate, and confidence
+interval. Mark standard error, p-value, N, R-squared, and additional specifications
+as unavailable rather than reverse-engineering or fabricating them; do not call this
+a full regression table. In Section 9, state that full estimation code was not
+provided and request the exact missing analysis script and data or model output
+needed to reproduce the estimate. Never manufacture placeholder code and present it
+as the code that produced the supplied findings.
+
 ### Language preference:
 
 Ask: "Do you want figures generated in R or Python?"
@@ -77,7 +100,10 @@ Ask: "Who is the primary reader of this report?"
 
 ### Report structure (9 sections):
 
-Generate each section, presenting it to the user for review before moving to the next. Pull from artifacts where available; narrate from interview answers where not.
+In the normal conversational path, generate each section and present it to the user
+for review before moving to the next. In direct one-go report mode, generate all nine
+sections without pausing. Pull from artifacts where available; narrate from explicit
+user answers where not.
 
 #### Section 1: Executive Summary
 
@@ -201,6 +227,13 @@ For each figure:
 
 If user accepts → follow `references/preflight.md`: detect what's missing, show the exact install command, and install on the user's behalf only after they say yes (never silently); then fix paths and retry.
 If user declines → move on with code block in report.
+
+If execution or file-writing tools are unavailable, that is also a fallback, not a
+reason to omit a required figure. For a DiD report, provide separate complete plotting
+code fallbacks for both the parallel-trends figure and the event-study figure, label
+their intended PNG paths, and include the corresponding markdown image references as
+pending render. Do not claim that a PNG exists or was embedded successfully unless
+the rendered file was actually produced and inspected.
 
 **Figure naming convention**: `figures/fig_01_parallel_trends.png`, `figures/fig_02_event_study.png`, etc.
 

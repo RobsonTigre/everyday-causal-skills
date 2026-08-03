@@ -2,6 +2,7 @@ name: auditor_thorough_analysis
 description: Auditor reviews a well-executed analysis — should confirm without phantom threats
 layer: 4
 skill: causal-auditor
+response_contract: final_output
 references:
   - references/assumptions/did.md
   - references/method-registry.md

@@ -16,6 +16,7 @@ name: good_l4
 description: fine
 layer: 4
 skill: causal-did
+response_contract: final_output
 user_message: hello
 rubric:
   pedagogy:
@@ -29,6 +30,7 @@ name: bad_l4
 description: rubric in the wrong place
 layer: 4
 skill: causal-did
+response_contract: final_output
 user_message: hello
 expected:
   rubric:
@@ -239,6 +241,14 @@ def test_illegal_response_contract_is_an_error():
             "rubric:", "response_contract: sometimes\nrubric:"))
         errs = validate_case(p)
         assert any("response_contract" in e for e in errs), errs
+
+
+def test_layer4_without_response_contract_is_an_error():
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "probe.yaml", L4_GOOD.replace(
+            "response_contract: final_output\n", ""))
+        errs = validate_case(p)
+        assert "layer 4 cases must declare response_contract" in errs, errs
 
 
 def test_illegal_input_mode_is_an_error():
@@ -505,7 +515,7 @@ def test_d2_migration_is_confined_to_the_approved_checkpoint_table():
     # test_real_case_tree_declares_no_grading_contract_fields_yet asserted exactly
     # that). D2, checkpoint-approved 2026-07-22 against the plan's rev. 3 table
     # (lines 741-783), plus the instrument-recovery case repairs, migrates
-    # exactly these 25 cases onto response_contract — no
+    # exactly these 45 cases onto response_contract — no
     # more, no fewer. `report_full_artifacts` / `report_partial_artifacts` needed
     # D5's fixture provisioning first (now done), so every approved case must be
     # migrated with the approved value.
@@ -536,7 +546,28 @@ def test_d2_migration_is_confined_to_the_approved_checkpoint_table():
         "report_tone_hybrid": "final_output",
         "planner_pedagogy_ambiguous": "first_turn",
         "planner_pedagogy_clear": "first_turn",
+        "auditor_subtle_flaw": "final_output",
+        "auditor_thorough_analysis": "final_output",
+        "did_pedagogy_clean": "final_output",
+        "did_pedagogy_messy": "first_turn",
+        "exercise_did_quality": "final_output",
+        "exercise_iv_quality": "final_output",
+        "experiments_pedagogy_messy": "final_output",
+        "iv_pedagogy_clean": "final_output",
+        "iv_pedagogy_messy": "first_turn",
+        "matching_pedagogy_clean": "final_output",
+        "matching_pedagogy_messy": "first_turn",
+        "rdd_pedagogy_clean": "final_output",
+        "rdd_pedagogy_messy": "first_turn",
+        "roi_pedagogy_clean": "final_output",
+        "roi_pedagogy_messy": "first_turn",
+        "sc_pedagogy_clean": "final_output",
+        "sc_pedagogy_messy": "first_turn",
+        "timeseries_pedagogy_clean": "final_output",
+        "timeseries_pedagogy_controls": "final_output",
+        "timeseries_pedagogy_messy": "first_turn",
     }
+    assert len(approved) == 45
     cases_dir = Path("evals/cases")
     found = {}
     for path in sorted(cases_dir.rglob("*.yaml")):
@@ -558,6 +589,19 @@ def test_d2_migration_is_confined_to_the_approved_checkpoint_table():
             "or the D3 interview-guard set")
         if name in approved:
             assert contract == approved[name], (name, contract, approved[name])
+
+
+def test_all_37_layer4_cases_declare_response_contract():
+    import yaml
+
+    paths = sorted(Path("evals/cases/layer4").glob("*.yaml"))
+    assert len(paths) == 37
+    contracts = {
+        path.stem: (yaml.safe_load(path.read_text()) or {}).get("response_contract")
+        for path in paths
+    }
+    assert set(contracts.values()) <= {"first_turn", "final_output"}
+    assert all(contracts.values()), contracts
 
 
 def test_d3_interview_guards_are_exactly_four_first_turn_skill_specific_cases():

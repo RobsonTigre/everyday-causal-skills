@@ -2,6 +2,7 @@ name: did_pedagogy_clean
 description: DiD skill with clean data — must explain assumptions clearly and produce usable code
 layer: 4
 skill: causal-did
+response_contract: final_output
 references:
   - references/assumptions/did.md
   - references/method-registry.md
@@ -10,7 +11,9 @@ dataset: evals/data/did_clean.csv
 user_message: |
   I have panel data for 100 stores over 24 months. Half got a new checkout system
   at month 12. I want to estimate the effect on sales using DiD. I use R.
-  This is my first time running a DiD analysis.
+  This is my first time running a DiD analysis. These are the final inputs. Give
+  me the complete explanation, diagnostics, and runnable R analysis now; do not
+  stop for an intake question.
 rubric:
   pedagogy:
     - "Does the response explain what parallel trends means in plain language, not just say 'check parallel trends'?"

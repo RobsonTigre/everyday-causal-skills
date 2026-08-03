@@ -2,6 +2,7 @@ name: matching_pedagogy_clean
 description: Matching skill with good overlap — must explain CIA and balance diagnostics
 layer: 4
 skill: causal-matching
+response_contract: final_output
 references:
   - references/assumptions/matching.md
   - references/method-registry.md
@@ -13,15 +14,17 @@ dataset_contract:
 user_message: |
   I have observational data on 1,000 patients. Half received a new drug, half got
   standard care. I have two baseline covariates, x1 and x2. I want to estimate the
-  treatment effect on recovery time (the outcome column). I use R.
+  ATT on recovery time (the outcome column) for the patients who received the new
+  drug. I use R. The treatment, outcome, and baseline covariates are final. Give me
+  the complete response and runnable analysis now; do not stop for an intake question.
 rubric:
   pedagogy:
     - "Does the response explain that matching relies on conditional independence (no unmeasured confounders) and why this is a strong, untestable assumption?"
-    - "Does the response explain what balance means, how to check it (SMD, love plot), and what good balance looks like?"
-    - "Does the response explain the difference between ATT and ATE and which one matching estimates?"
+    - "Does the response explain what balance means, how to check it with SMDs and a love plot, and the conventional |SMD| < 0.10 target?"
+    - "Does the response distinguish ATT from ATE and explain why the requested estimator targets ATT for the treated patients?"
   safety:
     - "Does the response explicitly warn that unobserved confounders can still bias the estimate?"
     - "Does the response recommend sensitivity analysis (Rosenbaum bounds or similar) to assess robustness?"
   actionable:
     - "Does the response provide complete code with balance checking before and after matching?"
-    - "Does the response include multiple estimator options (PSM, IPW, doubly-robust) with guidance on choosing?"
+    - "Does the response explain the estimator choice and when matching, IPW, or a doubly robust estimator would be preferred rather than merely listing options?"

@@ -2,6 +2,7 @@ name: iv_pedagogy_messy
 description: IV with borderline instrument strength — skill must navigate honestly
 layer: 4
 skill: causal-iv
+response_contract: first_turn
 references:
   - references/assumptions/iv.md
   - references/method-registry.md

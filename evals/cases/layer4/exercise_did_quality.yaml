@@ -2,6 +2,7 @@ name: exercise_did_quality
 description: Exercise skill generates a DiD practice scenario — must be realistic and pedagogical
 layer: 4
 skill: causal-exercises
+response_contract: final_output
 references:
   - references/dgp-library.md
   - references/method-registry.md

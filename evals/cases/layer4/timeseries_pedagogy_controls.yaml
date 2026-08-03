@@ -2,6 +2,7 @@ name: timeseries_pedagogy_controls
 description: Timeseries with control series — must explain CausalImpact-specific concepts
 layer: 4
 skill: causal-timeseries
+response_contract: final_output
 references:
   - references/assumptions/timeseries.md
   - references/method-registry.md
@@ -11,11 +12,17 @@ user_message: |
   We launched a new pricing strategy 30 months ago. I have monthly revenue data for
   80 months total and two control series: a competitor's revenue (not affected by our
   pricing change) and a market index. I want to estimate the causal effect of our
-  pricing strategy on revenue using CausalImpact. I use Python.
+  pricing strategy on revenue using CausalImpact. I use Python. The intervention is
+  at month 51 (2022-03-01), so months 1-50 are pre-period and 51-80 are post-period.
+  We verified both controls were unaffected by the pricing change and that each
+  control's relationship with our revenue was stable throughout the pre-period.
+  The pre-period structural-break preflight passed. These facts are final. Give me
+  the complete response, runnable code, diagnostics, and visualization now; do not
+  stop for intake questions.
 rubric:
   pedagogy:
     - "Does the response explain how CausalImpact uses control series to build the counterfactual — that it models the pre-period relationship between outcome and controls, then projects what the outcome WOULD have been?"
-    - "Does the response explain what the posterior tail-area probability means and how to interpret it (e.g., p < 0.05 means strong evidence of an effect)?"
+    - "Does the response explain the posterior tail-area probability as posterior evidence against a zero/opposite-direction effect, while avoiding the claim that it is a frequentist p-value?"
     - "Does the response explain the difference between CausalImpact (with controls) and CausalArima (without controls) in terms of confounding absorption?"
   safety:
     - "Does the response warn that control series must NOT have been affected by the intervention — otherwise the counterfactual is contaminated?"

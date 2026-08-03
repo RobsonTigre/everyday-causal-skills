@@ -53,6 +53,65 @@ credible alternatives. If diagnostics establish smooth density and covariates,
 describe the design as passing those observed checks while retaining the usual
 bandwidth, functional-form, and local-validity caveats.
 
+**Fully specified direct mode**: When the user also requests the full response now
+and no unresolved fatal diagnostic is reported, do not stop for intake. Direct mode
+overrides only interactive pauses; it does not override diagnostic stop rules. A
+known fatal violation takes precedence over direct mode: issue the verdict and do
+not provide an effect estimate. The suspected-manipulation first-response branch
+below also takes precedence whenever manipulation is reported or suspected but its
+diagnostic outcome is not supplied.
+
+Within direct mode, the guarded runnable block replaces the later instruction to
+wait for the user to report an unresolved testable diagnostic: the guard itself
+prevents the effect stage from running on failure. That later wait rule still applies
+outside direct mode and whenever a fatal violation is already known. It also remains
+in force for the suspected-manipulation branch until that diagnostic is resolved.
+
+This is a narrow precedence rule. In direct mode it supersedes the Stage 2 wait clause
+and the Stage 3 prohibition on restructuring only where needed to put the guarded
+density and covariate diagnostics before effect estimation. Permit only that minimal
+reordering and guard wrapper; retain the template's tested package APIs, arguments,
+preprocessing, and outputs. It does not authorize a claim that any code or diagnostic
+was executed. The suspected-manipulation branch remains the higher-priority exception.
+
+Otherwise, give the complete guarded response, including the RD plot, `rddensity`,
+data-driven `rdrobust` bandwidth selection, code that outputs the robust local
+estimate, covariate-continuity checks, bandwidth sensitivity, and interpretation
+instructions. Put `rddensity` and predetermined-covariate continuity checks before
+the main `rdrobust` effect calculation in the runnable code. Only if those checks
+pass may the code calculate the main effect and bandwidth sensitivity. If density or
+covariate diagnostics fail, emit the applicable verdict, stop before effect
+estimation, and explain whether the design must be abandoned or the localized
+manipulation branch should be assessed. Compound treatments and continuity of
+potential outcomes remain substantive, untestable requirements; passing observed
+checks does not establish them.
+
+Put the bandwidth explanation next to the estimation code: a narrower window
+compares more similar units and usually reduces bias but uses fewer observations and
+raises variance; a wider window improves precision but can add bias from units
+farther from the cutoff. Report the selected bandwidth and sensitivity estimates
+rather than treating the default as self-justifying.
+Supplying the whole guarded program now does not mean it ran. Do not claim that the
+code ran, diagnostics passed, files were saved, or results exist, and do not state a
+numerical effect, unless execution or user-supplied output establishes that.
+
+**Suspected manipulation — first response**: Surface the donut-RD option immediately
+after the density diagnostic, not only in a later robustness stage. A donut excludes
+the narrow score band where retakes, heaping, or grading discretion could produce
+localized sorting, then re-estimates the same local effect. It is defensible only if
+the manipulation mechanism is credibly confined to that omitted band and units just
+outside it remain comparable. It cannot rescue RDD when sorting is broader, another
+policy changes at the cutoff, covariates also jump, or the remaining sample no longer
+supports a local comparison. In those cases report that the design is not salvageable
+by a donut and recommend another identification strategy. When manipulation is only
+suspected and diagnostics are not supplied, give density-test code first and a
+conditional path: proceed to the full RDD if observed checks pass; otherwise assess
+localization before treating a donut estimate as credible. In that first response,
+include both the density-test code and conditional donut-hole sensitivity code, with
+the main RDD estimate held until the diagnostic decision is resolved. This branch
+wins even when the user asks for the complete response now; do not let direct mode
+bypass the unresolved manipulation gate.
+
 **Canonical runnable block**: When emitting executable code, put
 the exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside
 exactly one correct-language code fence. Do not indent it or add other text on

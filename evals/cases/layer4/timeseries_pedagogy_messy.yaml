@@ -2,6 +2,7 @@ name: timeseries_pedagogy_messy
 description: Timeseries with structural break in pre-period — skill must flag and navigate
 layer: 4
 skill: causal-timeseries
+response_contract: first_turn
 references:
   - references/assumptions/timeseries.md
   - references/method-registry.md

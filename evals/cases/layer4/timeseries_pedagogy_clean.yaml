@@ -2,6 +2,7 @@ name: timeseries_pedagogy_clean
 description: Timeseries skill with stable pre-period — must explain counterfactual logic
 layer: 4
 skill: causal-timeseries
+response_contract: final_output
 references:
   - references/assumptions/timeseries.md
   - references/method-registry.md
@@ -14,12 +15,16 @@ user_message: |
   Our company launched a major marketing campaign 24 months ago. I have monthly
   revenue data for the past 5 years (60 months total). There's no control group —
   just our company's time series. I want to estimate the campaign's effect.
-  I use Python.
+  I use Python. The intervention starts at month 37, so months 1-36 are pre-period
+  and 37-60 are post-period. There is no known seasonality and no concurrent event
+  at month 37. The structural-break preflight has already passed: no break was found
+  in months 1-36. These answers are final. Give me the complete response, runnable
+  code, diagnostics, and visualization now; do not stop for intake questions.
 rubric:
   pedagogy:
     - "Does the response explain the core idea — modeling what WOULD have happened without the intervention using pre-period patterns?"
     - "Does the response explain what stationarity means and why it matters for the counterfactual?"
-    - "Does the response explain the difference between CausalImpact (Bayesian) and segmented regression approaches?"
+    - "Does the response compare CausalArima (the no-control primary method) with CausalImpact (which requires valid controls), treating segmented regression only as a descriptive level/slope supplement rather than the causal primary method?"
   safety:
     - "Does the response warn about the fundamental limitation — without a control series, any concurrent event is a confounder?"
     - "Does the response explain that a longer pre-period improves the counterfactual but doesn't eliminate confounding?"

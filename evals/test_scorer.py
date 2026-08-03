@@ -733,15 +733,16 @@ def test_l4_propagates_judge_error():
 # --- Grading contract (D1): response_contract / deferred_rubric passthrough ---
 
 def test_judge_l4_absent_grading_contract_defaults_safely():
-    # 0 of 180 real cases set either field today — this is the behavior every
-    # one of them gets, and it must be identical to pre-D1 output.
+    # Synthetic/legacy callers may still omit the field; preserve a safe fallback.
     case = {"rubric": {"pedagogy": ["Q1?"], "safety": ["Q2?"]}}
-    out, _ = _with_fake_judge([True, True], lambda: _judge_l4("resp", case))
+    out, seen = _with_fake_judge([True, True], lambda: _judge_l4("resp", case))
     assert out["question_answers"] == {
         "pedagogy": [True], "safety": [True]}, out
     assert out["response_contract"] is None, out
     assert out["deferred_rubric"] == [], out
     assert out["overall"] == 1.0, out  # unaffected by the new keys
+    assert "Explicitly deferred—not graded:\nNone." in seen["prompt"]
+    assert seen["num_questions"] == 2, seen
 
 
 def test_judge_l4_passes_through_response_contract_and_deferred_rubric():
@@ -753,6 +754,50 @@ def test_judge_l4_passes_through_response_contract_and_deferred_rubric():
     assert out["deferred_rubric"] == ["Was the adjustment set justified?"], out
     # Deferred criteria never enter the graded dimensions or cost a question.
     assert out["overall"] == 1.0, out
+
+
+def test_judge_l4_prompt_operationalizes_each_response_phase():
+    first_deferred = "Was the final balance plot rendered?"
+    first = {
+        "rubric": {"pedagogy": ["Q1?"]},
+        "response_contract": "first_turn",
+        "deferred_rubric": [first_deferred],
+    }
+    _, first_seen = _with_fake_judge(
+        [True], lambda: _judge_l4("resp", first))
+    first_prompt = " ".join(first_seen["prompt"].split())
+    for phrase in (
+        "Response contract: first_turn",
+        "immediate first reply",
+        "diagnostic action reachable now",
+        "appropriate next question",
+        "Do not require a completed downstream analysis",
+    ):
+        assert phrase in first_prompt, phrase
+    assert f"Explicitly deferred—not graded:\n- {first_deferred}" in first_seen["prompt"]
+    assert first_seen["num_questions"] == 1, first_seen
+    assert first_seen["prompt"].rsplit("Questions:\n", 1)[1] == "1. Q1?"
+
+    final_deferred = "Was the rendered PNG embedded?"
+    final = {
+        "rubric": {"pedagogy": ["Q1?"]},
+        "response_contract": "final_output",
+        "deferred_rubric": [final_deferred],
+    }
+    _, final_seen = _with_fake_judge(
+        [True], lambda: _judge_l4("resp", final))
+    final_prompt = " ".join(final_seen["prompt"].split())
+    for phrase in (
+        "Response contract: final_output",
+        "completed one-response deliverable",
+        "Promises to provide required analysis",
+        "deferred_rubric",
+        "do not reward fabricated results",
+    ):
+        assert phrase in final_prompt, phrase
+    assert f"Explicitly deferred—not graded:\n- {final_deferred}" in final_seen["prompt"]
+    assert final_seen["num_questions"] == 1, final_seen
+    assert final_seen["prompt"].rsplit("Questions:\n", 1)[1] == "1. Q1?"
 
 
 def test_l5_propagates_judge_error():

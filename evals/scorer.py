@@ -337,7 +337,7 @@ def score_response(case: dict, response: str, config: dict | None = None, debug:
         # not judge output. _judge_l2 only receives `expected` + `rubric`, not
         # the full case, so this is injected here rather than inside it —
         # mirrors what _judge_l4 already does directly, since L4 has `case`
-        # in scope. Absent on every case today, so inert until D2 uses it.
+        # in scope.
         return {**scores, "response_contract": case.get("response_contract"),
                 "deferred_rubric": case.get("deferred_rubric") or []}
     elif layer == 3:
@@ -587,6 +587,31 @@ def _judge_l4(response: str, case: dict, config: dict | None = None, debug: bool
     rubric = case.get("rubric", {})
     dimensions = ["pedagogy", "safety", "actionable"]
 
+    response_contract = case.get("response_contract")
+    if response_contract == "first_turn":
+        phase_instructions = """Response contract: first_turn.
+Grade the immediate first reply: it should teach what is already knowable, surface
+warnings, take any diagnostic action reachable now, and ask the appropriate next
+question. Do not require a completed downstream analysis when the design, inputs,
+or tools needed for it are intentionally unresolved. A promise to cover an
+immediately reachable requirement later does not satisfy that requirement."""
+    elif response_contract == "final_output":
+        phase_instructions = """Response contract: final_output.
+Grade a completed one-response deliverable using the information and tools available
+in this turn. Promises to provide required analysis, code, tables, interpretation,
+or caveats later do not count. Do not require artifacts explicitly listed in
+deferred_rubric, and do not reward fabricated results for unavailable execution or
+inputs."""
+    else:
+        phase_instructions = """No response contract was declared.
+Grade only the rubric as written without assuming a later conversational turn."""
+
+    deferred_rubric = case.get("deferred_rubric") or []
+    if deferred_rubric:
+        deferred_section = "\n".join(f"- {criterion}" for criterion in deferred_rubric)
+    else:
+        deferred_section = "None."
+
     # Collect all questions and track which dimension each belongs to
     questions: list[str] = []
     dim_ranges: dict[str, tuple[int, int]] = {}
@@ -605,6 +630,11 @@ def _judge_l4(response: str, case: dict, config: dict | None = None, debug: bool
 
     numbered = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
     prompt = f"""You are evaluating a causal inference assistant's response for experience quality. Read the response carefully, then answer each question.
+
+{phase_instructions}
+
+Explicitly deferred—not graded:
+{deferred_section}
 
 <response>
 {response}
@@ -631,10 +661,10 @@ Questions:
     active = [s for dim, s in dim_scores.items() if dim in dim_ranges]
     overall = sum(active) / len(active) if active else 0.0
 
-    # response_contract / deferred_rubric (D1) are declarative case metadata,
-    # not judge output — passed through unchanged so aggregate() can surface
-    # deferred criteria in the verdict. Absent on every case today (D1 is
-    # mechanism only; D2 migrates cases), so this is inert until then.
+    # response_contract / deferred_rubric are declarative case metadata, not
+    # judge output. The contract shapes the phase-aware prompt above; both fields
+    # are also passed through unchanged so aggregate() can surface the policy in
+    # the verdict.
     #
     # Which dimensions the case actually populates — the gate scores only these,
     # so an absent dimension is skipped rather than counted as a 0.0.

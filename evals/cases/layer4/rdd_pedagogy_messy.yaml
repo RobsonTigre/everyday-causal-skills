@@ -2,6 +2,7 @@ name: rdd_pedagogy_messy
 description: RDD where manipulation is possible — skill must navigate the threat
 layer: 4
 skill: causal-rdd
+response_contract: first_turn
 references:
   - references/assumptions/rdd.md
   - references/method-registry.md
@@ -14,15 +15,17 @@ user_message: |
   Students scoring >= 70 on an entrance exam get a scholarship. I want to estimate
   the effect of the scholarship on GPA. I have data on 2,000 students. I suspect
   some students might manipulate their exam score to qualify — there could be
-  retakes or grading discretion near the cutoff. I use Python.
+  retakes or grading discretion near the cutoff. I use Python. In your first
+  response, diagnose this threat and give me the immediate test and decision rule
+  before moving to the main RDD estimate.
 rubric:
   pedagogy:
     - "Does the response explain WHY manipulation invalidates RDD (it breaks the comparable-near-cutoff assumption)?"
     - "Does the response explain what the density test (rddensity) looks for and how to interpret it?"
-    - "Does the response explain the donut-hole approach and when it is and isn't a valid remedy?"
+    - "Does the first response surface a donut-hole test immediately, explaining that excluding a narrow manipulated band may address localized heaping but cannot salvage broader sorting around the cutoff?"
   safety:
     - "Does the response take the manipulation concern seriously rather than dismissing it?"
     - "Does the response communicate that if manipulation is severe, RDD may not be salvageable?"
   actionable:
-    - "Does the response provide code for the density test before the main RDD estimation?"
+    - "Does the first response provide code for the density test and donut-hole sensitivity before any main RDD estimation?"
     - "Does the response provide conditional guidance: 'if test passes, proceed with X; if not, consider Y'?"

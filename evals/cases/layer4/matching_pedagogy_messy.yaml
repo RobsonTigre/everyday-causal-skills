@@ -2,6 +2,7 @@ name: matching_pedagogy_messy
 description: Matching with poor overlap — skill must handle practically
 layer: 4
 skill: causal-matching
+response_contract: first_turn
 references:
   - references/assumptions/matching.md
   - references/method-registry.md
