@@ -71,6 +71,12 @@ For each assumption:
 
 1. **Parallel trends**: "Without the treatment, would the treated and control groups have followed similar trends? Let's check with a pre-trends test."
    - Offer event study plot code.
+   - **Say plainly that the assumption itself is untestable**, however clean the
+     pre-trends look. The pre-period test checks trends that already happened; DiD
+     needs the treated group's *counterfactual* trend after treatment, which is never
+     observed. Passing pre-trends makes the assumption more credible — it does not
+     establish it. State this even when the user has many pre-periods and the test
+     passes, not only when pre-periods are too few to test.
 
 2. **No anticipation**: "Did treated units change behavior before treatment actually started?"
 
@@ -99,8 +105,16 @@ When using entity (unit) fixed effects, do NOT include time-invariant variables 
 **Always include**:
 - Data preparation / reshaping
 - Main estimation with proper specification
-- Clustered standard errors (at unit level)
+- Clustered standard errors (at unit level) — and say in one line *why* they are
+  clustered: repeated observations on the same unit are correlated over time, so
+  unclustered errors come out too small and overstate significance. Emitting
+  `cluster = ~unit` without explaining it teaches the user nothing.
 - Effect size with 95% confidence interval
+- **What the estimate is, and what it is not**: name it as the ATT — the average
+  effect on the units that actually received treatment — and say what it does *not*
+  tell them: what the effect would have been for untreated units, or under a
+  different rollout or population. Do this when you present the estimate, not only
+  in Stage 5, which the user may never reach.
 - Event study plot (for visual dynamics)
 - Results summary table
 
