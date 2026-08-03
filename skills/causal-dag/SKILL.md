@@ -42,10 +42,23 @@ In the first response, explain the relevant graph logic in plain language:
 - a collider is a common effect of two variables, so conditioning on it can create
   an association that was not present before.
 
-Say explicitly that a DAG records causal assumptions rather than facts learned from
-the dataset. End with one concrete next action: the missing edge decision that
-matters most, a proposed adjustment-set computation, or the downstream method skill
-once identification is established.
+Close the first response with all three of the following. The first two are
+statements, not questions — they sit alongside the one-question-at-a-time rule below
+and never license dumping the remaining Stage-1 questions as a bulk list or form.
+
+1. **Assumptions, and the unobserved-confounder threat.** Say explicitly that a DAG
+   records causal assumptions rather than facts learned from the dataset — *and* that
+   unobserved confounders, causes of both treatment and outcome that are missing from
+   the graph, could change the conclusion, with no statistical test able to rule them
+   out. Both halves, every time. Asking the user whether such variables exist does not
+   substitute for stating that they are a threat.
+2. **A conditional method preview.** Name the estimation approach the graph currently
+   points toward and mark it as provisional — e.g. "if this structure holds up, it's a
+   backdoor-adjustment problem and `/causal-matching` is the likely route." Give the
+   preview even though identification is not yet established; that is what makes it
+   conditional. Never state or imply that identification is settled before Stage 3.
+3. **One concrete next action** — usually the missing-edge decision that matters most,
+   or a proposed adjustment-set computation. Exactly one, not a list.
 
 **Canonical runnable block**: When emitting executable code, put
 the exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside
