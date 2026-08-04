@@ -116,7 +116,21 @@ release is worse than a note.
 
 Strictly tightening throughout: no threshold moves, no criterion is demoted. C15.1-legal.
 
-### T2.1 `test_l4_questions_aggregates_per_question_counts_from_stored_answers`
+### T2.1 `test_l4_questions_aggregates_per_question_counts_from_stored_answers` — **DONE 2026-08-04**
+
+Landed as `runner._l4_questions()`, surfaced as `question_stats` in `aggregate()`'s L4 branch.
+6 tests. **Reported, not gated** — the gate change is step 4 and moves the digest.
+
+Verified by replaying the real 2026-08-03 ledger (37 cases, 185 valid runs) through the new
+`aggregate`: **0 dimension means moved, worst delta exactly 0.00e+00** — not merely inside
+`_GATE_EPS`. `question_stats` produced for all 37 cases; 230 question slots accounted for.
+
+That replay also produced the first mechanical evidence of rubric drift: three questions
+declared in today's case files were never answered by the stored runs —
+`exercise_iv_quality.pedagogy[3]`, `report_figures_success.safety[0]`,
+`report_tone_academic.safety[2]` — each classified `partial` with `rate: None`, never a silent
+zero. That is Package F's never-shrink-the-denominator rule now holding on L4, and it is
+precisely the signal T1.2 will turn into a refusal.
 
 - **File:** `evals/test_runner.py`
 - **Real artifact:** slots from one of the **13 unchanged** L4 cases in the 08-03 ledger, so
@@ -131,15 +145,18 @@ Strictly tightening throughout: no threshold moves, no criterion is demoted. C15
 - **Regression guard:** assert the existing dimension means still reproduce **within
   `_GATE_EPS`**, never with `==`. They reproduce to ~2.2e-16, not byte-identically.
 
-### T2.2 `test_l4_question_status_rejects_forged_counts`
+### T2.2 `test_l4_question_status_rejects_forged_counts` — **DONE 2026-08-04, as reuse not a clone**
 
-- **File:** `evals/test_runner.py`
-- **Fails today because:** there is no `question_status`.
-- **Green:** a clone of `criterion_status` (`runner.py:578-611`) enforcing
-  `0 <= passed <= answered == valid == runs_valid` with strict `type(v) is int`, deriving the
-  rate from counts and never trusting a stored one.
-- **Assert both forged shapes** that Package F found: `{passed: 999, answered: 5, valid: 5}`
-  and `{passed: True, ...}` (bools are ints — `True` would read as 1).
+**Correction to this plan: there is no `question_status`.** This section specified "a clone of
+`criterion_status`". That function's own docstring argues against exactly that — *"One helper,
+not three: the gate, the UNMEASURED reason and the verdict table all have to agree on what
+'complete' means. Three copies would drift."* L4 question blocks have the identical shape
+(`passed`/`answered`/`valid`), so `criterion_status` is **reused verbatim** and `_l4_questions`
+carries no validation of its own.
+
+Pinned by `test_l4_question_blocks_are_validated_by_the_same_helper_as_l2_criteria`, which
+asserts both Package F forged shapes (`{passed: 999}`, `{passed: True}`) and the partial shape
+are rejected, and that a real `_l4_questions` block validates clean through the same call.
 
 ### T2.3 `test_l4_gate_fails_a_case_whose_dimension_passes_but_one_question_is_dead` ★
 
@@ -293,9 +310,13 @@ Each line is one red-green-refactor cycle, offline, verifiable in seconds.
 6. T3.1 → T3.4 — static lints, all as warnings.
 7. T4.1 first, then the rest of Phase 4.
 
-Before step 2, fix the six tests in `evals/test_runner.py` (lines 577, 584, 599, 613, 624, 635)
-that call `case_gate({"layer": 4}, agg)` with a stripped case dict. They break as soon as the L4
-gate needs the rubric — exactly as `case_gate`'s D9 docstring predicts.
+The six tests in `evals/test_runner.py` (lines 577, 584, 599, 613, 624, 635) that call
+`case_gate({"layer": 4}, agg)` with a stripped case dict break as soon as the L4 **gate** needs
+the rubric — exactly as `case_gate`'s D9 docstring predicts.
+
+**Correction to this plan:** they were listed as "before step 2". They are not. Step 2 changes
+only `aggregate`, and all six still pass (verified: 422 tests green after T2.1/T2.2). They must
+be fixed **before step 4**, the gate change.
 
 ## Definition of done
 
