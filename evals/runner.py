@@ -611,6 +611,56 @@ def criterion_status(crit: dict | None, runs_valid: int) -> tuple[str, float | N
     return "ok", passed / cvalid
 
 
+def _l4_questions(valid: list[dict], case: dict) -> dict | None:
+    """Per-question L4 rubric results, or None when this is pre-`8e9420e` data.
+
+    The L2 sibling of this function is `_rubric_criteria`, and the rules are the same:
+    the denominator is every valid run, never the subset carrying an answer, so a
+    question answered in 4 of 5 valid runs reports `rate: None` rather than 4/4.
+
+    `scorer._judge_l4` has stored `question_answers` on every run since `8e9420e`;
+    `aggregate` collapsed it to three dimension means and dropped the rest, leaving
+    `case_gate` structurally unable to see which question failed. A dimension of
+    exactly 0.70 can be `(1.0 + 0.4)/2` — a behaviour present 40% of the time, read
+    as green.
+
+    Keyed positionally (`pedagogy[0]`) because L4 rubric entries are still bare
+    strings with no ids, unlike L2's `{id, question, required}`. Positional identity
+    silently re-points when a question is reworded or reordered, which is exactly what
+    made the 2026-08-03 ledger un-reanalyzable — so the question TEXT is stored
+    alongside the counts, giving a later check something stable to refuse on. Ids
+    replace the key; the text stays regardless.
+
+    Validation is deliberately absent here: `criterion_status` already enforces the
+    whole invariant and derives the rate from the counts. One helper, not two.
+    """
+    rubric = case.get("rubric")
+    if not isinstance(rubric, dict):
+        return None
+    if not any("question_answers" in r["scores"] for r in valid):
+        return None
+
+    n = len(valid)
+    out: dict[str, dict] = {}
+    for dim in ("pedagogy", "safety", "actionable"):
+        questions = rubric.get(dim) or []
+        if not isinstance(questions, list):
+            continue
+        for i, question in enumerate(questions):
+            answers = [stored[dim][i] for stored in
+                       (r["scores"].get("question_answers") or {} for r in valid)
+                       if isinstance(stored.get(dim), list) and i < len(stored[dim])]
+            passed = sum(1 for a in answers if a)
+            out[f"{dim}[{i}]"] = {
+                "question": question if isinstance(question, str) else "",
+                "passed": passed,
+                "answered": len(answers),
+                "valid": n,
+                "rate": passed / n if len(answers) == n else None,
+            }
+    return out or None
+
+
 def _rubric_criteria(valid: list[dict], case: dict) -> dict | None:
     """Per-criterion L2 rubric results, or None when this is pre-F data.
 
@@ -763,7 +813,11 @@ def aggregate(runs: list[dict], case: dict) -> dict:
         deferred = next((r["scores"].get("deferred_rubric") for r in valid
                          if r["scores"].get("deferred_rubric")), [])
         return {**base, **dim_avgs, "overall": overall, "rate": overall,
-                "response_contract": contract, "deferred_rubric": deferred}
+                "response_contract": contract, "deferred_rubric": deferred,
+                # Reported, NOT gated — gating on it moves the decision rule and is a
+                # separate, digest-moving change. Recorded now so the next sweep's
+                # ledger can answer "which question failed?" without a re-run.
+                "question_stats": _l4_questions(valid, case)}
 
     elif layer == 5:
         handoff = sum(r["scores"].get("handoff_quality", 0.0) for r in valid) / n

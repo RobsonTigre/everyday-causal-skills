@@ -635,6 +635,89 @@ def test_l4_aggregate_propagates_deferred_rubric_and_response_contract():
     assert case_gate({"layer": 4}, agg) == "PASS", agg  # deferred criteria never gate
 
 
+# --- L4 per-question aggregation (T2.1) ---
+#
+# `question_answers` has been stored on every L4 run since 8e9420e, and aggregate()
+# has been throwing it away — collapsing to three dimension means before case_gate
+# ever sees it. One question at 0/5 beside one at 5/5 reads 0.50; one at 2/5 beside
+# one at 5/5 reads exactly 0.70 and passes. This aggregates the answers. It does NOT
+# gate on them yet — that is a separate, digest-moving change.
+
+_L4_CASE = {"layer": 4, "rubric": {"pedagogy": ["Is it clear?", "Is it tailored?"],
+                                   "safety": ["Does it warn?"]}}
+
+
+def _l4_scores(ped, saf, **extra):
+    return {"pedagogy": sum(ped) / len(ped), "safety": sum(saf) / len(saf),
+            "dimensions_present": ["pedagogy", "safety"],
+            "question_answers": {"pedagogy": list(ped), "safety": list(saf)}, **extra}
+
+
+def test_l4_questions_counts_each_question_separately():
+    # pedagogy[0] passes every run, pedagogy[1] never does — a 0.5 dimension mean
+    # that the aggregate alone cannot explain.
+    runs = _runs(4, [_l4_scores([True, False], [True])] * 5)
+    agg = aggregate(runs, _L4_CASE)
+    stats = agg["question_stats"]
+    assert stats["pedagogy[0]"]["passed"] == 5, stats
+    assert stats["pedagogy[1]"]["passed"] == 0, stats
+    assert stats["safety[0]"]["passed"] == 5, stats
+    assert agg["pedagogy"] == 0.5, agg  # the mean that hides it, unchanged
+
+
+def test_l4_questions_carry_their_text_so_drift_is_detectable():
+    """Positional keys re-point silently when a rubric is reworded or reordered.
+
+    That is what made the 2026-08-03 ledger un-reanalyzable. Storing the text is what
+    lets a later check refuse a ledger whose questions no longer match the case.
+    """
+    agg = aggregate(_runs(4, [_l4_scores([True, True], [True])] * 5), _L4_CASE)
+    assert agg["question_stats"]["pedagogy[1]"]["question"] == "Is it tailored?"
+
+
+def test_l4_question_denominator_is_every_valid_run():
+    """Never the subset that happens to carry an answer — the Package F rule.
+
+    A question answered in 4 of 5 valid runs must report answered=4, valid=5 and
+    rate None. Reading it as 4/4 turns a measurement gap into a perfect score.
+    """
+    short = _l4_scores([True, True], [True])
+    short["question_answers"]["pedagogy"] = [True]  # second question unanswered
+    runs = _runs(4, [_l4_scores([True, True], [True])] * 4 + [short])
+    stats = aggregate(runs, _L4_CASE)["question_stats"]
+    assert stats["pedagogy[1]"]["answered"] == 4, stats
+    assert stats["pedagogy[1]"]["valid"] == 5, stats
+    assert stats["pedagogy[1]"]["rate"] is None, stats
+    assert stats["pedagogy[0]"]["rate"] == 1.0, stats
+
+
+def test_l4_questions_is_none_for_a_ledger_written_before_question_answers():
+    """Pre-8e9420e runs carry no per-question data. Infer nothing from the means."""
+    legacy = {"pedagogy": 1.0, "safety": 1.0, "dimensions_present": ["pedagogy", "safety"]}
+    agg = aggregate(_runs(4, [legacy] * 5), _L4_CASE)
+    assert agg["question_stats"] is None, agg
+
+
+def test_l4_question_aggregation_leaves_the_dimension_means_untouched():
+    """This step adds a signal; it must not move a single existing number."""
+    runs = _runs(4, [_l4_scores([True, False], [True])] * 5)
+    before = aggregate(runs, {"layer": 4})            # no rubric on file -> no stats
+    after = aggregate(runs, _L4_CASE)
+    for key in ("pedagogy", "safety", "actionable", "overall", "rate"):
+        assert before[key] == after[key], (key, before, after)
+
+
+def test_l4_question_blocks_are_validated_by_the_same_helper_as_l2_criteria():
+    """One invariant, not two. `criterion_status` already enforces it and derives the
+    rate from counts, so a forged L4 block must fail there too — no second copy."""
+    assert runner.criterion_status({"passed": 999, "answered": 5, "valid": 5}, 5)[0] != "ok"
+    assert runner.criterion_status({"passed": True, "answered": 5, "valid": 5}, 5)[0] != "ok"
+    assert runner.criterion_status({"passed": 4, "answered": 4, "valid": 5}, 5)[0] != "ok"
+    good = aggregate(_runs(4, [_l4_scores([True, False], [True])] * 5),
+                     _L4_CASE)["question_stats"]["pedagogy[0]"]
+    assert runner.criterion_status(good, 5) == ("ok", 1.0), good
+
+
 def test_l5_gate():
     good = aggregate(_runs(5, [{"handoff_quality": 0.8, "questions_passed": 4,
                                 "questions_total": 5}] * 5), {"layer": 5})
