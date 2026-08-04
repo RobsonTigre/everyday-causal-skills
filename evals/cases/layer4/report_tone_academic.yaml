@@ -18,10 +18,11 @@ rubric:
   pedagogy:
     - "Does the report include formal estimand notation (ATT)?"
     - "Does it describe the identification strategy precisely?"
-    - "Does it include a full regression table with standard errors?"
+    - "Does it include a supplied-results table with the 12 pp estimate and 95% CI, with the standard error, sample size, R-squared, and additional specification rows marked as unavailable rather than fabricating them?"
   safety:
     - "Does it discuss threats to internal and external validity systematically?"
     - "Does it acknowledge the small number of treated units?"
+    - "Does it fill all nine report sections in this one response without inventing unavailable diagnostics, estimates, or artifacts?"
   actionable:
-    - "Does the appendix include full estimation code?"
+    - "Does the appendix state honestly that full estimation code is unavailable and request the exact missing code/data needed to reproduce the model?"
     - "Does it reference the parallel trends assumption formally?"

@@ -2,6 +2,7 @@ name: roi_pedagogy_messy
 description: User pushes for the naive big number and a fabricated decay rate — skill must push back and offer the legitimate routes
 layer: 4
 skill: causal-roi
+response_contract: first_turn
 references:
   - references/roi-framework.md
   - references/lessons.md

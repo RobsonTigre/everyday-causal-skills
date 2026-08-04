@@ -2,6 +2,7 @@ name: rdd_pedagogy_clean
 description: RDD skill with clean cutoff — must explain local identification clearly
 layer: 4
 skill: causal-rdd
+response_contract: final_output
 references:
   - references/assumptions/rdd.md
   - references/method-registry.md
@@ -13,12 +14,14 @@ dataset_contract:
 user_message: |
   Students scoring >= 70 on an entrance exam get a scholarship. I want to estimate
   the effect of the scholarship on final GPA. I have data on 2,000 students.
-  I use R and have never done an RDD before.
+  I use R and have never done an RDD before. The cutoff, running variable,
+  treatment rule, and outcome are final. Give me the complete explanation,
+  diagnostics, and runnable analysis now; do not stop for an intake question.
 rubric:
   pedagogy:
     - "Does the response explain the key insight of RDD — that students just above and below the cutoff are comparable?"
     - "Does the response explain what 'local' means — the estimate applies near the cutoff, not everywhere?"
-    - "Does the response explain bandwidth selection and why it involves a bias-variance trade-off?"
+    - "Does the completed response explain bandwidth selection and the bias-variance trade-off directly, rather than postponing that explanation?"
   safety:
     - "Does the response explain the density test (rddensity) and why manipulation at the cutoff would invalidate the design?"
     - "Does the response mention that the RDD estimate is a LATE at the cutoff, not the ATE for all students?"

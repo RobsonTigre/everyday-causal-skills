@@ -2,6 +2,7 @@ name: experiments_pedagogy_messy
 description: Experiment with non-compliance — skill must explain ITT vs CACE distinction
 layer: 4
 skill: causal-experiments
+response_contract: final_output
 references:
   - references/assumptions/experiments.md
   - references/method-registry.md
@@ -10,15 +11,17 @@ dataset: evals/data/experiments_noncompliance.csv
 user_message: |
   We randomly assigned 1000 patients to receive a new drug and 1000 to placebo.
   However, 15% of patients assigned to the drug refused to take it, and 5% of
-  placebo patients obtained the drug elsewhere. I want the treatment effect. I use R.
+  placebo patients obtained the drug elsewhere. The attached data has assignment,
+  treatment received, and outcome for all 2,000 patients. I want both the assignment
+  effect and the complier effect. I use R. Give me the complete response and runnable analysis code now; do not stop for an intake question.
 rubric:
   pedagogy:
     - "Does the response explain the difference between ITT and CACE/LATE and when each is appropriate?"
     - "Does the response explain why per-protocol analysis (comparing those who actually took the drug) is biased?"
     - "Does the response explain that non-compliance means randomization is preserved at the assignment level but broken at the treatment level?"
   safety:
-    - "Does the response flag two-sided non-compliance as more problematic than one-sided?"
+    - "Does the response explain precisely that crossover in both assignment arms permits additional compliance strata (including always-takers as well as never-takers/compliers, with defiers ruled out only by monotonicity), so an as-treated comparison is not randomized?"
     - "Does the response warn that CACE requires the exclusion restriction and monotonicity assumptions?"
   actionable:
-    - "Does the response provide code for both ITT and CACE/IV estimation?"
-    - "Does the response report both estimates side by side with interpretation of the difference?"
+    - "Does the response provide complete runnable R code that computes both ITT and CACE/IV estimates?"
+    - "Does the code output ITT and CACE side by side and does the response provide instructions for interpreting their difference, without inventing numerical estimates that were not executed?"

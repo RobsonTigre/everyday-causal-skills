@@ -9,7 +9,14 @@ references:
 dataset: evals/data/matching_poor_overlap.csv
 user_message: |
   I want to estimate the effect of a training program on productivity. Participants
-  self-selected. I have covariates (age, tenure, department). I use Python.
+  self-selected. I have covariates (age, tenure, department). The observed
+  propensity-score diagnostics show almost disjoint support: controls range from
+  approximately 0.0000000005 to 0.092, while treated units range from 0.753 to
+  nearly 1.000; 499 of 500 observations lie below 0.10 or above 0.90. Treat this
+  as the full-sample overlap diagnostic rather than inferring it from the preview.
+  The propensity model used age and tenure as numeric covariates plus department
+  encoded with drop-first one-hot indicators (one department is the reference
+  category). I use Python.
 expected:
   must_flag: [overlap]
   severity: fatal

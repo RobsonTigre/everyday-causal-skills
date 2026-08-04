@@ -2,6 +2,7 @@ name: exercise_iv_quality
 description: Exercise skill generates an IV practice scenario — must teach instrument validity
 layer: 4
 skill: causal-exercises
+response_contract: final_output
 references:
   - references/dgp-library.md
   - references/method-registry.md
@@ -9,11 +10,17 @@ references:
 user_message: |
   I want to practice instrumental variables. I use R. Give me an exercise
   that will help me understand when an instrument is valid and when it isn't.
+  Make it Intermediate difficulty. Generate the complete exercise now, including
+  runnable data-generation code and the requested deliverable; do not stop to ask
+  me to choose more parameters. Make the data-generating process vary or otherwise
+  diagnose instrument strength separately from instrument validity, and make the
+  LATE interpretation concrete by identifying the scenario's compliers.
 rubric:
   pedagogy:
     - "Does the scenario teach the student about instrument validity through the scenario design itself (not just by telling them)?"
-    - "Does the exercise help the student understand the difference between a strong and weak instrument?"
-    - "Does the exercise explain what LATE means in the context of the scenario?"
+    - "Does the exercise distinguish instrument strength/relevance from instrument validity rather than treating a strong first stage as evidence that exclusion or independence holds?"
+    - "Does the exercise vary or diagnose instrument strength so the student can compare a strong and a weak first stage?"
+    - "Does the exercise explain LATE through scenario-specific compliers, including who changes treatment because of the instrument?"
   safety:
     - "Does the exercise include a realistic challenge (e.g., potentially invalid exclusion restriction the student must reason about)?"
     - "Does the exercise avoid presenting IV as straightforward — does it convey that IV requires strong assumptions?"

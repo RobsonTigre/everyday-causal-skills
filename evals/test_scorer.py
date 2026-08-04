@@ -14,6 +14,7 @@ from scorer import (  # noqa: E402
     _judge_l1,
     _judge_l2,
     _judge_l4,
+    _select_l3_program,
     _score_layer3,
     score_l5,
     score_response,
@@ -51,8 +52,80 @@ def test_must_include_code_absent_fails():
 def test_no_guard_fields_defaults_true():
     resp = "We discuss parallel trends.\n```python\nprint('hi')\n```"
     out = _score_layer3(resp, {"must_include": ["parallel_trends"]}, _case())
-    assert out["guard_passed"] is True
+    assert out["guard_passed"] is None
+    assert out["guard_applicable"] is False
     assert out["diagnostic_coverage"] == 1.0  # backward-compat: prose 'parallel trends' matches
+
+
+def test_l3_selects_marked_program_after_preflight():
+    response = (
+        "```python\nimport os\nprint('preflight')\n```\n"
+        "```python\n# EVAL_EXECUTABLE\nprint('ESTIMATE:2.0')\n```")
+    selected = _select_l3_program(response, "python")
+    assert selected["selection"] == "sentinel", selected
+    assert selected["program"] == "# EVAL_EXECUTABLE\nprint('ESTIMATE:2.0')\n"
+
+
+def test_l3_sentinel_must_be_exact_first_nonblank_program_line():
+    accepted = _select_l3_program(
+        "```python\n\n# EVAL_EXECUTABLE\nprint(1)\n```", "python")
+    assert accepted["selection"] == "sentinel", accepted
+    assert accepted["program"] == "\n# EVAL_EXECUTABLE\nprint(1)\n"
+
+    for body in (
+        " # EVAL_EXECUTABLE\nprint(1)\n",
+        "# EVAL_EXECUTABLE  \nprint(1)\n",
+        "# eval_executable\nprint(1)\n",
+        "# setup\n# EVAL_EXECUTABLE\nprint(1)\n",
+    ):
+        selected = _select_l3_program(f"```python\n{body}```", "python")
+        assert selected["selection"] == "single_fallback", (body, selected)
+
+
+def test_l3_noncanonical_sentinel_does_not_disambiguate_candidates():
+    response = (
+        "```python\n # EVAL_EXECUTABLE\nprint(1)\n```\n"
+        "```python\nprint(2)\n```")
+    selected = _select_l3_program(response, "python")
+    assert selected["selection"] == "ambiguous", selected
+    assert selected["program"] is None
+
+
+def test_l3_mixed_languages_only_considers_declared_language():
+    response = (
+        "```r\n# EVAL_EXECUTABLE\nstop('illustration only')\n```\n"
+        "```python\nprint('ESTIMATE:2.0')\n```")
+    selected = _select_l3_program(response, "python")
+    assert selected["selection"] == "single_fallback", selected
+    assert "stop(" not in selected["program"]
+
+
+def test_l3_multiple_unmarked_candidates_are_ambiguous():
+    response = "```python\nprint(1)\n```\n```python\nprint(2)\n```"
+    out = _score_layer3(response, {"code_runs": True}, _case())
+    assert out["has_code"] is False, out
+    assert out["program_selection"] == "ambiguous", out
+    assert out["runs_without_error"] is False, out
+
+
+def test_l3_guards_only_selected_program_bytes():
+    response = (
+        "```python\nCallawaySantAnna()\n```\n"
+        "```python\n# EVAL_EXECUTABLE\nprint('ok')\n```")
+    out = _score_layer3(
+        response, {"code_runs": True, "must_not_include": ["CallawaySantAnna"]},
+        _case())
+    assert out["guard_applicable"] is True, out
+    assert out["guard_passed"] is True, out
+
+
+def test_exercise_requires_explicit_estimate_output():
+    response = "```python\n# EVAL_EXECUTABLE\nprint('finished')\n```"
+    case = {**_case(), "execution_mode": "exercise", "required_output": "estimate"}
+    out = _score_layer3(response, {}, case)
+    assert out["runs_without_error"] is False, out
+    assert out["required_output_ok"] is False, out
+    assert "ESTIMATE" in out["execution_error"], out
 
 
 def test_requires_missing_package_errors():
@@ -249,6 +322,7 @@ def test_l2_rubric_appended_after_flags_and_severity():
                                  lambda: _judge_l2("resp", exp, rubric=rubric))
     assert seen["num_questions"] == 4, seen
     assert out["violation_detected"] is True   # index 0 still the flag answer
+    assert out["flag_answers"] == {"overlap": True}, out
     assert out["rubric_coverage"] == 0.5, out  # 1 of 2 rubric questions passed
     # The point of Package F: which criterion passed, not just how many.
     assert out["rubric_answers"] == {"first_q": True, "second_q": False}, out
@@ -320,7 +394,8 @@ def test_no_runnable_code_reports_why_not():
 def test_code_that_actually_runs_is_unaffected():
     resp = "```python\nprint('ESTIMATE:4.0')\n```"
     out = _score_layer3(resp, {"true_effect": None, "tolerance": None},
-                        {"layer": 3, "language": "python", "name": "t"})
+                        {"layer": 3, "language": "python", "name": "t",
+                         "execution_mode": "exercise", "required_output": "estimate"})
     assert out["runs_without_error"] is True, out
     assert out["execution_error"] is None, out
 
@@ -658,13 +733,16 @@ def test_l4_propagates_judge_error():
 # --- Grading contract (D1): response_contract / deferred_rubric passthrough ---
 
 def test_judge_l4_absent_grading_contract_defaults_safely():
-    # 0 of 180 real cases set either field today — this is the behavior every
-    # one of them gets, and it must be identical to pre-D1 output.
+    # Synthetic/legacy callers may still omit the field; preserve a safe fallback.
     case = {"rubric": {"pedagogy": ["Q1?"], "safety": ["Q2?"]}}
-    out, _ = _with_fake_judge([True, True], lambda: _judge_l4("resp", case))
+    out, seen = _with_fake_judge([True, True], lambda: _judge_l4("resp", case))
+    assert out["question_answers"] == {
+        "pedagogy": [True], "safety": [True]}, out
     assert out["response_contract"] is None, out
     assert out["deferred_rubric"] == [], out
     assert out["overall"] == 1.0, out  # unaffected by the new keys
+    assert "Explicitly deferred—not graded:\nNone." in seen["prompt"]
+    assert seen["num_questions"] == 2, seen
 
 
 def test_judge_l4_passes_through_response_contract_and_deferred_rubric():
@@ -676,6 +754,50 @@ def test_judge_l4_passes_through_response_contract_and_deferred_rubric():
     assert out["deferred_rubric"] == ["Was the adjustment set justified?"], out
     # Deferred criteria never enter the graded dimensions or cost a question.
     assert out["overall"] == 1.0, out
+
+
+def test_judge_l4_prompt_operationalizes_each_response_phase():
+    first_deferred = "Was the final balance plot rendered?"
+    first = {
+        "rubric": {"pedagogy": ["Q1?"]},
+        "response_contract": "first_turn",
+        "deferred_rubric": [first_deferred],
+    }
+    _, first_seen = _with_fake_judge(
+        [True], lambda: _judge_l4("resp", first))
+    first_prompt = " ".join(first_seen["prompt"].split())
+    for phrase in (
+        "Response contract: first_turn",
+        "immediate first reply",
+        "diagnostic action reachable now",
+        "appropriate next question",
+        "Do not require a completed downstream analysis",
+    ):
+        assert phrase in first_prompt, phrase
+    assert f"Explicitly deferred—not graded:\n- {first_deferred}" in first_seen["prompt"]
+    assert first_seen["num_questions"] == 1, first_seen
+    assert first_seen["prompt"].rsplit("Questions:\n", 1)[1] == "1. Q1?"
+
+    final_deferred = "Was the rendered PNG embedded?"
+    final = {
+        "rubric": {"pedagogy": ["Q1?"]},
+        "response_contract": "final_output",
+        "deferred_rubric": [final_deferred],
+    }
+    _, final_seen = _with_fake_judge(
+        [True], lambda: _judge_l4("resp", final))
+    final_prompt = " ".join(final_seen["prompt"].split())
+    for phrase in (
+        "Response contract: final_output",
+        "completed one-response deliverable",
+        "Promises to provide required analysis",
+        "deferred_rubric",
+        "do not reward fabricated results",
+    ):
+        assert phrase in final_prompt, phrase
+    assert f"Explicitly deferred—not graded:\n- {final_deferred}" in final_seen["prompt"]
+    assert final_seen["num_questions"] == 1, final_seen
+    assert final_seen["prompt"].rsplit("Questions:\n", 1)[1] == "1. Q1?"
 
 
 def test_l5_propagates_judge_error():

@@ -6,9 +6,16 @@ language: r
 user_message: |
   Help me build a DAG for the following: treatment D affects outcome Y.
   Confounder X affects both D and Y. Mediator M sits on the path D -> M -> Y.
-  Generate the dagitty code. I use R.
-requires: [dagitty, ggdag]
+  Generate the dagitty code. Put # EVAL_EXECUTABLE on its own line as the first
+  line inside the one complete R code block that should be executed. I use R.
+requires: [dagitty, ggdag, ggplot2]
 expected:
   code_runs: true
   must_include:
     - [adjustment_set, "adjustment sets", adjustmentsets, "minimal adjustment"]
+  must_include_code:
+    - "X -> D"
+    - "X -> Y"
+    - "D -> M"
+    - "M -> Y"
+    - adjustmentSets

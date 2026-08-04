@@ -9,6 +9,10 @@ references:
 dataset: evals/data/rdd_clean.csv
 user_message: |
   Students get a scholarship if their test score is >= 70. I have data on 2000
-  students. The score distribution looks smooth around the cutoff. I use Python.
+  students. The observed density diagnostic does not reject continuity at 70, and
+  the one-point bins immediately below and above the cutoff contain 54 and 59
+  students, respectively. Predetermined-covariate continuity checks also show no
+  discontinuity. Treat those as clean diagnostics; recommending routine robustness
+  checks is not a claim that a blocking violation is present. I use Python.
 expected:
   must_flag: []

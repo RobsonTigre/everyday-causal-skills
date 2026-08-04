@@ -2,14 +2,22 @@ name: experiments_pedagogy_clean
 description: Experiments skill with clean RCT — must explain balance and inference clearly
 layer: 4
 skill: causal-experiments
+response_contract: final_output
+input_mode: dataset
+dataset: evals/data/experiments_simple.csv
 references:
   - references/assumptions/experiments.md
   - references/method-registry.md
   - references/lessons.md
 user_message: |
-  We ran a randomized A/B test on our mobile app. 10,000 users were randomly
-  assigned to a new onboarding flow (treatment) or the existing flow (control).
-  Primary outcome is 7-day retention. I want to analyze the results. I use Python.
+  We ran a randomized A/B test on our mobile app. The attached complete fixture has
+  10,000 users, with 5,000 assigned to each arm (`treated`), and the primary binary
+  outcome is 7-day retention (`conversion`). There was no attrition, contamination,
+  or secondary-outcome testing. The observed retention rates are 12.84% in treatment
+  and 9.72% in control. I use Python. Produce the complete final analysis response
+  now: explain the identifying logic, provide a runnable balance-to-estimation
+  pipeline with confidence intervals, and interpret effect size and uncertainty for
+  the business decision. Do not stop for an intake question.
 rubric:
   pedagogy:
     - "Does the response explain why randomization enables causal inference (eliminates confounding) in accessible language?"

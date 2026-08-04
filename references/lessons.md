@@ -71,6 +71,13 @@ Format:
 **Rule**: The response is primary. Always provide the requested analysis and runnable code; save only when file-writing tools are available.
 **Source**: Eval failure (`dag_dowhy_python`), 2026-07-20
 
+### DAG: Runnable R blocks must load their own dependencies
+**Layer**: L3
+**Trigger**: Generating a marked R program from a template that uses multiple code fences or a separate preflight block
+**Mistake**: Calling `ggplot2` functions such as `ggtitle()` or `ggsave()` in the executable block without loading `ggplot2` there, relying on another block or prior session state
+**Rule**: Put the complete R workflow in the single `# EVAL_EXECUTABLE` block and load `dagitty`, `ggdag`, and `ggplot2` inside that block before using them, so the program runs from a clean process.
+**Source**: Eval failure (`dag_dagitty_r`), 2026-07-28
+
 ### DiD: Python staggered DiD must use diff-diff CallawaySantAnna
 **Layer**: L3
 **Trigger**: Generating Python code for a staggered rollout (units treated at different times)

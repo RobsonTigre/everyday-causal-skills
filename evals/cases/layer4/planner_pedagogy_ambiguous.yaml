@@ -22,7 +22,7 @@ rubric:
     - "Does the response help the user understand which assumptions are hardest to defend for each option?"
   safety:
     - "Does the response flag that opt-in is endogenous and naive opt-in vs non-opt-in comparison is biased?"
-    - "Does the response avoid recommending a single method without acknowledging the complexity?"
+    - "Does the response make its primary recommendation conditional on the unresolved design fact while acknowledging the viable alternatives?"
   actionable:
-    - "Does the response recommend a primary approach with clear reasoning for why it's preferred?"
-    - "Does the response suggest what data the user should examine first before committing to a method?"
+    - "Does the response give a conditional primary recommendation and name the hardest identifying assumption for that recommendation?"
+    - "Does the response identify the first discriminating data check that would decide among the candidate methods (rather than offering a generic checklist)?"

@@ -95,9 +95,48 @@ Conduct the interview **conversationally** — NOT as a form. Ask one question a
 - **matching** (including PSM, PSW, doubly-robust)
 - **interrupted time series** / **timeseries** (including CausalImpact, BSTS)
 
-Example: "Based on what you've described, this is a **difference-in-differences (DiD)** problem — specifically staggered DiD. Let me ask a couple of questions to refine the plan..."
+Example: "Based on what you've described, this is a **difference-in-differences (DiD)** problem — specifically staggered DiD. The key remaining question is: do any units remain untreated throughout the study?"
 
-Follow-up questions should refine the recommendation, not delay it.
+Follow-up questions should refine the recommendation, not delay it. After a
+preliminary recommendation, ask **exactly one follow-up question in the first
+response**. It must be one genuinely discriminating question, not a numbered list
+or several subquestions joined together. Continue the one-question-at-a-time
+interview on later turns.
+
+This exact-one rule governs the first response even though the prior-exposure and
+external-events checks below are mandatory over the full interview. If either check
+is not the single most discriminating first question, defer it to a later turn; do
+not append it, bundle it into the chosen question, or treat “ask on every case” as
+permission to ask a second first-turn question.
+
+**First-turn minimum deliverable**: After the preliminary recommendation, explain
+the identifying logic in plain language, name the provisional downstream
+`/causal-*` skill, state the data preparation that skill will require, and end with
+one concrete next action: the single most useful data extract, diagnostic, or
+discriminating answer the user should provide next. For example, a provisional
+staggered-DiD handoff names `/causal-did` and requests a unit-period panel containing
+unit ID, period, treatment-start date or treatment indicator, outcome, and any
+never-treated units. Do not end with only a broad list of questions.
+
+When more than one design is credible, name each credible design, compare what
+population and variation each one identifies, and state the observable feature or
+diagnostic that will decide between them. For a policy with both a threshold and
+panel timing, compare RDD at the threshold with DiD or
+difference-in-discontinuities; do not silently privilege the first viable branch.
+Give a **conditional primary recommendation** ("use X if ..., otherwise Y"), name
+the hardest identifying assumption for every credible option, and make the first
+requested action the single discriminating data check rather than a generic intake
+question.
+
+When the prompt already names a concurrent event, explicitly name it, explain
+whether it could affect treated and control units differently, and propose a
+specific robustness action such as excluding the affected period, changing the
+window, or testing a placebo date.
+
+When treatment assignment is observational despite rich covariates, pair the
+matching/weighting recommendation with (1) the target estimand, (2) overlap and
+post-adjustment balance diagnostics, and (3) the observed-confounding-only limit:
+matching cannot repair an important unmeasured common cause.
 
 ### Phase 1: Setting & Objective (P1-P2)
 
@@ -134,6 +173,13 @@ If detected: (1) Name the specific post-treatment variable. (2) Explain WHY the 
 - No prior exposure → clean baseline, first-time effect.
 - Partial → flag contamination risk and novelty effects.
 - Full prior exposure → reframe the estimand as incremental/ongoing effect. Suggest removal experiment if feasible.
+
+For partial exposure, do not stop at the word "contamination." Define the clean
+eligible population (for example, never-exposed new users), keep previously exposed
+users out of an unexposed control group, state whether randomization or stratification
+is still feasible, and name the resulting estimand. If previously exposed users are
+also a target population, treat their incremental effect as a separate estimand or
+use a justified washout rather than mixing it into the first-exposure experiment.
 
 **External events check (ask on every case)**: Ask: "Is anything else happening around the same time that could affect your outcome — seasonality, other campaigns, policy changes?"
 
@@ -297,7 +343,10 @@ Offer clear next steps:
 
 ## Common Issues
 
-- **Jumping to a method too early**: Users often name a method before describing their problem. Always complete the structured interview before recommending. The right method depends on the data structure, not the user's initial guess.
+- **Finalizing a method too early**: Give a preliminary recommendation as soon as
+  the supplied design supports one, but do not present it as final until the single-
+  question-at-a-time interview resolves the important design uncertainty. The right
+  final method depends on the data structure, not the user's initial guess.
 - **Confusing prediction with causal inference**: If the user's goal is forecasting or classification, not estimating a treatment effect, redirect them. This skill is for causal questions only.
 
 ## Integration

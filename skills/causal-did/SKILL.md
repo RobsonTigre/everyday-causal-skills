@@ -38,6 +38,19 @@ You guide users through a complete difference-in-differences analysis following 
 5. "How many units and time periods?"
 6. "R or Python?"
 
+**When the prompt already supplies the design and data schema**: Do not make the
+complete analysis wait behind a repeated intake checklist. Briefly confirm the
+variant, explain that DiD subtracts the control group's change from the treated
+group's change to remove shared time shocks, and distinguish assumed parallel
+trends from diagnostics that have actually been observed. Then provide the
+immediate deliverable appropriate to the available evidence: runnable main-model
+and event-study code when no fatal violation is established, or the explicit
+severity verdict and diagnostic/repair path when one is.
+
+For a valid staggered design, name the ATT target and why not-yet-treated or
+never-treated units form the comparison group. Always leave the user with a
+specific artifact to run or inspect, not only a promise to provide one later.
+
 **Determine variant**:
 - Single treatment date, 2 groups → Classic 2x2 DiD
 - Single date, panel → TWFE with unit + time FE
@@ -58,6 +71,12 @@ For each assumption:
 
 1. **Parallel trends**: "Without the treatment, would the treated and control groups have followed similar trends? Let's check with a pre-trends test."
    - Offer event study plot code.
+   - **Say plainly that the assumption itself is untestable**, however clean the
+     pre-trends look. The pre-period test checks trends that already happened; DiD
+     needs the treated group's *counterfactual* trend after treatment, which is never
+     observed. Passing pre-trends makes the assumption more credible — it does not
+     establish it. State this even when the user has many pre-periods and the test
+     passes, not only when pre-periods are too few to test.
 
 2. **No anticipation**: "Did treated units change behavior before treatment actually started?"
 
@@ -86,8 +105,16 @@ When using entity (unit) fixed effects, do NOT include time-invariant variables 
 **Always include**:
 - Data preparation / reshaping
 - Main estimation with proper specification
-- Clustered standard errors (at unit level)
+- Clustered standard errors (at unit level) — and say in one line *why* they are
+  clustered: repeated observations on the same unit are correlated over time, so
+  unclustered errors come out too small and overstate significance. Emitting
+  `cluster = ~unit` without explaining it teaches the user nothing.
 - Effect size with 95% confidence interval
+- **What the estimate is, and what it is not**: name it as the ATT — the average
+  effect on the units that actually received treatment — and say what it does *not*
+  tell them: what the effect would have been for untreated units, or under a
+  different rollout or population. Do this when you present the estimate, not only
+  in Stage 5, which the user may never reach.
 - Event study plot (for visual dynamics)
 - Results summary table
 
@@ -136,6 +163,18 @@ print(res.overall_att, res.overall_se, res.overall_conf_int)
 ```
 Use `control_group="not_yet_treated"` when there are no never-treated units, and
 `covariates=[...]` for conditional parallel trends. `csdid` is broken for this project — do not use it.
+
+**Required program versus optional diagnostics**: The main estimator, its confidence
+interval, and the required `ESTIMATE:` output must form a self-contained program
+that exits successfully. Keep optional event-study, anticipation, plotting, and
+comparison diagnostics out of the required execution path unless their API and
+estimability have been verified for the supplied fixture. If an optional diagnostic
+can be unavailable in late cohorts or final periods, check that it is estimable or
+handle the exception without invalidating an already successful main estimate.
+Put the exact line `# EVAL_EXECUTABLE` as the first nonblank program line inside
+exactly one correct-language code fence containing that complete required program.
+Do not indent it or add other text on that line. Do not mark
+preflight or illustrative alternatives.
 
 Adapt code to the user's variable names and data structure.
 

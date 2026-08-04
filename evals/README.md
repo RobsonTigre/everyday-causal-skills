@@ -12,6 +12,30 @@ dependency resolves and imports — including `econml`, `dowhy`, `mcf`, `scpi-pk
 `pycausalimpact` and `pycausalarima`. 3.13 and 3.14 are the documented fallbacks if a
 future dependency loses 3.12 wheels; `pycausalarima` requires ≥ 3.10 in any case.
 
+## What a measurement needs
+
+Every case is answered by `claude -p`, so **a sweep requires an authenticated Claude
+CLI account on this machine** and bills to that account. There is no offline path to a
+real measurement, and the harness will never start an interactive login for you.
+
+Being logged out is not a quality result. Preflight refuses to dispatch, exits **3**,
+and says so: *0 cases were measured. This is NOT a FAIL and NOT a PASS.* The ledger is
+still written, so once you log in you resume with `--resume` instead of starting over.
+
+This dependency is recorded in every ledger and verdict as `backend: cli`. That field
+exists because the harness previously relied on the login without naming it anywhere,
+which is why a credential problem used to surface as an unexplained `claude -p exited
+1`. A ledger written before the field existed stays readable and can still be
+recompiled, but cannot be resumed.
+
+`backend: cli` is the only implemented value; a config asking for anything else is
+refused rather than quietly served by the CLI. An Anthropic-API backend was
+deliberately not built — it would have to reimplement the tool sandbox the CLI gives
+`run_case_cli` (Read/Glob/Grep over a workspace with `templates/` and `references/`
+linked in), and a version that skipped that would silently measure a different
+environment: the model reports the template missing and improvises code instead, with
+no error anywhere in its response.
+
 ## Setup
 
 ```bash
@@ -36,8 +60,21 @@ Point the harness at this interpreter with `EVAL_PYTHON`, which `scorer.py` alre
 honours:
 
 ```bash
-EVAL_PYTHON="$PWD/.venv/bin/python" .venv/bin/python evals/sweep.py ...
+EVAL_PYTHON="$PWD/.venv/bin/python" .venv/bin/python -u evals/sweep.py ...
 ```
+
+For a release sweep, preserve the complete release command and let failures
+propagate:
+
+```bash
+EVAL_PYTHON="$PWD/.venv/bin/python" .venv/bin/python -u evals/sweep.py \
+  --runs 5 --workers 3 --config evals/config.release.yaml \
+  --release-verdict vX.Y.Z
+```
+
+Avoid piping this command through `tee`, because a default shell pipeline can
+hide the sweep's nonzero exit status. If a transcript is required, enable
+`set -o pipefail` in the shell before piping to `tee`.
 
 ## The `causalimpact` trap
 

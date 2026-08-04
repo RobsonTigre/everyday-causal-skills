@@ -379,6 +379,85 @@ def test_run_one_slot_treats_exit_2_as_a_real_measurement():
         assert result["invalid"] == "skill_timeout", result
 
 
+def test_run_one_slot_reconciles_matching_orphan_without_model_call():
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        record = {"run": 1, "scores": {"accuracy": 1.0}}
+        (sweep_dir / "case-x-slot0.json").write_text(json.dumps({
+            "cases": [{"name": "x", "layer": 1, "run_records": [record]}]}))
+
+        real = scorer.run_subprocess_grouped
+        scorer.run_subprocess_grouped = lambda *a, **k: (
+            _ for _ in ()).throw(AssertionError("orphan must be reconciled"))
+        try:
+            result = sweep.run_one_slot("x", 0, "evals/config.yaml", sweep_dir)
+        finally:
+            scorer.run_subprocess_grouped = real
+        assert result == record, result
+
+
+def test_reconciled_orphan_is_durable_and_skipped_after_reload():
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        case_path = sweep_dir / "x.yaml"
+        case_path.write_text(yaml.dump({"name": "x", "layer": 1}))
+        record = {"run": 1, "scores": {"accuracy": 1.0}}
+        (sweep_dir / "case-x-slot0.json").write_text(json.dumps({
+            "cases": [{"name": "x", "layer": 1, "run_records": [record]}]}))
+        ledger = _ledger({"x": {
+            "layer": 1,
+            "path": str(case_path),
+            "status": "pending",
+            "slots": [{"status": "pending", "result": None}],
+        }})
+        ledger_path = sweep_dir / "ledger.json"
+        save_ledger(ledger, ledger_path)
+
+        reconciled = sweep.run_one_slot(
+            "x", 0, "evals/config.yaml", sweep_dir)
+        ledger["cases"]["x"]["slots"][0] = {
+            "status": "done", "result": reconciled}
+        save_ledger(ledger, ledger_path)
+
+        resumed = load_ledger(ledger_path)
+        real = sweep.run_one_slot
+        sweep.run_one_slot = lambda *a, **k: (
+            _ for _ in ()).throw(
+                AssertionError("completed reconciled slot must skip subprocess"))
+        try:
+            patch = sweep.run_case_slots(
+                "x", resumed["cases"]["x"], "evals/config.yaml",
+                sweep_dir, 1, None)
+        finally:
+            sweep.run_one_slot = real
+        assert patch["status"] == "done", patch
+        assert patch["slots"][0]["result"] == record
+
+
+def test_run_case_slots_checkpoints_each_completed_slot_immediately():
+    with tempfile.TemporaryDirectory() as d:
+        sweep_dir = Path(d)
+        case_path = sweep_dir / "x.yaml"
+        case_path.write_text(yaml.dump({"name": "x", "layer": 1}))
+        case_entry = {
+            "layer": 1, "path": str(case_path),
+            "slots": [{"status": "pending", "result": None} for _ in range(2)],
+        }
+        calls = []
+        real = sweep.run_one_slot
+        sweep.run_one_slot = lambda name, i, config, out: {
+            "run": 1, "scores": {"accuracy": 1.0}}
+        try:
+            patch = sweep.run_case_slots(
+                "x", case_entry, "evals/config.yaml", sweep_dir, 2, None,
+                checkpoint_slot=lambda i, slot: calls.append((i, slot)))
+        finally:
+            sweep.run_one_slot = real
+        assert [i for i, _ in calls] == [0, 1], calls
+        assert all(slot["status"] == "done" for _, slot in calls), calls
+        assert patch["status"] == "done", patch
+
+
 def test_run_case_slots_never_marks_an_invalid_measurement_done():
     # Confirmed bug: a slot is "done" whenever run_one_slot returns
     # non-None, but exit 2 (measured-but-invalid, e.g. a skill_timeout that
@@ -1299,7 +1378,8 @@ def test_run_wave_release_fail_fast_never_submits_queued_cases():
     calls = {"n": 0}
     lock = threading.Lock()
 
-    def fake_run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds):
+    def fake_run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds,
+                            checkpoint_slot=None):
         with lock:
             calls["n"] += 1
         if name == "a":
@@ -1331,7 +1411,8 @@ def test_run_wave_diagnostic_sweep_ignores_fail_fast():
     calls = {"n": 0}
     lock = threading.Lock()
 
-    def fake_run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds):
+    def fake_run_case_slots(name, case_entry, config_path, sweep_dir, runs, thresholds,
+                            checkpoint_slot=None):
         with lock:
             calls["n"] += 1
         verdict = "FAIL" if name == "a" else "PASS"

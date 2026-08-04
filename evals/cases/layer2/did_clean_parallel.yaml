@@ -9,6 +9,11 @@ references:
 dataset: evals/data/did_clean.csv
 user_message: |
   I have panel data for 100 stores over 24 months. Half the stores got a new
-  inventory system at month 12. Pre-treatment trends look parallel. I use Python.
+  inventory system at month 12. In the pre-treatment months, a store-clustered
+  regression of sales on month, treatment group, and their interaction estimates
+  the differential pre-trend at 0.012 sales units per month (SE 0.039, p = 0.76).
+  The event-study leads fluctuate around zero with no directional pattern. Treat
+  those as the observed pre-trend diagnostics, while still explaining the other
+  assumptions and checks needed before a causal conclusion. I use Python.
 expected:
   must_flag: []

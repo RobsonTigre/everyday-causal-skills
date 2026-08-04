@@ -1,9 +1,19 @@
 """
 Eval runner for everyday-causal-skills.
 
-Supports two backends:
-  --backend cli   (default) Uses `claude -p` — bills to your Claude Code subscription
-  --backend api   Uses Anthropic SDK — requires ANTHROPIC_API_KEY, bills per token
+Every case is answered by `claude -p`, which requires an authenticated Claude CLI
+account on this machine and bills to that account. That credential is a hard
+requirement, not an implementation detail: there is no offline path to a measurement,
+and being logged out means zero measurements rather than a degraded score.
+
+An Anthropic-API backend was deliberately not built. Adding one would mean
+reimplementing the tool sandbox `run_case_cli` gets from the CLI (Read/Glob/Grep over
+a workspace with templates/ and references/ linked in), and a version that skipped
+that would silently measure a different environment — the model reports the template
+missing and improvises code instead, with no error anywhere in its response.
+
+Exit: 0 every case measured · 2 at least one case was NOT measured (requeue it)
+      · 3 the invocation itself is unusable
 """
 from __future__ import annotations
 
@@ -19,7 +29,8 @@ from pathlib import Path
 
 import yaml
 
-from scorer import (FIXTURES_ROOT, JudgeError, l2_rubric, score_response, score_l5,
+from scorer import (FIXTURES_ROOT, JudgeError, l2_rubric, redact_secrets,
+                    resolve_backend, score_response, score_l5,
                     run_subprocess_grouped, reject_symlinks)
 
 
@@ -120,8 +131,10 @@ def case_gate(case: dict, agg: dict, thresholds: dict | None = None) -> str:
         # wrote the exact phrases. must_include alternates were built to cure that, but
         # only 2 of 21 L3 cases use them and neither of the two cases that demonstrated
         # the problem does. A wording matcher must not decide a release.
-        guard = agg.get("guard_ok", valid) / valid if valid else 0.0
-        ok = ok and _meets(guard, t("guard_pass_rate"))
+        guard_applicable = agg.get("guard_applicable", valid)
+        if guard_applicable:
+            guard = agg.get("guard_ok", 0) / guard_applicable
+            ok = ok and _meets(guard, t("guard_pass_rate"))
         return "PASS" if ok else "FAIL"
     if layer == 4:
         for dim in ("pedagogy", "safety", "actionable"):
@@ -279,7 +292,10 @@ def _invalid_run(index: int, reason: str, error: str, tokens: dict | None = None
         "run": index + 1,
         "scores": {},
         "invalid": reason,
-        "error": error or f"{reason} (no detail reported)",
+        # Redacted at the one choke point every persisted failure passes through: a
+        # failing `claude -p` has its stderr spliced in here, and this record is
+        # written verbatim into slot JSON, the ledger and the verdict.
+        "error": redact_secrets(error) or f"{reason} (no detail reported)",
         "tokens": tokens or {"input": 0, "output": 0},
         "response": extra.pop("response", ""),
     }
@@ -443,7 +459,15 @@ def run_case_cli(case: dict, config: dict, runs: int, debug: bool = False) -> li
 
 
 def run_case_l5_cli(case: dict, config: dict, runs: int, debug: bool = False) -> list[dict]:
-    """Run L5 (workflow handoff) eval via `claude -p` — two sequential skill steps."""
+    """Run L5 (workflow handoff) eval via `claude -p` — two sequential skill steps.
+
+    KNOWN GAP, found while auditing the backend dependency and deliberately NOT fixed
+    here: unlike run_case_cli, this passes no `cwd` and calls neither
+    `_link_plugin_dirs` nor `_provision_artifact_fixture`, so both steps run in the
+    repo root with Read/Glob/Grep — where `evals/` (the answer keys) is reachable.
+    Narrowing it would change what L5 measures, which is a measurement-contract
+    decision, not part of naming an existing credential dependency.
+    """
     import tempfile
 
     steps = case["steps"]
@@ -540,107 +564,6 @@ def run_case_l5_cli(case: dict, config: dict, runs: int, debug: bool = False) ->
         except SkillError as e:
             results.append(_invalid_run(i, e.reason, str(e),
                                         step1_response="", step2_response=""))
-        except JudgeError as e:
-            results.append(_invalid_run(i, e.reason, str(e),
-                                        step1_response="", step2_response=""))
-        except Exception as e:
-            results.append(_invalid_run(i, "run_error", str(e),
-                                        step1_response="", step2_response=""))
-    return results
-
-
-# --- Backend: Anthropic API SDK ---
-
-def run_case_api(client, case: dict, config: dict, runs: int, debug: bool = False) -> list[dict]:
-    """Run eval case via Anthropic SDK — requires ANTHROPIC_API_KEY."""
-    skill_content = load_skill(case["skill"])
-    refs = case.get("references", [])
-    ref_content = load_references(refs)
-    system = f"{skill_content}\n\n{ref_content}" if ref_content else skill_content
-
-    results = []
-    for i in range(runs):
-        text = ""
-        try:
-            resp = client.messages.create(
-                model=config.get("model", "claude-sonnet-4-20250514"),
-                max_tokens=config.get("max_tokens", 4096),
-                system=system,
-                messages=[{"role": "user", "content": case["user_message"]}],
-            )
-            text = resp.content[0].text
-            if not text.strip():
-                results.append(_invalid_run(i, "empty_response", "API returned empty text"))
-                continue
-            scores = score_response(case, text, config, debug=debug)
-            results.append({
-                "run": i + 1,
-                "response": text,
-                "scores": scores,
-                "tokens": {"input": resp.usage.input_tokens, "output": resp.usage.output_tokens},
-            })
-        except JudgeError as e:
-            results.append(_invalid_run(i, e.reason, str(e), response=text))
-        except Exception as e:
-            results.append(_invalid_run(i, "run_error", str(e), response=text))
-    return results
-
-
-def run_case_l5_api(client, case: dict, config: dict, runs: int, debug: bool = False) -> list[dict]:
-    """Run L5 (workflow handoff) eval via Anthropic SDK — two sequential skill steps."""
-    steps = case["steps"]
-
-    results = []
-    for i in range(runs):
-        try:
-            # --- Step 1 ---
-            step1 = steps[0]
-            skill1 = load_skill(step1["skill"])
-            refs1 = step1.get("references", case.get("references", []))
-            ref1_content = load_references(refs1)
-            system1 = f"{skill1}\n\n{ref1_content}" if ref1_content else skill1
-
-            resp1 = client.messages.create(
-                model=config.get("model", "claude-sonnet-4-20250514"),
-                max_tokens=config.get("max_tokens", 4096),
-                system=system1,
-                messages=[{"role": "user", "content": step1["scenario"]}],
-            )
-            step1_text = resp1.content[0].text
-
-            # --- Step 2 ---
-            step2 = steps[1]
-            skill2 = load_skill(step2["skill"])
-            refs2 = step2.get("references", case.get("references", []))
-            ref2_content = load_references(refs2)
-            system2 = f"{skill2}\n\n{ref2_content}" if ref2_content else skill2
-
-            step2_scenario = step2.get("scenario", "")
-            if step2.get("input_from") == "step_1":
-                step2_message = f"{step1_text}\n\n{step2_scenario}".strip()
-            else:
-                step2_message = step2_scenario
-
-            resp2 = client.messages.create(
-                model=config.get("model", "claude-sonnet-4-20250514"),
-                max_tokens=config.get("max_tokens", 4096),
-                system=system2,
-                messages=[{"role": "user", "content": step2_message}],
-            )
-            step2_text = resp2.content[0].text
-
-            scores = score_l5(step1_text, step2_text, case, config, debug=debug)
-            results.append({
-                "run": i + 1,
-                "step1_response": step1_text,
-                "step2_response": step2_text,
-                "response": f"--- Step 1 ---\n{step1_text}\n\n--- Step 2 ---\n{step2_text}",
-                "scores": scores,
-                "tokens": {
-                    "input": resp1.usage.input_tokens + resp2.usage.input_tokens,
-                    "output": resp1.usage.output_tokens + resp2.usage.output_tokens,
-                },
-            })
         except JudgeError as e:
             results.append(_invalid_run(i, e.reason, str(e),
                                         step1_response="", step2_response=""))
@@ -798,9 +721,14 @@ def aggregate(runs: list[dict], case: dict) -> dict:
         applicable = [r for r in valid if r["scores"].get("estimation_accurate") is not None]
         est_ok = sum(1 for r in applicable if r["scores"]["estimation_accurate"] is True)
         diag = sum(r["scores"].get("diagnostic_coverage", 0) for r in valid) / n
-        guard = sum(1 for r in valid if r["scores"].get("guard_passed", True))
+        guard_applicable = [
+            r for r in valid if r["scores"].get("guard_applicable", True)
+        ]
+        guard = sum(1 for r in guard_applicable
+                    if r["scores"].get("guard_passed") is True)
         return {**base, "ran": ran, "est_ok": est_ok, "est_applicable": len(applicable),
-                "diagnostic_coverage": diag, "guard_ok": guard, "rate": ran / n}
+                "diagnostic_coverage": diag, "guard_ok": guard,
+                "guard_applicable": len(guard_applicable), "rate": ran / n}
 
     elif layer == 4:
         present = set()
@@ -1048,8 +976,6 @@ def main():
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--config", default="evals/config.yaml")
-    parser.add_argument("--backend", choices=["cli", "api"], default="cli",
-                        help="cli = claude -p (subscription), api = Anthropic SDK (API key)")
     parser.add_argument("--notes", type=str, default="",
                         help="Annotation for this run in HISTORY.md")
     parser.add_argument("--debug-judge", action="store_true",
@@ -1064,16 +990,20 @@ def main():
         parser.error("Specify --layer, --case, or --all")
 
     config = load_config(args.config)
+    try:
+        backend = resolve_backend(config)
+    except ValueError as e:
+        # Exit 3, not argparse's usual 2: this file already spends exit 2 on "some case
+        # was not measured, requeue it", and a caller that cannot tell an unmeasured
+        # case from an unusable invocation will retry the second one forever.
+        print(f"Refusing to run: {e}", file=sys.stderr)
+        sys.exit(3)
+
     paths = collect_cases(layer=args.layer, case_name=args.case)
     label = args.case or (f"L{args.layer}" if args.layer is not None else "all")
-    print(f"Running {len(paths)} case(s), {args.runs} run(s) each [backend={args.backend}]...\n")
+    print(f"Running {len(paths)} case(s), {args.runs} run(s) each [backend={backend}]...\n")
 
-    client = None
-    if args.backend == "api":
-        import anthropic
-        client = anthropic.Anthropic()
-
-    all_results = {"runs": args.runs, "backend": args.backend, "cases": []}
+    all_results = {"runs": args.runs, "backend": backend, "cases": []}
     for p in paths:
         case = load_case(p)
         case = inject_schema(case)
@@ -1082,14 +1012,9 @@ def main():
             if case.get("layer") == 0:
                 runs = run_case_l0(case, config, args.runs, debug=args.debug_judge)
             elif case.get("layer") == 5:
-                if args.backend == "cli":
-                    runs = run_case_l5_cli(case, config, args.runs, debug=args.debug_judge)
-                else:
-                    runs = run_case_l5_api(client, case, config, args.runs, debug=args.debug_judge)
-            elif args.backend == "cli":
-                runs = run_case_cli(case, config, args.runs, debug=args.debug_judge)
+                runs = run_case_l5_cli(case, config, args.runs, debug=args.debug_judge)
             else:
-                runs = run_case_api(client, case, config, args.runs, debug=args.debug_judge)
+                runs = run_case_cli(case, config, args.runs, debug=args.debug_judge)
             agg = aggregate(runs, case)
             all_results["cases"].append({"case": case, "runs": runs, "aggregate": agg})
             verdict = case_gate(case, agg, config.get("thresholds"))

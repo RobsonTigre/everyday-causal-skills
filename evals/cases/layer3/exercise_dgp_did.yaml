@@ -2,15 +2,23 @@ name: exercise_dgp_did
 description: Exercise skill at the debrief stage — the revealed DiD DGP must run and declare the true effect
 layer: 3
 skill: causal-exercises
+response_contract: final_output
+input_mode: artifact
+artifact_fixture:
+  source: evals/fixtures/causal-exercises/retail-loyalty-did
+  dest: docs/causal-exercises/retail-loyalty-did
 references:
   - references/dgp-library.md
   - references/method-registry.md
   - references/lessons.md
 language: python
+execution_mode: exercise
+required_output: estimate
 user_message: |
-  I'm working through the difference-in-differences practice exercise you set me:
-  the retail chain where about half the stores got a new loyalty program partway
-  through a monthly sales panel, and I had to recover its effect on sales.
+  I'm working through the Basic difference-in-differences practice exercise you
+  set me. Its saved fixture is available in this workspace at
+  `docs/causal-exercises/retail-loyalty-did/dgp.py`: the retail chain where half
+  the stores got a new loyalty program partway through a monthly sales panel.
 
   I've finished my attempt. I ran a two-way fixed effects regression on the panel
   and estimated an ATT of roughly 3.1 per store-month.
@@ -18,10 +26,11 @@ user_message: |
   Please debrief me now. I need exactly two deliverables in your reply, both as
   runnable code, not a prose description of what the DGP does:
 
-  1. The full `dgp.py` you generated for this exercise (the file you already save to
-     `docs/causal-exercises/.../dgp.py`), reproduced here as a code block so I can
-     re-run it myself. It must print the true effect on its own line as
+  1. The full saved `dgp.py` for this exact exercise, reproduced here as a code
+     block so I can re-run it myself. It must print the true effect on its own line as
      ESTIMATE:<value> (e.g. print(f'ESTIMATE:{true_att}')) and save the dataset as a CSV.
+     Put # EVAL_EXECUTABLE on its own line as the first line inside that complete
+     Python code block, and do not mark any other block.
   2. A short debrief comparing my estimate to the true effect and explaining any gap.
 
   Do not summarize or describe the DGP code in prose instead of showing it — I want

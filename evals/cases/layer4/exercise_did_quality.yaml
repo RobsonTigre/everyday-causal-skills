@@ -2,6 +2,7 @@ name: exercise_did_quality
 description: Exercise skill generates a DiD practice scenario — must be realistic and pedagogical
 layer: 4
 skill: causal-exercises
+response_contract: final_output
 references:
   - references/dgp-library.md
   - references/method-registry.md
@@ -9,7 +10,10 @@ references:
 user_message: |
   I'm a data scientist learning causal inference. Can you create a
   difference-in-differences practice exercise for me? I work in Python and
-  want a scenario I might encounter in a real business setting.
+  want a scenario I might encounter in a real business setting. Make it
+  Intermediate difficulty. Generate the complete exercise now, including runnable
+  data-generation code and the requested deliverable; do not stop to ask me to
+  choose more parameters.
 rubric:
   pedagogy:
     - "Does the scenario describe a realistic business situation (not a textbook example with artificial setup)?"

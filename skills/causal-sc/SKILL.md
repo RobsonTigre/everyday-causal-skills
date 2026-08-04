@@ -10,6 +10,12 @@ metadata:
 
 You guide users through a complete synthetic control analysis following a 5-stage pattern.
 
+**Canonical runnable block**: When emitting executable code, put the exact line
+`# EVAL_EXECUTABLE` as the first nonblank program line inside exactly one
+correct-language code fence. Do not indent it or add other text on that line.
+That fence must contain the complete program to run. Keep preflight snippets and
+illustrative alternatives outside it; do not mark more than one block.
+
 ## Before You Begin
 
 1. Read `references/lessons.md` — known mistakes. Do not repeat them.
@@ -38,6 +44,181 @@ You guide users through a complete synthetic control analysis following a 5-stag
 5. "What outcome variable are you tracking?"
 6. "What predictor variables do you have for matching (e.g., pre-treatment outcomes, economic indicators)?"
 7. "R or Python?"
+
+**Fully specified direct mode**: If the user or attached fixture already identifies
+the treated unit, intervention date, outcome, donor units, pre/post periods,
+language, and either predictors or enough pre-treatment outcomes to construct
+outcome-based predictors, and asks for the complete response now, do not repeat the
+intake or stop for confirmation. Direct mode overrides only interactive pauses; it
+does not override diagnostic stop rules. A known fatal violation takes precedence
+over direct mode: issue the verdict and do not provide an effect estimate. When no
+separate predictors are named, use stated pre-treatment outcome periods as
+predictors and disclose that choice.
+
+Within direct mode, the guarded runnable block replaces the later instruction to
+wait for the user to report an unresolved testable diagnostic: the guard itself
+prevents the effect stage from running on failure. This direct-mode subsection also
+takes precedence over Stage 3's template-adherence rule and missing-package pause.
+Use the fixture-specific `Synth` path below instead of copying the generic template.
+Those later wait and template rules still apply outside direct mode. If the supplied
+facts already establish a fatal violation, the fatal verdict wins over direct mode:
+do not calculate or interpret an effect.
+
+Start the runnable code with donor eligibility and data-coverage checks, followed by
+the convex-hull assessment. Fit the synthetic weights next, but calculate and check
+pre-treatment RMSPE and weight concentration before calculating any post-treatment
+effect or placebo rank. Only if those gates pass may the code calculate the
+post-treatment gap and interpret the placebo distribution. Implement an explicit
+guard: on poor pre-fit, convex-hull failure, or another fatal diagnostic, emit the
+verdict and stop before effect estimation; on a serious concentration warning,
+report it and run the specified donor-dependence check before any interpretation.
+Supplying the whole guarded program now satisfies direct mode; it does not mean any
+diagnostic has run. Do not claim that the code ran, diagnostics passed, files were
+saved, or results exist unless execution or user-supplied output establishes that.
+
+Keep no-interference, no-anticipation, and donor-pool plausibility explicit as
+substantive assumptions. The code cannot prove them, and passing the testable gates
+does not establish them. Provide the method explanation, assumptions, complete
+runnable implementation, diagnostics, placebo inference, and result-reading
+instructions in one response. The direct response must:
+
+- explain that the synthetic control is a weighted combination of untreated donors
+  chosen to reproduce the treated unit before intervention;
+- include code to calculate pre-treatment RMSPE and explain what the measure means,
+  because a post-treatment gap is not credible if the synthetic unit could not track
+  the treated unit beforehand;
+- print donor weights and explain both what the largest weights mean and why a result
+  concentrated on one or two donors is dependent on those donors;
+- state that donor-pool inclusion is a substantive researcher decision and test that
+  dependence with leave-one-out or alternative-pool analyses; and
+- include in-space placebo code and explain rank/post-to-pre-RMSPE inference rather
+  than treating it as an ordinary regression p-value.
+
+Use the supplied treated unit, date, outcome, and donor list literally in the code;
+do not leave generic placeholders when those values are available. Do not state
+numerical weights, RMSPE, gaps, or placebo ranks unless they come from executed or
+user-supplied output.
+
+**Outcome-only `Synth` fixture path**: For the supplied panel with columns
+`unit,time,outcome,treated,post`, treated unit 1, intervention period 21, and donors
+2 through 10, use these values literally. The panel has no separate covariates, so
+use pre-treatment outcome history through `special.predictors`; never invent
+`predictor1` or `predictor2`. Give the following as the one guarded runnable block,
+adapt only the data path if the attachment is mounted elsewhere, and explain that
+the screening threshold must be prespecified and justified for the outcome scale:
+
+```r
+# EVAL_EXECUTABLE
+required <- "Synth"
+if (!requireNamespace(required, quietly = TRUE)) {
+  stop("Missing R package Synth. Install it explicitly, then rerun this script.")
+}
+
+df <- read.csv("evals/data/sc_basic_l3.csv")
+treated_id <- 1L
+intervention <- 21L
+donor_ids <- 2:10
+pre_periods <- 1:(intervention - 1L)
+all_periods <- sort(unique(df$time))
+max_pre_rmspe_share <- 0.10 # prespecify and justify for this outcome scale
+
+required_columns <- c("unit", "time", "outcome", "treated", "post")
+stopifnot(all(required_columns %in% names(df)))
+study <- df[df$unit %in% c(treated_id, donor_ids), required_columns]
+coverage <- table(study$unit, study$time)
+if (!setequal(unique(study$unit), c(treated_id, donor_ids)) ||
+    any(coverage != 1L) || anyNA(study[, c("unit", "time", "outcome")])) {
+  stop("FATAL: donor eligibility or panel coverage failed; no effect was estimated.")
+}
+
+pre <- study[study$time %in% pre_periods, ]
+treated_pre <- pre$outcome[match(pre_periods, pre$time[pre$unit == treated_id])]
+donor_pre <- vapply(donor_ids, function(id) {
+  x <- pre[pre$unit == id, ]
+  x$outcome[match(pre_periods, x$time)]
+}, numeric(length(pre_periods)))
+outside_hull <- treated_pre < apply(donor_pre, 1, min) |
+  treated_pre > apply(donor_pre, 1, max)
+if (any(outside_hull)) {
+  stop("FATAL: treated outcomes leave the donor range before treatment; no effect was estimated.")
+}
+
+outcome_history <- lapply(c(1L, 5L, 10L, 15L, 20L), function(t) {
+  list("outcome", t, "mean")
+})
+fit_sc <- function(target, controls) {
+  dp <- Synth::dataprep(
+    foo = as.data.frame(study),
+    predictors = "outcome", predictors.op = "mean",
+    special.predictors = outcome_history,
+    dependent = "outcome", unit.variable = "unit", time.variable = "time",
+    treatment.identifier = target, controls.identifier = controls,
+    time.predictors.prior = pre_periods, time.optimize.ssr = pre_periods,
+    time.plot = all_periods
+  )
+  syn <- Synth::synth(dp)
+  gap <- drop(dp$Y1plot - dp$Y0plot %*% syn$solution.w)
+  list(dp = dp, syn = syn, gap = gap,
+       pre_rmspe = sqrt(mean(gap[all_periods < intervention]^2)))
+}
+
+main <- fit_sc(treated_id, donor_ids)
+weights <- data.frame(unit = donor_ids, weight = drop(main$syn$solution.w))
+weights <- weights[order(weights$weight, decreasing = TRUE), ]
+print(weights)
+cat("Pre-treatment RMSPE:", main$pre_rmspe, "\n")
+pre_scale <- mean(abs(treated_pre))
+fit_ok <- is.finite(main$pre_rmspe) && is.finite(pre_scale) && pre_scale > 0 &&
+  main$pre_rmspe / pre_scale <= max_pre_rmspe_share
+if (!fit_ok) {
+  stop("FATAL: prespecified pre-fit gate failed; no effect or placebo rank was estimated.")
+}
+
+positive_donors <- weights$unit[weights$weight > 0.001]
+if (max(weights$weight) > 0.80) {
+  message("SERIOUS: one donor exceeds 80%; inspect leave-one-out results before interpretation.")
+}
+loo <- lapply(positive_donors, function(drop_id) {
+  fit_sc(treated_id, setdiff(donor_ids, drop_id))$gap
+})
+names(loo) <- positive_donors
+if (max(weights$weight) > 0.80 && length(loo) == 0L) {
+  stop("SERIOUS: concentrated weights require a leave-one-out result before interpretation.")
+}
+
+effect <- mean(main$gap[all_periods >= intervention])
+loo_effects <- vapply(loo, function(gap) {
+  mean(gap[all_periods >= intervention])
+}, numeric(1))
+ratio <- function(gap) {
+  sqrt(mean(gap[all_periods >= intervention]^2)) /
+    sqrt(mean(gap[all_periods < intervention]^2))
+}
+placebos <- lapply(donor_ids, function(fake_id) {
+  fit_sc(fake_id, setdiff(donor_ids, fake_id))
+})
+placebo_pre <- vapply(placebos, `[[`, numeric(1), "pre_rmspe")
+eligible <- is.finite(placebo_pre) & placebo_pre <= 5 * main$pre_rmspe
+placebo_ratios <- vapply(placebos[eligible], function(x) ratio(x$gap), numeric(1))
+treated_ratio <- ratio(main$gap)
+pseudo_p <- mean(c(treated_ratio, placebo_ratios) >= treated_ratio)
+
+cat("Average post-treatment gap:", effect, "\n")
+cat("Leave-one-out effect range:", range(loo_effects), "\n")
+cat("Treated post/pre RMSPE ratio:", treated_ratio, "\n")
+cat("Placebo rank fraction (pseudo p-value):", pseudo_p, "\n")
+cat("Leave-one-out specifications completed:", length(loo), "\n")
+Synth::path.plot(synth.res = main$syn, dataprep.res = main$dp)
+Synth::gaps.plot(synth.res = main$syn, dataprep.res = main$dp)
+```
+
+Explain the output in this order: pre-RMSPE and the treated-versus-synthetic path;
+weight concentration and the leave-one-out range; then the post-treatment gap and
+its rank among eligible in-space placebos. Call the rank fraction a permutation or
+pseudo p-value, not an ordinary regression p-value. The code has not been executed;
+do not claim diagnostics passed or interpret the effect until actual output clears
+the pre-fit and donor-dependence checks. No-interference, no-anticipation, and donor
+validity still require substantive arguments even when the code gates pass.
 
 **Determine variant**:
 - 1 treated unit, many donors, good pre-fit expected → Classic synthetic control (Abadie et al.)
@@ -77,15 +258,15 @@ For each assumption:
 After all assumptions, summarize with status indicators per assumption.
 
 If fatal violations exist (especially poor pre-treatment fit or contaminated donor pool), warn clearly and suggest alternatives.
-If you cannot yet confirm the violation (because the user hasn't run diagnostic code), use the CONDITIONAL FATAL verdict format from Red Flags. Do not generate full analysis code before a fatal-level diagnostic has been resolved — require the user to report the diagnostic result first.
+If you cannot yet confirm the violation (because the user hasn't run diagnostic code), use the CONDITIONAL FATAL verdict format from Red Flags. Outside fully specified direct mode, do not generate full analysis code before a fatal-level diagnostic has been resolved — require the user to report the diagnostic result first. In direct mode, provide the guarded program now; its diagnostic gates must stop before effect estimation on failure. A fatal violation already established by supplied facts still wins.
 
 ## Stage 3: Implementation
 
 Generate complete analysis code. Read the appropriate template from `templates/r/sc.md` or `templates/python/sc.md` for code patterns.
 
-**Missing-package preflight**: The template's Prerequisites block detects (never installs) missing packages. Follow `references/preflight.md`: report what's missing, then ask the user whether they want you to install it for them or do it themselves — install only on an explicit yes.
+**Missing-package preflight**: Outside fully specified direct mode, the template's Prerequisites block detects (never installs) missing packages. Follow `references/preflight.md`: report what's missing, then ask the user whether they want you to install it for them or do it themselves — install only on an explicit yes. In direct mode, the guarded program detects the missing package and stops honestly without an installation pause or claim of execution.
 
-**IMPORTANT — Template adherence**: Copy the code pattern from the appropriate template (`templates/r/sc.md` or `templates/python/sc.md`) exactly, then adapt only variable names to match the user's data. Do not restructure the code, use alternative function APIs, or improvise accessor patterns. The templates have been tested; deviations introduce bugs.
+**IMPORTANT — Template adherence**: Outside fully specified direct mode, copy the code pattern from the appropriate template (`templates/r/sc.md` or `templates/python/sc.md`) exactly, then adapt only variable names to match the user's data. In direct mode, the fixture-specific pathway in Stage 1 takes precedence and must be used instead. Do not copy generic predictor names into an outcome-only fixture.
 
 **R package preference**: Use the `Synth` package (not `tidysynth`) for R implementations unless the user specifically requests `tidysynth`. The `Synth` package is more widely installed.
 
@@ -96,49 +277,17 @@ Generate complete analysis code. Read the appropriate template from `templates/r
 - Donor weight table
 - Pre-treatment RMSPE
 
-**Synthetic control (R — tidysynth)**:
-```r
-library(tidysynth)
-
-sc <- df %>%
-  synthetic_control(
-    outcome = outcome,
-    unit = unit_id,
-    time = time,
-    i_unit = "treated_unit_name",
-    i_time = treatment_time,
-    generate_placebos = TRUE
-  ) %>%
-  generate_predictor(
-    time_window = pre_start:pre_end,
-    predictor1 = mean(predictor1),
-    predictor2 = mean(predictor2),
-    outcome_avg = mean(outcome)
-  ) %>%
-  generate_weights(optimization_window = pre_start:pre_end) %>%
-  generate_control()
-
-# Plot: treated vs synthetic
-sc %>% plot_trends()
-
-# Plot: treatment effect (gap)
-sc %>% plot_differences()
-
-# Donor weights
-sc %>% grab_unit_weights() %>% arrange(desc(weight))
-
-# Pre-treatment fit
-sc %>% grab_significance() %>% filter(unit_name == "treated_unit_name")
-```
-
 **Synthetic control (R — Synth)**:
 ```r
 library(Synth)
 
 dataprep_out <- dataprep(
   foo = df,
-  predictors = c("predictor1", "predictor2"),
+  predictors = "outcome",
   predictors.op = "mean",
+  special.predictors = lapply(c(pre_start, pre_mid, pre_end), function(t) {
+    list("outcome", t, "mean")
+  }),
   dependent = "outcome",
   unit.variable = "unit_id",
   time.variable = "time",

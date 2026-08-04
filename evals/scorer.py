@@ -2,8 +2,10 @@
 Scorer for everyday-causal-skills eval outputs.
 Parses model responses and scores against expected outcomes.
 
-Judge calls use `claude -p` (Max subscription) instead of the Anthropic SDK,
-so no API key is needed.
+Judge calls go through `claude -p`, which requires an authenticated Claude CLI account
+on this machine. That is a real credential and the harness cannot create it: there is
+no offline path to a measurement, and a logged-out CLI means zero measurements rather
+than a degraded score. See evals/README.md.
 """
 from __future__ import annotations
 
@@ -131,6 +133,66 @@ _JUDGE_SCHEMA = json.dumps({
 })
 
 
+# --- Backend ---
+#
+# One backend, named rather than assumed. The harness previously depended on an
+# authenticated `claude -p` without saying so anywhere — not in the config, not in the
+# results, not in the error a logged-out CLI produced. Naming it costs nothing and
+# means a result can state what measured it.
+#
+# Defined here, not in runner.py, because runner and sweep both import scorer and
+# scorer imports neither.
+
+BACKENDS = ("cli",)
+
+
+class BackendError(ValueError):
+    """The configured backend is not one this harness supports."""
+
+
+def resolve_backend(config: dict | None) -> str:
+    """Which transport measures this run.
+
+    There is one, so an absent `backend:` resolves to it rather than being an error —
+    with a single option there is nothing to guess wrong. A backend the harness does
+    not implement is refused loudly, because the failure to catch would be someone
+    writing `backend: api`, expecting API billing, and silently getting CLI calls on
+    their subscription instead.
+    """
+    declared = (config or {}).get("backend")
+    if declared is None:
+        return "cli"
+    if declared not in BACKENDS:
+        raise BackendError(
+            f"config declares backend: {declared!r}, which this harness does not "
+            f"implement. Supported: {', '.join(BACKENDS)}. An Anthropic-API backend "
+            f"was deliberately not built — evaluations run on the Claude CLI and bill "
+            f"to that account.")
+    return declared
+
+
+_SECRET_RE = re.compile(r"sk-ant-[A-Za-z0-9_\-]{8,}")
+
+
+def redact_secrets(text: str) -> str:
+    """Strip credential material before anything is written to disk.
+
+    Applied to every persisted error string. A failing `claude -p` call has its stderr
+    spliced into the run record, and that record is written verbatim into slot JSON,
+    the sweep ledger and the verdict — files that get read, copied and pasted into
+    issues. Auth output is not supposed to appear there, but "supposed to" is not a
+    property those files can rely on.
+    """
+    if not text:
+        return text
+    out = _SECRET_RE.sub("sk-ant-***", str(text))
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+        live = os.environ.get(var)
+        if live and len(live) >= 8:
+            out = out.replace(live, f"***{var}***")
+    return out
+
+
 def _with_judge_retries(attempt_fn, config: dict | None, label: str):
     """Call attempt_fn(), retrying JudgeError with exponential backoff.
 
@@ -233,8 +295,9 @@ def _call_judge(prompt: str, num_questions: int, config: dict | None = None,
                 debug: bool = False, label: str = "JUDGE") -> list[bool]:
     """Call claude -p as a structured-output judge and return one boolean per question.
 
-    Uses the Max subscription (no API key). Raises JudgeError if a valid,
-    complete set of answers cannot be obtained within the retry budget.
+    Needs an authenticated Claude CLI account; a logged-out CLI exits nonzero here.
+    Raises JudgeError if a valid, complete set of answers cannot be obtained within
+    the retry budget.
     """
     return _with_judge_retries(
         lambda: _call_judge_once(prompt, num_questions, config, debug, label),
@@ -337,7 +400,7 @@ def score_response(case: dict, response: str, config: dict | None = None, debug:
         # not judge output. _judge_l2 only receives `expected` + `rubric`, not
         # the full case, so this is injected here rather than inside it —
         # mirrors what _judge_l4 already does directly, since L4 has `case`
-        # in scope. Absent on every case today, so inert until D2 uses it.
+        # in scope.
         return {**scores, "response_contract": case.get("response_contract"),
                 "deferred_rubric": case.get("deferred_rubric") or []}
     elif layer == 3:
@@ -554,6 +617,8 @@ Questions:
         false_alarm = answers[0]
         return {
             "violation_detected": not false_alarm,
+            "flag_answers": {},
+            "false_alarm_answer": bool(false_alarm),
             "flags_coverage": 1.0 if not false_alarm else 0.0,
             "severity_correct": not false_alarm,
             **rubric_extra,
@@ -566,6 +631,8 @@ Questions:
         severity_answer = pattern_pass or judge_answer
         return {
             "violation_detected": any(flag_answers),
+            "flag_answers": {flag: bool(answer)
+                             for flag, answer in zip(must_flag, flag_answers)},
             "flags_coverage": sum(flag_answers) / len(flag_answers) if flag_answers else 1.0,
             "severity_correct": severity_answer,
             **rubric_extra,
@@ -582,6 +649,31 @@ def _judge_l4(response: str, case: dict, config: dict | None = None, debug: bool
     """Use LLM judge with per-dimension rubric questions for L4 (experience quality) scoring."""
     rubric = case.get("rubric", {})
     dimensions = ["pedagogy", "safety", "actionable"]
+
+    response_contract = case.get("response_contract")
+    if response_contract == "first_turn":
+        phase_instructions = """Response contract: first_turn.
+Grade the immediate first reply: it should teach what is already knowable, surface
+warnings, take any diagnostic action reachable now, and ask the appropriate next
+question. Do not require a completed downstream analysis when the design, inputs,
+or tools needed for it are intentionally unresolved. A promise to cover an
+immediately reachable requirement later does not satisfy that requirement."""
+    elif response_contract == "final_output":
+        phase_instructions = """Response contract: final_output.
+Grade a completed one-response deliverable using the information and tools available
+in this turn. Promises to provide required analysis, code, tables, interpretation,
+or caveats later do not count. Do not require artifacts explicitly listed in
+deferred_rubric, and do not reward fabricated results for unavailable execution or
+inputs."""
+    else:
+        phase_instructions = """No response contract was declared.
+Grade only the rubric as written without assuming a later conversational turn."""
+
+    deferred_rubric = case.get("deferred_rubric") or []
+    if deferred_rubric:
+        deferred_section = "\n".join(f"- {criterion}" for criterion in deferred_rubric)
+    else:
+        deferred_section = "None."
 
     # Collect all questions and track which dimension each belongs to
     questions: list[str] = []
@@ -601,6 +693,11 @@ def _judge_l4(response: str, case: dict, config: dict | None = None, debug: bool
 
     numbered = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
     prompt = f"""You are evaluating a causal inference assistant's response for experience quality. Read the response carefully, then answer each question.
+
+{phase_instructions}
+
+Explicitly deferred—not graded:
+{deferred_section}
 
 <response>
 {response}
@@ -627,14 +724,19 @@ Questions:
     active = [s for dim, s in dim_scores.items() if dim in dim_ranges]
     overall = sum(active) / len(active) if active else 0.0
 
-    # response_contract / deferred_rubric (D1) are declarative case metadata,
-    # not judge output — passed through unchanged so aggregate() can surface
-    # deferred criteria in the verdict. Absent on every case today (D1 is
-    # mechanism only; D2 migrates cases), so this is inert until then.
+    # response_contract / deferred_rubric are declarative case metadata, not
+    # judge output. The contract shapes the phase-aware prompt above; both fields
+    # are also passed through unchanged so aggregate() can surface the policy in
+    # the verdict.
     #
     # Which dimensions the case actually populates — the gate scores only these,
     # so an absent dimension is skipped rather than counted as a 0.0.
+    question_answers = {
+        dim: [bool(answer) for answer in answers[start:end]]
+        for dim, (start, end) in dim_ranges.items()
+    }
     return {**dim_scores, "overall": overall, "dimensions_present": sorted(dim_ranges),
+            "question_answers": question_answers,
             "response_contract": case.get("response_contract"),
             "deferred_rubric": case.get("deferred_rubric") or []}
 
@@ -713,9 +815,61 @@ def must_include_alternates(term) -> tuple[str, list[str]]:
         f"must_include term must be a string or a list of strings, got {type(term).__name__}")
 
 
+def _select_l3_program(response: str, language: str) -> dict:
+    """Select the one program whose exact bytes L3 may inspect and execute.
+
+    A stable sentinel lets a response include setup snippets or illustrative
+    alternatives without making fence order part of the measurement contract.
+    The fallback exists for backwards compatibility, but only when there is
+    exactly one fence in the case's declared language.
+    """
+    wanted = language.lower()
+    aliases = {"python": {"python", "py"}, "r": {"r"}}
+    accepted = aliases.get(wanted, {wanted})
+    fences = []
+    for match in re.finditer(r"```([^\n`]*)\n(.*?)```", response, re.DOTALL):
+        info = match.group(1).strip()
+        fence_language = info.split()[0].lower() if info else ""
+        if fence_language not in accepted:
+            continue
+        body = match.group(2)
+        first_nonblank = next(
+            (line for line in body.splitlines() if line.strip()), None)
+        marked = first_nonblank == "# EVAL_EXECUTABLE"
+        fences.append({
+            "language": fence_language,
+            "body": body,
+            "marked": marked,
+            "index": len(fences),
+        })
+
+    marked = [f for f in fences if f["marked"]]
+    if len(marked) == 1:
+        return {"program": marked[0]["body"], "error": None,
+                "selection": "sentinel", "candidate_count": len(fences)}
+    if len(marked) > 1:
+        return {"program": None,
+                "error": "ambiguous executable program: multiple correct-language "
+                         "fences contain # EVAL_EXECUTABLE",
+                "selection": "ambiguous", "candidate_count": len(fences)}
+    if len(fences) == 1:
+        return {"program": fences[0]["body"], "error": None,
+                "selection": "single_fallback", "candidate_count": 1}
+    if not fences:
+        return {"program": None,
+                "error": f"no {language} fenced program found",
+                "selection": "missing", "candidate_count": 0}
+    return {"program": None,
+            "error": "ambiguous executable program: multiple unmarked "
+                     f"{language} fences",
+            "selection": "ambiguous", "candidate_count": len(fences)}
+
+
 def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     """Score implementation quality — includes code execution."""
-    code_blocks = re.findall(r"```(?:python|r|R)\n(.*?)```", response, re.DOTALL)
+    language = case.get("language", "python")
+    selected = _select_l3_program(response, language)
+    program = selected["program"]
 
     must_include = expected.get("must_include", [])
     resp_lower = response.lower()
@@ -725,29 +879,32 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
         included[canonical] = any(
             alt.lower().replace("_", " ") in resp_lower for alt in alternates)
 
-    # Code-scoped guard: match only inside fenced code blocks, not prose.
-    code_text = "\n".join(code_blocks).lower()
+    # Code-scoped guards apply to exactly the selected bytes. Empty guard sets
+    # are not applicable, rather than a synthetic passing measurement.
+    code_text = (program or "").lower()
     must_not_include = expected.get("must_not_include", [])
     must_include_code = expected.get("must_include_code", [])
     must_not_results = {t: (t.lower() in code_text) for t in must_not_include}   # True = violation
     code_presence = {t: (t.lower() in code_text) for t in must_include_code}      # False = missing
-    guard_passed = (not any(must_not_results.values())) and all(code_presence.values())
+    guard_applicable = bool(must_not_include or must_include_code)
+    guard_passed = (
+        (not any(must_not_results.values())) and all(code_presence.values())
+        if guard_applicable and program is not None else
+        (False if guard_applicable else None)
+    )
 
     true_effect = expected.get("true_effect")
     expected_values = expected.get("values") or {}
-    is_exercise = (true_effect is None and not expected_values
-                   and any("ESTIMATE:" in cb for cb in code_blocks))
+    execution_mode = case.get("execution_mode", "standard")
+    is_exercise = execution_mode == "exercise"
+    required_output = case.get("required_output")
 
     # Nothing-executed must be distinguishable from executed-and-crashed. Leaving this
     # as error=None made a prose-only reply look identical to a failing script, which is
     # exactly how exercise_dgp_iv read as a crash in 4 of 5 runs when in fact no code
     # was ever produced. The default below is overwritten whenever execution happens.
-    if not code_blocks:
-        _why_not = ("no runnable code block found in the response — expected a "
-                    f"{case.get('language', 'python')} block")
-    elif is_exercise:
-        _why_not = ("no runnable code found — this exercise case needs a code block "
-                    "printing an ESTIMATE: line to recover ground truth")
+    if program is None:
+        _why_not = selected["error"]
     else:
         _why_not = ("no runnable code was executed — the response has code but the case "
                     "declares neither `dataset` nor `expected.code_runs`, so nothing "
@@ -755,22 +912,28 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
     exec_result = {"ran": False, "error": _why_not, "estimate": None}
 
     if is_exercise:
-        # Exercise case: find and run the DGP block to extract runtime ground truth
-        dgp_block = next((cb for cb in code_blocks if "ESTIMATE:" in cb), None)
-        if dgp_block:
+        # Exercise mode is a case contract, never inferred from response text.
+        if program is not None:
             exec_result = _execute_code(
-                dgp_block,
-                language=case.get("language", "python"),
+                program,
+                language=language,
                 requires=case.get("requires"),
             )
-    elif code_blocks and (case.get("dataset") or expected.get("code_runs")):
+    elif program is not None and (case.get("dataset") or expected.get("code_runs")):
         # Standard L3 case or dataset-free case (e.g., DAG structural code)
         exec_result = _execute_code(
-            code_blocks[0],
-            language=case.get("language", "python"),
+            program,
+            language=language,
             dataset_path=case.get("dataset"),
             requires=case.get("requires"),
         )
+
+    required_output_ok = None
+    if required_output == "estimate":
+        required_output_ok = exec_result.get("estimate") is not None
+        if exec_result["ran"] and not required_output_ok:
+            exec_result["ran"] = False
+            exec_result["error"] = "required output missing: ESTIMATE:<number>"
 
     # Check estimation accuracy if ground truth provided (non-exercise cases only).
     # None means the gate does not apply to this case at all; a case that declares a
@@ -802,7 +965,10 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
             estimate_ok = all(values_results.values())
 
     return {
-        "has_code": len(code_blocks) > 0,
+        "has_code": program is not None,
+        "program_selection": selected["selection"],
+        "program_selection_error": selected["error"],
+        "program_candidate_count": selected["candidate_count"],
         "runs_without_error": exec_result["ran"],
         "execution_error": exec_result["error"],
         "estimate": exec_result["estimate"],
@@ -810,8 +976,11 @@ def _score_layer3(response: str, expected: dict, case: dict) -> dict:
         "diagnostic_coverage": sum(included.values()) / len(included) if included else 1.0,
         "must_include_results": included,
         "guard_passed": guard_passed,
+        "guard_applicable": guard_applicable,
         "must_not_include_results": must_not_results,
         "must_include_code_results": code_presence,
+        "required_output": required_output,
+        "required_output_ok": required_output_ok,
         "values_results": values_results,
     }
 

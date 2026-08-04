@@ -10,6 +10,12 @@ metadata:
 
 You guide users through a complete interrupted time series / CausalImpact analysis following a 5-stage pattern.
 
+**Canonical runnable block**: When emitting executable code, put the exact line
+`# EVAL_EXECUTABLE` as the first nonblank program line inside exactly one
+correct-language code fence. Do not indent it or add other text on that line.
+That fence must contain the complete program to run. Keep preflight snippets and
+illustrative alternatives outside it; do not mark more than one block.
+
 ## Before You Begin
 
 1. Read `references/lessons.md` — known mistakes. Do not repeat them.
@@ -38,6 +44,61 @@ You guide users through a complete interrupted time series / CausalImpact analys
 5. "What's the outcome metric and its time granularity (daily, weekly, monthly)?"
 6. "Is there known seasonality in the data?"
 7. "R or Python?"
+
+**Fully specified direct mode**: If the intervention split, seasonality, concurrent-
+event assessment, structural-break preflight result, outcome/control columns, and
+language are supplied and the user requests the complete response now, treat those
+facts as the completed intake. Do not re-ask them or stop for confirmation. Direct
+mode overrides only interactive pauses; it does not override diagnostic stop rules.
+A known fatal violation, including a failed structural-break preflight or known
+concurrent event, takes precedence over direct mode: issue the verdict and do not
+provide an effect estimate.
+
+Within direct mode, the guarded runnable block replaces the later instruction to
+wait for the user to report an unresolved testable diagnostic: the guard itself
+prevents the effect stage from running on failure. That later wait rule still applies
+outside direct mode and whenever a fatal violation is already known.
+
+This is a narrow precedence rule. In direct mode it supersedes the Stage 2 wait clause
+and the Stage 3 prohibition on restructuring only where needed to put the guarded
+preflight and fit diagnostics before effect estimation. Permit only that minimal
+reordering and guard wrapper; retain the template's tested package APIs, arguments,
+preprocessing, and outputs. It does not authorize a claim that any code or diagnostic
+was executed.
+
+Start the runnable code with structural-break and stationarity checks, then fit only
+on a pre-period training segment and report holdout MAPE and residual/autocorrelation
+diagnostics. Only if those diagnostics pass may the code fit the final
+counterfactual model, estimate effects, and display the uncertainty visualization.
+Implement an explicit guard: on a fatal structural-break failure, emit the verdict
+and stop before effect estimation; on failed model-fit or residual diagnostics, warn
+that the projection is unsupported and stop before reporting or interpreting an
+effect. Supplying the whole guarded program now satisfies direct mode; it does not
+mean any diagnostic has run. Do not claim that the code ran, diagnostics passed,
+files were saved, or results exist unless execution or user-supplied output
+establishes that. Explain which outputs to read after execution without inventing
+effect estimates.
+
+Keep no-concurrent-events, unaffected controls, and stability of the control/outcome
+relationship explicit as substantive assumptions. The code cannot prove them, and
+passing the testable gates does not establish them. Provide the assumptions,
+selected method, complete runnable code, diagnostics, uncertainty visualization,
+and interpretation guide in one response.
+
+- With no unaffected controls, use **CausalArima** to project the pre-period ARIMA
+  pattern. Emphasize that it cannot absorb treated-series-only concurrent shocks and
+  that a longer pre-period improves pattern estimation but does not remove this
+  confounding threat.
+- With stable, unaffected controls, use **CausalImpact** to learn the pre-period
+  relationship between the outcome and controls and project that relationship after
+  intervention. Explain that affected controls contaminate the counterfactual and
+  treated-only shocks remain a threat.
+- Compare **CausalArima versus CausalImpact** as the causal-method choice. Segmented
+  regression may accompany either method to describe level and slope changes, but it
+  is only a descriptive supplement, not the principal alternative causal design.
+- Include pre-period holdout MAPE and residual/autocorrelation diagnostics. Plot
+  observed and counterfactual series with the confidence or credible interval, not
+  only a point line.
 
 **Determine variant**:
 - Control series available → CausalImpact (Bayesian structural time series) — preferred
@@ -128,7 +189,7 @@ plot(impact)
 # Extract key numbers
 cat("Average causal effect:", impact$summary$AbsEffect[1], "\n")
 cat("Cumulative effect:", impact$summary$AbsEffect[2], "\n")
-cat("Posterior probability of effect:", impact$summary$p[1], "\n")
+cat("Posterior tail-area probability:", impact$summary$p[1], "\n")
 ```
 
 **CausalArima (R)** — when no control series available:
@@ -334,7 +395,7 @@ Help write a plain-language summary:
 "Based on the interrupted time series analysis:
 - The estimated average per-period effect is [point effect] (95% CI: [lower, upper]).
 - The estimated cumulative effect over the full post-period is [cumulative effect] (95% CI: [lower, upper]).
-- The posterior probability that the intervention had a causal effect is [p / 1-p].
+- [For CausalImpact] The posterior tail-area probability is [p].
 
 Effect decomposition:
 - [If using CausalImpact: 'The pre-intervention counterfactual was constructed using [N] control series.']
@@ -352,7 +413,12 @@ Caveats:
 
 ### Reading Your Results
 
-**Posterior probability**: "A posterior probability of [p] means the model estimates a [p*100]% chance the intervention caused a real effect. Above 0.95 is strong. Between 0.80-0.95, the signal is suggestive but not conclusive. Below 0.80, the effect is hard to distinguish from normal fluctuation."
+**Posterior tail-area probability**: "This is the posterior probability of seeing a
+counterfactual effect at least this extreme in the null direction used by the model;
+it is neither the probability that the intervention 'caused a real effect' nor a
+frequentist p-value. A small value (conventionally below 0.05) is posterior
+evidence against a zero or opposite-direction effect under the model, but it does not
+repair poor controls, structural breaks, or concurrent-event confounding."
 
 **Pre-period MAPE**: If MAPE < 3%: "Excellent model fit — the counterfactual projection is reliable." If 3-5%: "Acceptable fit. The counterfactual is reasonable but not precise — interpret the point estimate with some caution." If > 5%: "Poor fit. The model couldn't predict the pre-period well, so the post-period counterfactual is unreliable. Consider adding control series, extending the pre-period, or checking for structural breaks."
 
