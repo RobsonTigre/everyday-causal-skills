@@ -2,8 +2,10 @@
 Scorer for everyday-causal-skills eval outputs.
 Parses model responses and scores against expected outcomes.
 
-Judge calls use `claude -p` (Max subscription) instead of the Anthropic SDK,
-so no API key is needed.
+Judge calls go through `claude -p`, which requires an authenticated Claude CLI account
+on this machine. That is a real credential and the harness cannot create it: there is
+no offline path to a measurement, and a logged-out CLI means zero measurements rather
+than a degraded score. See evals/README.md.
 """
 from __future__ import annotations
 
@@ -131,6 +133,66 @@ _JUDGE_SCHEMA = json.dumps({
 })
 
 
+# --- Backend ---
+#
+# One backend, named rather than assumed. The harness previously depended on an
+# authenticated `claude -p` without saying so anywhere — not in the config, not in the
+# results, not in the error a logged-out CLI produced. Naming it costs nothing and
+# means a result can state what measured it.
+#
+# Defined here, not in runner.py, because runner and sweep both import scorer and
+# scorer imports neither.
+
+BACKENDS = ("cli",)
+
+
+class BackendError(ValueError):
+    """The configured backend is not one this harness supports."""
+
+
+def resolve_backend(config: dict | None) -> str:
+    """Which transport measures this run.
+
+    There is one, so an absent `backend:` resolves to it rather than being an error —
+    with a single option there is nothing to guess wrong. A backend the harness does
+    not implement is refused loudly, because the failure to catch would be someone
+    writing `backend: api`, expecting API billing, and silently getting CLI calls on
+    their subscription instead.
+    """
+    declared = (config or {}).get("backend")
+    if declared is None:
+        return "cli"
+    if declared not in BACKENDS:
+        raise BackendError(
+            f"config declares backend: {declared!r}, which this harness does not "
+            f"implement. Supported: {', '.join(BACKENDS)}. An Anthropic-API backend "
+            f"was deliberately not built — evaluations run on the Claude CLI and bill "
+            f"to that account.")
+    return declared
+
+
+_SECRET_RE = re.compile(r"sk-ant-[A-Za-z0-9_\-]{8,}")
+
+
+def redact_secrets(text: str) -> str:
+    """Strip credential material before anything is written to disk.
+
+    Applied to every persisted error string. A failing `claude -p` call has its stderr
+    spliced into the run record, and that record is written verbatim into slot JSON,
+    the sweep ledger and the verdict — files that get read, copied and pasted into
+    issues. Auth output is not supposed to appear there, but "supposed to" is not a
+    property those files can rely on.
+    """
+    if not text:
+        return text
+    out = _SECRET_RE.sub("sk-ant-***", str(text))
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+        live = os.environ.get(var)
+        if live and len(live) >= 8:
+            out = out.replace(live, f"***{var}***")
+    return out
+
+
 def _with_judge_retries(attempt_fn, config: dict | None, label: str):
     """Call attempt_fn(), retrying JudgeError with exponential backoff.
 
@@ -233,8 +295,9 @@ def _call_judge(prompt: str, num_questions: int, config: dict | None = None,
                 debug: bool = False, label: str = "JUDGE") -> list[bool]:
     """Call claude -p as a structured-output judge and return one boolean per question.
 
-    Uses the Max subscription (no API key). Raises JudgeError if a valid,
-    complete set of answers cannot be obtained within the retry budget.
+    Needs an authenticated Claude CLI account; a logged-out CLI exits nonzero here.
+    Raises JudgeError if a valid, complete set of answers cannot be obtained within
+    the retry budget.
     """
     return _with_judge_retries(
         lambda: _call_judge_once(prompt, num_questions, config, debug, label),

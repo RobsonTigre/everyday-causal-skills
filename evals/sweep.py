@@ -9,8 +9,15 @@ failing, and roughly forty cases never got a trustworthy measurement.
 Cases that fail to measure are requeued; cases that measure and miss their
 threshold are not (that is a real result, not weather).
 
+Every measurement runs through `claude -p` and needs an authenticated Claude CLI
+account. That is checked before anything is dispatched, named in the failure message,
+and recorded in the measurement fingerprint — the harness previously depended on it
+without saying so anywhere, so being logged out surfaced as an unexplained exit 1.
+
 Run: python3 evals/sweep.py --runs 5
-Exit: 0 all pass · 1 real failures · 2 unmeasured remain · 3 preflight failed
+Exit: 0 all pass · 1 real failures · 2 unmeasured remain · 3 NOTHING was measured
+      (preflight failed, or a release precondition blocked it) — which is neither a
+      PASS nor a FAIL
 """
 from __future__ import annotations
 
@@ -53,9 +60,10 @@ def _git(*args) -> str:
 
 
 def _claude_version() -> str:
+    """The CLI build that answered. stdin closed so nothing can wait on a terminal."""
     try:
-        return subprocess.run(["claude", "--version"], capture_output=True,
-                              text=True, timeout=30).stdout.strip()
+        return subprocess.run(["claude", "--version"], capture_output=True, text=True,
+                              timeout=30, stdin=subprocess.DEVNULL).stdout.strip()
     except Exception:  # noqa: BLE001
         return "unknown"
 
@@ -356,11 +364,18 @@ def _r_requires(case_path: Path) -> list[str]:
 
 
 def build_fingerprint(config: dict, case_paths: list[str],
-                      config_path: str | None = None) -> dict:
-    """Identify the exact code and config a verdict describes.
+                      config_path: str | None = None,
+                      backend: str | None = None) -> dict:
+    """Identify the exact code, config and transport a verdict describes.
 
     A verdict is only evidence for the tree it was measured against, so resume
     refuses to mix results from different trees.
+
+    `backend` names what answered. There is one today, so the value is constant — it
+    is recorded anyway, because it is the field that makes a ledger state its own
+    dependency instead of leaving a reader to infer it, and because a pre-backend
+    ledger (which carries None) is then correctly refused for resume rather than
+    silently extended under a harness that has since changed.
     """
     h = hashlib.sha256()
     for p in sorted(case_paths):
@@ -383,9 +398,11 @@ def build_fingerprint(config: dict, case_paths: list[str],
         "gate_sha256": _gate_digest(config, case_paths),
         "config_path": str(config_path) if config_path else None,
         "case_count": len(case_paths),
-        # Requested vs invoked. What actually served the request is recorded by the
-        # runner where it is observable; a "resolved" ID written into the input config
-        # would prove nothing.
+        "backend": backend,
+        # Requested vs invoked. The model that actually SERVED each request is not
+        # captured: the CLI does not report it on the text output path, so the
+        # fingerprint proves what was asked for, not what answered. Inventing a served
+        # identity would be a provenance claim the harness cannot support.
         "model": config.get("model", "unknown"),
         "model_alias_invoked": scorer._MODEL_MAP.get(config.get("model", ""), "sonnet"),
         "judge_model": config.get("judge", {}).get("model", "unknown"),
@@ -400,9 +417,15 @@ def build_fingerprint(config: dict, case_paths: list[str],
 #: Everything that has to hold constant for two results to describe the same measurement.
 #: `gate_sha256` is deliberately absent — a corrected gate is exactly what --recompile
 #: exists to re-apply to measurements already collected.
+#:
+#: `backend` joins `claude_cli` here so a transport change blocks resume the same way a
+#: CLI upgrade already does. A ledger written before backends were recorded carries None
+#: and therefore mismatches a current run: it stays readable, and --recompile still works
+#: on it, but it is not material to extend. That split is deliberate — an old measurement
+#: is a diagnostic artifact, not a partial result to top up.
 MEASUREMENT_KEYS = (
     "commit", "cases_sha256", "harness_sha256", "content_sha256", "config_path",
-    "model", "model_alias_invoked", "judge_model", "claude_cli", "manifests",
+    "backend", "model", "model_alias_invoked", "judge_model", "claude_cli", "manifests",
     "interpreters", "dependencies",
 )
 
@@ -448,7 +471,8 @@ def _reset_abandoned_slots(ledger: dict) -> int:
 
 
 def new_ledger(sweep_id: str, case_paths: list[str], runs: int, config: dict,
-               max_requeues: int, config_path: str | None = None) -> dict:
+               max_requeues: int, config_path: str | None = None,
+               backend: str | None = None) -> dict:
     cases = {}
     for p in case_paths:
         rel = str(Path(p).relative_to(REPO_ROOT)) if Path(p).is_absolute() else p
@@ -465,13 +489,20 @@ def new_ledger(sweep_id: str, case_paths: list[str], runs: int, config: dict,
         "started": datetime.now().isoformat(timespec="seconds"),
         "runs_per_case": runs,
         "max_requeues": max_requeues,
+        # Top level as well as inside the fingerprint: resume checks it directly so the
+        # refusal can name the transport instead of listing it among drifted hashes.
+        "backend": backend,
         "thresholds": config.get("thresholds") or runner.DEFAULT_THRESHOLDS,
-        "fingerprint": build_fingerprint(config, case_paths, config_path),
+        "fingerprint": build_fingerprint(config, case_paths, config_path, backend),
         "cases": cases,
     }
 
 
 # --- Health canaries ---
+#
+# These are the ONLY external model calls preflight makes, and they are bounded: two
+# short prompts, no tools. Everything checkable without spending a call happens in
+# preflight_static() instead, and always runs.
 
 def canary_judge(config: dict) -> None:
     """The judge must answer two questions with known answers, correctly."""
@@ -485,15 +516,25 @@ def canary_judge(config: dict) -> None:
 
 
 def canary_skill(config: dict) -> None:
-    """The plain skill path must return non-empty text on exit 0."""
+    """The plain skill path must return non-empty text on exit 0.
+
+    This is also the authentication check: a logged-out CLI exits nonzero here, with
+    empty stderr. `stdin=DEVNULL` so that failure can never turn into an interactive
+    login prompt — the harness must not, and now cannot, sit waiting on a terminal.
+    """
     proc = subprocess.run(
         ["claude", "-p", "Reply with exactly: OK",
          "--model", scorer._MODEL_MAP.get(config.get("model", ""), "sonnet"),
          "--output-format", "text", "--tools", "",
          "--no-session-persistence", "--setting-sources", "local"],
-        capture_output=True, text=True, timeout=120)
+        capture_output=True, text=True, timeout=120, stdin=subprocess.DEVNULL)
     if proc.returncode != 0:
-        raise RuntimeError(f"skill canary exited {proc.returncode}: {proc.stderr[:300]}")
+        raise RuntimeError(
+            f"skill canary exited {proc.returncode}: "
+            f"{proc.stderr[:300] or '(no stderr)'} — evaluations run through an "
+            f"authenticated Claude CLI account, and a nonzero exit with no stderr is "
+            f"what a logged-out CLI looks like. Log in outside this harness, then "
+            f"re-run.")
     if not proc.stdout.strip():
         raise RuntimeError("skill canary returned empty stdout")
 
@@ -601,13 +642,40 @@ def release_preconditions(config: dict, config_path: str | None = None) -> list[
     return problems
 
 
-def preflight(config: dict, attempts: int = 3, wait: float = 60.0,
-              strict_warnings: bool = False) -> None:
-    """Refuse to burn a measurement window on a degraded environment."""
+def backend_availability(backend: str) -> list[str]:
+    """What the backend needs, checked without calling any model.
+
+    Free to run, so it always runs. The point is that a missing executable is named as
+    such, immediately, instead of surfacing later as an opaque `claude -p exited 1`
+    that says nothing about which credential is absent.
+    """
+    problems: list[str] = []
+    if backend == "cli":
+        import shutil
+        if not shutil.which("claude"):
+            problems.append(
+                "the `claude` executable is not on PATH. Evaluations run through an "
+                "authenticated Claude CLI account; install the CLI and sign in outside "
+                "this harness.")
+    return problems
+
+
+def preflight_static(config: dict, backend: str, strict_warnings: bool = False) -> None:
+    """Everything checkable without an external call. Never skipped.
+
+    Split out from the canaries because `--skip-preflight` is a debug flag, not an
+    authorization: it exists so offline tests can run, and it has no business
+    disabling free correctness checks. Schema validation, dead-metadata warnings and
+    backend availability all cost nothing and all block work that would be wasted.
+    """
     problems = validate_tree()
     if problems:
         raise RuntimeError(
             f"{len(problems)} case(s) fail schema validation; run evals/validate_cases.py")
+
+    availability = backend_availability(backend)
+    if availability:
+        raise RuntimeError("; ".join(availability))
 
     # Dead metadata was previously surfaced only by running validate_cases.py by hand,
     # so a release verdict could be built over cases carrying keys nothing reads.
@@ -621,6 +689,13 @@ def preflight(config: dict, attempts: int = 3, wait: float = 60.0,
         for w in warnings[:5]:
             print(f"    {w}")
 
+
+def preflight_canaries(config: dict, attempts: int = 3, wait: float = 60.0) -> None:
+    """The external-call half: refuse to burn a measurement window on a bad environment.
+
+    These are the only model calls preflight makes. `--skip-preflight` is how a caller
+    declines them.
+    """
     last = None
     for attempt in range(1, attempts + 1):
         try:
@@ -633,6 +708,13 @@ def preflight(config: dict, attempts: int = 3, wait: float = 60.0,
             if attempt < attempts and wait:
                 time.sleep(wait)
     raise RuntimeError(f"preflight failed after {attempts} attempts: {last}")
+
+
+def preflight(config: dict, backend: str = "cli", attempts: int = 3, wait: float = 60.0,
+              strict_warnings: bool = False) -> None:
+    """Static checks, then canaries. One entry point for callers that want both."""
+    preflight_static(config, backend, strict_warnings=strict_warnings)
+    preflight_canaries(config, attempts=attempts, wait=wait)
 
 
 # --- Case execution: run-slot checkpointing ---
@@ -968,7 +1050,12 @@ def render_verdict_md(verdict: dict) -> str:
         + ("  ⚠️ working tree dirty" if fp["dirty_paths"] else ""),
         f"**Model**: {fp['model']}"
         + (f" (invoked as `{fp['model_alias_invoked']}`)" if fp.get("model_alias_invoked") else "")
-        + f" · judge {fp['judge_model']} · {fp['claude_cli']}",
+        + f" · judge {fp['judge_model']}",
+        # .get() throughout: ledgers written before the backend was recorded are still
+        # readable as diagnostic artifacts, and rendering one must not crash on a key
+        # it predates.
+        f"**Backend**: {fp.get('backend') or 'unrecorded (pre-backend ledger)'}"
+        + f" · {fp['claude_cli']}",
         f"**Cases**: {fp['case_count']} (sha256 `{fp['cases_sha256'][:16]}…`)",
     ]
     if fp.get("content_sha256"):
@@ -1163,7 +1250,10 @@ def _write_release_history(ledger: dict, verdict: dict, version: str, config: di
             cases.append({"case": _load_ledger_case(name, entry), "aggregate": agg})
 
     fp = ledger.get("fingerprint") or {}
-    results = {"runs": ledger.get("runs_per_case"), "backend": "cli", "cases": cases}
+    # From the ledger, not a literal: a hard-coded "cli" would keep claiming the CLI
+    # measured a row no matter what actually did.
+    backend = ledger.get("backend") or fp.get("backend") or "unrecorded"
+    results = {"runs": ledger.get("runs_per_case"), "backend": backend, "cases": cases}
     cfg = {"model": fp.get("model") or config.get("model") or "unknown",
            "thresholds": ledger.get("thresholds") or config.get("thresholds") or {}}
     notes = f"sweep {ledger['sweep_id']} · RC {fp.get('commit', 'unknown')}"
@@ -1190,6 +1280,22 @@ def _write_release_verdict(verdict: dict, version: str) -> Path:
 
 # --- Entry point ---
 
+def _preflight_failure_note(ledger_path: Path) -> str:
+    """Say what it needs, and that nothing was measured.
+
+    The last part matters most. A preflight failure is ZERO measurements — it is not a
+    FAIL (no case missed a threshold) and not a PASS. Exit code 3 has always carried
+    that meaning; saying it in words stops a reader filing an unmeasured sweep as a
+    quality result.
+    """
+    return (
+        "\nEvaluations run through an authenticated Claude CLI account on this "
+        "machine. This harness does not and will not start an interactive login.\n"
+        "\n0 cases were measured. This is NOT a FAIL and NOT a PASS — no case reached "
+        "a threshold, so there is no verdict to report and none was written.\n"
+        f"Once the CLI is usable, resume with --resume {ledger_path}")
+
+
 def select_cases(args) -> list[str]:
     if args.cases:
         spec = args.cases
@@ -1215,7 +1321,9 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=3,
                         help="concurrent cases; keep modest to avoid rate limiting")
     parser.add_argument("--skip-preflight", action="store_true",
-                        help="skip canaries (for offline testing only)")
+                        help="skip the canary MODEL CALLS (for offline testing only). "
+                             "Static checks — case schema, CLI availability — always "
+                             "run; they cost nothing.")
     parser.add_argument("--recompile", type=str, default="",
                         help="LOCAL DIAGNOSTIC ONLY: re-derive a verdict from an existing "
                              "ledger without running anything. Cannot produce a release "
@@ -1248,6 +1356,14 @@ def main() -> int:
 
     config = runner.load_config(args.config)
 
+    # Resolved before anything is written or measured, so it can be recorded with the
+    # measurement rather than inferred from it afterwards.
+    try:
+        backend = scorer.resolve_backend(config)
+    except ValueError as e:
+        print(f"Refusing to run: {e}")
+        return 3
+
     if release:
         blockers = release_preconditions(config, args.config)
         if blockers:
@@ -1275,9 +1391,19 @@ def main() -> int:
                   "(no per-slot state) and cannot be safely resumed under the new "
                   "harness. Start a fresh sweep instead.")
             return 3
+        # Checked ahead of the fingerprint so the refusal names the transport instead
+        # of listing it among a dozen drifted hashes. A ledger written before backends
+        # were recorded carries None and is refused here — still readable, still
+        # --recompile-able, but not material to extend.
+        if ledger.get("backend") != backend:
+            print(f"Refusing to resume: this sweep was measured on backend "
+                  f"{ledger.get('backend')!r}, but this invocation resolves to "
+                  f"{backend!r}.")
+            print("A verdict must describe one transport. Start a fresh sweep instead.")
+            return 3
         current = build_fingerprint(config, [str(REPO_ROOT / c["path"])
                                              for c in ledger["cases"].values()],
-                                    args.config)
+                                    args.config, backend)
         drift = fingerprint_mismatch(ledger["fingerprint"], current)
         if drift:
             print(f"Refusing to resume: {', '.join(drift)} changed since this sweep started.")
@@ -1296,21 +1422,31 @@ def main() -> int:
         sweep_dir = REPO_ROOT / "evals" / "results" / sweep_id
         sweep_dir.mkdir(parents=True, exist_ok=True)
         ledger = new_ledger(sweep_id, case_paths, args.runs, config,
-                            args.max_requeues, args.config)
+                            args.max_requeues, args.config, backend)
         ledger_path = sweep_dir / "ledger.json"
         save_ledger(ledger, ledger_path)
-        print(f"Sweep {sweep_id}: {len(case_paths)} case(s) × {args.runs} run(s)")
+        print(f"Sweep {sweep_id}: {len(case_paths)} case(s) × {args.runs} run(s) "
+              f"[backend={backend}]")
         print(f"Ledger: {ledger_path}")
 
+    print("Preflight…")
+    try:
+        preflight_static(config, backend, strict_warnings=bool(release))
+    except Exception as e:  # noqa: BLE001
+        print(f"PREFLIGHT FAILED (static checks, no model was called): {e}")
+        print(_preflight_failure_note(ledger_path))
+        return 3
+
     if not args.skip_preflight:
-        print("Preflight…")
         try:
-            preflight(config, strict_warnings=bool(release))
+            preflight_canaries(config)
         except Exception as e:  # noqa: BLE001
             print(f"PREFLIGHT FAILED: {e}")
-            print(f"Nothing was measured. Resume with --resume {ledger_path}")
+            print(_preflight_failure_note(ledger_path))
             return 3
         print("  judge and skill path healthy")
+    else:
+        print("  canaries skipped (--skip-preflight); static checks passed")
 
     pending = [n for n, c in ledger["cases"].items() if c["status"] != "done"]
     wave = 0
@@ -1319,7 +1455,7 @@ def main() -> int:
             print(f"\nRequeue wave {wave}: {len(pending)} case(s) that did not measure")
             if not args.skip_preflight:
                 try:
-                    preflight(config)
+                    preflight_canaries(config)
                 except Exception as e:  # noqa: BLE001
                     print(f"PREFLIGHT FAILED before requeue: {e}")
                     break
@@ -1347,7 +1483,7 @@ def main() -> int:
         current = build_fingerprint(config,
                                     [str(REPO_ROOT / c["path"])
                                      for c in ledger["cases"].values()],
-                                    args.config)
+                                    args.config, backend)
         drift = fingerprint_mismatch(ledger["fingerprint"], current)
         if blockers or drift:
             print("\nRefusing to compile a release verdict:")

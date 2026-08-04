@@ -17,7 +17,22 @@
 # Retry knobs are stated explicitly. They were previously inherited from code defaults,
 # which meant the retry behaviour of a release run was undeclared.
 
-# MUST be a scalar string. runner.py:292 and :348 do
+# What answers the cases. `cli` means `claude -p`, which needs an authenticated Claude
+# CLI account on this machine and bills to that account.
+#
+# Stated rather than assumed. The harness depended on that login without naming it
+# anywhere — not here, not in the results, not in the error a logged-out CLI produced —
+# so a credential problem surfaced as an unexplained `claude -p exited 1`. It is now
+# recorded in the measurement fingerprint, which also means a ledger from before this
+# was recorded is not resumable under the current harness (still readable, still
+# --recompile-able; just not material to top up).
+#
+# `cli` is the only implemented value. An Anthropic-API backend was deliberately not
+# built: it would have to reimplement the tool sandbox the CLI provides, and a version
+# that skipped that would silently measure a different environment.
+backend: cli
+
+# MUST be a scalar string. runner.py does
 #   model_map.get(config.get("model", ""), ...)
 # so a nested mapping raises TypeError: unhashable type: 'dict'. The fingerprint records
 # the requested value and the alias actually invoked (`model`, `model_alias_invoked`) —
@@ -27,10 +42,6 @@
 # captured. The CLI does not report it on the text output path, so the fingerprint proves
 # what was asked for, not what answered.
 model: claude-sonnet-4-20250514
-
-# Read at runner.py:460/498/519 on the --backend api path only. The CLI backend, which
-# release sweeps use, ignores it. Kept so an API-backend run is fully specified.
-max_tokens: 4096
 
 judge:
   model: claude-sonnet-4-20250514
