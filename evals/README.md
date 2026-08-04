@@ -54,6 +54,7 @@ ship code the book runs and the two must not drift.
 .venv/bin/python -m pytest evals              # offline harness tests
 .venv/bin/python evals/validate_cases.py      # case schema
 .venv/bin/python evals/parity/run_parity.py --all
+.venv/bin/python evals/repo_doctor.py         # repository governance audit
 ```
 
 Point the harness at this interpreter with `EVAL_PYTHON`, which `scorer.py` already
