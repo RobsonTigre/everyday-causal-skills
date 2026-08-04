@@ -19,6 +19,7 @@ Two rules it enforces that are easy to break by accident:
 """
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -155,6 +156,77 @@ def check_unpushed() -> tuple[list[str], list[str]]:
     return [], []
 
 
+def stale_results(recorded: list[tuple[str, str]], head: str) -> list[tuple[str, str]]:
+    """(name, detail) for each stored result whose measured commit is not HEAD.
+
+    A sweep is a statement about three things at once — the skill, the case and the
+    harness. When any of them moves, the stored numbers describe a tree that is gone.
+    The commit is the cheapest decisive proxy: if it is not HEAD, the result cannot be
+    cited as current without checking what changed.
+
+    Pure by design so it can be tested without a repository. The caller does the IO.
+    """
+    out: list[tuple[str, str]] = []
+    for name, commit in recorded:
+        if commit == head:
+            continue
+        if commit:
+            detail = (f"measured at {commit[:7]}, HEAD is {head[:7]} "
+                      f"— not evidence about the current tree")
+        else:
+            detail = (f"no commit recorded, HEAD is {head[:7]} "
+                      f"— cannot describe any tree")
+        out.append((name, detail))
+    return out
+
+
+def stale_results_note(stale: list[tuple[str, str]], total: int) -> list[str]:
+    """At most one line. An alert that fires 21 times is an alert nobody reads.
+
+    Every stored sweep predates HEAD the moment anything is committed, so listing them
+    individually buries every other finding. Report the scale and name the newest one —
+    that is the result somebody is about to cite.
+    """
+    if not stale:
+        return []
+    newest, detail = stale[-1]
+    return [
+        f"{len(stale)} of {total} stored sweeps predate HEAD; newest is {newest} "
+        f"({detail}). Re-measure before citing any of them as current."
+    ]
+
+
+def _recorded_result_commits() -> list[tuple[str, str]]:
+    """(name, commit) for every stored ledger and release verdict under evals/results."""
+    results = REPO / "evals" / "results"
+    if not results.exists():
+        return []
+    found: list[tuple[str, str]] = []
+    paths = sorted(results.glob("*/ledger.json")) + sorted(results.glob("verdict-v*.json"))
+    for path in paths:
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        commit = str((data.get("fingerprint") or {}).get("commit") or "")
+        found.append((path.parent.name if path.name == "ledger.json" else path.name, commit))
+    return found
+
+
+def check_stale_results() -> tuple[list[str], list[str]]:
+    """Stored sweeps that no longer describe HEAD. Notes, never blockers.
+
+    An expired result is not a defect — it is a correct record of a tree that has since
+    moved. It becomes a problem only when someone reads it as current, which is exactly
+    what happened on 2026-08-04.
+    """
+    head = _git("rev-parse", "HEAD")
+    if not head:
+        return [], []
+    recorded = _recorded_result_commits()
+    return [], stale_results_note(stale_results(recorded, head), len(recorded))
+
+
 def check_integrity() -> tuple[list[str], list[str]]:
     blockers: list[str] = []
     notes: list[str] = []
@@ -189,6 +261,7 @@ CHECKS = (
     ("ledger rows", check_history_rows),
     ("worktrees and stashes", check_worktrees_and_stashes),
     ("backup", check_unpushed),
+    ("stale results", check_stale_results),
     ("integrity", check_integrity),
 )
 

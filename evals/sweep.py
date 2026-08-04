@@ -435,6 +435,42 @@ def fingerprint_mismatch(a: dict, b: dict) -> list[str]:
     return [k for k in MEASUREMENT_KEYS if a.get(k) != b.get(k)]
 
 
+#: What each measurement key actually covers, in words a reader can act on. A bare
+#: `cases_sha256` means nothing to someone deciding whether to trust a verdict.
+_KEY_MEANING = {
+    "commit": "the commit measured",
+    "cases_sha256": "the case files that did the grading (evals/cases)",
+    "harness_sha256": "the scoring code (" + ", ".join(_HARNESS_FILES) + ")",
+    "content_sha256": "the skills, references, templates and fixtures the model saw",
+    "config_path": "which config file was loaded",
+    "backend": "the transport that answered",
+    "model": "the model requested",
+    "model_alias_invoked": "the model alias invoked",
+    "judge_model": "the judge model",
+    "claude_cli": "the Claude CLI version",
+    "manifests": "the plugin manifests",
+    "interpreters": "the R / Python interpreters",
+    "dependencies": "the declared dependency versions",
+}
+
+
+def staleness_report(stored: dict, current: dict) -> list[str]:
+    """Why a stored measurement no longer describes the current tree, in plain words.
+
+    `fingerprint_mismatch` has always known this, but only resume ever asked. A result
+    is a statement about three things at once — the skill, the case, and the harness —
+    and when any of them moves, the stored numbers describe a tree that is gone. Nothing
+    surfaced that to a human reading a ledger or a verdict, so on 2026-08-04 a whole
+    diagnosis was built on the 2026-08-03 L4 sweep after 24 of its 37 case files, 7 skill
+    files and both scorer.py and runner.py had changed underneath it.
+
+    Empty means comparable. A ledger with no fingerprint at all reports every key, which
+    is correct: it is maximally stale, not silently current.
+    """
+    return [f"{key} — {_KEY_MEANING[key]} changed"
+            for key in fingerprint_mismatch(stored or {}, current)]
+
+
 # --- Ledger ---
 
 def save_ledger(ledger: dict, path: Path) -> None:

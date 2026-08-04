@@ -276,6 +276,68 @@ def test_resume_tolerates_dirty_path_changes():
     assert fingerprint_mismatch(base, other) == []
 
 
+# --- Staleness reporting (T1.3) ---
+#
+# `fingerprint_mismatch` has always known when a stored result stopped describing the
+# tree, but only resume ever asked it. Nothing told a person — or an agent — reading a
+# ledger or a verdict that HEAD had moved past it. On 2026-08-04 that cost a full
+# diagnosis: the 2026-08-03 L4 sweep was mined as current evidence when 24 of its 37
+# case files, 7 skill files and both scorer.py and runner.py had changed underneath it.
+
+def test_staleness_report_is_empty_for_an_identical_fingerprint():
+    base = _ledger({})["fingerprint"]
+    assert sweep.staleness_report(base, dict(base)) == []
+
+
+def test_staleness_report_names_each_moved_measurement_key():
+    base = _ledger({})["fingerprint"]
+    stale = {**base, "commit": "3bf5738", "cases_sha256": "x", "harness_sha256": "y"}
+    report = sweep.staleness_report(stale, base)
+    joined = "\n".join(report)
+    assert "commit" in joined, report
+    assert "cases_sha256" in joined, report
+    assert "harness_sha256" in joined, report
+
+
+def test_staleness_report_explains_what_a_moved_key_means():
+    """A reader must not have to know what `cases_sha256` is to act on the warning.
+
+    The whole failure mode is a human reading a stale verdict and believing it. A bare
+    key name is jargon; the line has to say the cases that did the grading changed.
+    """
+    base = _ledger({})["fingerprint"]
+    report = sweep.staleness_report({**base, "cases_sha256": "x"}, base)
+    joined = " ".join(report).lower()
+    assert "case" in joined, report
+    assert any(w in joined for w in ("changed", "moved", "differ")), report
+
+
+def test_staleness_report_ignores_keys_that_do_not_change_the_measurement():
+    """Mirrors `fingerprint_mismatch`: a dirty unrelated file, or a corrected gate,
+    does not make a stored result describe a different measurement."""
+    base = _ledger({})["fingerprint"]
+    assert sweep.staleness_report({**base, "dirty_paths": ["README.md"]}, base) == []
+    assert sweep.staleness_report({**base, "gate_sha256": "different"}, base) == []
+
+
+def test_every_measurement_key_has_a_plain_language_meaning():
+    """Invariant pin, not a feature test — its job is to fail for whoever adds a key.
+
+    `staleness_report` indexes `_KEY_MEANING` directly, so a new MEASUREMENT_KEY without
+    a meaning is a KeyError inside the check that is supposed to be warning you about
+    drift. Verified as a real pin by removing a key and watching this fail.
+    """
+    missing = [k for k in sweep.MEASUREMENT_KEYS if k not in sweep._KEY_MEANING]
+    assert missing == [], f"MEASUREMENT_KEYS without a plain-language meaning: {missing}"
+
+
+def test_staleness_report_flags_a_ledger_with_no_fingerprint_at_all():
+    """A pre-fingerprint ledger is maximally stale, not silently comparable."""
+    base = _ledger({})["fingerprint"]
+    report = sweep.staleness_report({}, base)
+    assert report, "a fingerprint-less ledger must not read as current"
+
+
 # --- Requeue selection ---
 
 def test_only_unmeasured_cases_are_pending():
