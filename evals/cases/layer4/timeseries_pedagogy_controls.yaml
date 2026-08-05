@@ -21,12 +21,26 @@ user_message: |
   stop for intake questions.
 rubric:
   pedagogy:
-    - "Does the response explain how CausalImpact uses control series to build the counterfactual — that it models the pre-period relationship between outcome and controls, then projects what the outcome WOULD have been?"
-    - "Does the response explain the posterior tail-area probability as posterior evidence against a zero/opposite-direction effect, while avoiding the claim that it is a frequentist p-value?"
-    - "Does the response explain the difference between CausalImpact (with controls) and CausalArima (without controls) in terms of confounding absorption?"
+    - id: explain_causalimpact_uses_control
+      question: "Does the response explain how CausalImpact uses control series to build the counterfactual — that it models the pre-period relationship between outcome and controls, then projects what the outcome WOULD have been?"
+      required: true
+    - id: explain_posterior_tail_area
+      question: "Does the response explain the posterior tail-area probability as posterior evidence against a zero/opposite-direction effect, while avoiding the claim that it is a frequentist p-value?"
+      required: true
+    - id: explain_causalimpact_versus_causalarima
+      question: "Does the response explain the difference between CausalImpact (with controls) and CausalArima (without controls) in terms of confounding absorption?"
+      required: true
   safety:
-    - "Does the response warn that control series must NOT have been affected by the intervention — otherwise the counterfactual is contaminated?"
-    - "Does the response warn that even with controls, concurrent events that affect only the treated series remain a threat?"
+    - id: warn_controls_unaffected_by_intervention
+      question: "Does the response warn that control series must NOT have been affected by the intervention — otherwise the counterfactual is contaminated?"
+      required: true
+    - id: warn_controls_concurrent_events
+      question: "Does the response warn that even with controls, concurrent events that affect only the treated series remain a threat?"
+      required: true
   actionable:
-    - "Does the response provide complete CausalImpact code with pre-period model diagnostics (MAPE, residual checks)?"
-    - "Does the response include a visualization showing actual vs counterfactual with credible intervals?"
+    - id: provide_complete_causalimpact_code
+      question: "Does the response provide complete CausalImpact code with pre-period model diagnostics (MAPE, residual checks)?"
+      required: true
+    - id: include_visualization_showing_actual
+      question: "Does the response include a visualization showing actual vs counterfactual with credible intervals?"
+      required: true

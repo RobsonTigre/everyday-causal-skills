@@ -26,11 +26,23 @@ user_message: |
   ATT: 12.3% increase in weekly sales (SE: 3.1%, p < 0.001)
 rubric:
   pedagogy:
-    - "Does the response acknowledge the strengths of the analysis before raising concerns?"
-    - "Does the response explain what each check accomplishes (not just list them as sufficient)?"
+    - id: acknowledge_strengths_analysis_raising
+      question: "Does the response acknowledge the strengths of the analysis before raising concerns?"
+      required: true
+    - id: explain_what_each_check_accomplishes
+      question: "Does the response explain what each check accomplishes (not just list them as sufficient)?"
+      required: true
   safety:
-    - "Does the response avoid manufacturing threats that aren't supported by the analysis description?"
-    - "If it raises concerns, are they proportionate and clearly distinguished from the verified assumptions?"
+    - id: avoid_manufacturing_unsupported_threats
+      question: "Does the response avoid manufacturing threats that aren't supported by the analysis description?"
+      required: true
+    - id: raises_concerns_proportionate_clearly
+      question: "If it raises concerns, are they proportionate and clearly distinguished from the verified assumptions?"
+      required: true
   actionable:
-    - "Does the response suggest specific next steps if any (even for a strong analysis — e.g., sensitivity analysis, external validity)?"
-    - "Does the response provide a clear verdict (strong/weak/conditional) the user can act on?"
+    - id: suggest_specific_next_steps
+      question: "Does the response suggest specific next steps if any (even for a strong analysis — e.g., sensitivity analysis, external validity)?"
+      required: true
+    - id: provide_clear_verdict_act
+      question: "Does the response provide a clear verdict (strong/weak/conditional) the user can act on?"
+      required: true

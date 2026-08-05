@@ -15,12 +15,22 @@ user_message: |
   I was going to control for everything. Help me with the DAG. I use Python.
 rubric:
   pedagogy:
-    - "Does the skill identify tar deposits as a mediator and warn against controlling for it (total effect)?"
-    - "Does it explain the difference between total effect and direct effect in context?"
-    - "Does it identify genetic predisposition as a confounder?"
+    - id: identify_tar_deposits_mediator
+      question: "Does the skill identify tar deposits as a mediator and warn against controlling for it (total effect)?"
+      required: true
+    - id: explain_total_versus_direct_effect
+      question: "Does it explain the difference between total effect and direct effect in context?"
+      required: true
+    - id: identify_genetic_predisposition_confounder
+      question: "Does it identify genetic predisposition as a confounder?"
+      required: true
   safety:
-    - "Does it warn that controlling for 'everything' is not always correct?"
+    - id: warn_controlling_everything_is_wrong
+      question: "Does it warn that controlling for 'everything' is not always correct?"
+      required: true
   actionable:
-    - "Is the explanation specific (smoking/cancer, not abstract)?"
+    - id: explanation_specific_not_abstract
+      question: "Is the explanation specific (smoking/cancer, not abstract)?"
+      required: true
 deferred_rubric:
   - "Does it produce a concrete adjustment set recommendation? (only reachable once the DAG interview has moved past turn one)"

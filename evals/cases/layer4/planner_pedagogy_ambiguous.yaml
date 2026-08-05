@@ -17,12 +17,26 @@ user_message: |
   driver earnings?
 rubric:
   pedagogy:
-    - "Does the response identify that multiple causal strategies are possible here (DiD across cities, RDD on driver score, IV on opt-in)?"
-    - "Does the response explain the strengths and limitations of each viable approach?"
-    - "Does the response help the user understand which assumptions are hardest to defend for each option?"
+    - id: identify_multiple_causal_strategies
+      question: "Does the response identify that multiple causal strategies are possible here (DiD across cities, RDD on driver score, IV on opt-in)?"
+      required: true
+    - id: explain_strengths_limitations_viable
+      question: "Does the response explain the strengths and limitations of each viable approach?"
+      required: true
+    - id: help_understand_assumptions_hardest
+      question: "Does the response help the user understand which assumptions are hardest to defend for each option?"
+      required: true
   safety:
-    - "Does the response flag that opt-in is endogenous and naive opt-in vs non-opt-in comparison is biased?"
-    - "Does the response make its primary recommendation conditional on the unresolved design fact while acknowledging the viable alternatives?"
+    - id: flag_opt_endogenous_naive
+      question: "Does the response flag that opt-in is endogenous and naive opt-in vs non-opt-in comparison is biased?"
+      required: true
+    - id: primary_recommendation_conditional_unresolved
+      question: "Does the response make its primary recommendation conditional on the unresolved design fact while acknowledging the viable alternatives?"
+      required: true
   actionable:
-    - "Does the response give a conditional primary recommendation and name the hardest identifying assumption for that recommendation?"
-    - "Does the response identify the first discriminating data check that would decide among the candidate methods (rather than offering a generic checklist)?"
+    - id: give_conditional_primary_recommendation
+      question: "Does the response give a conditional primary recommendation and name the hardest identifying assumption for that recommendation?"
+      required: true
+    - id: identify_first_discriminating_data
+      question: "Does the response identify the first discriminating data check that would decide among the candidate methods (rather than offering a generic checklist)?"
+      required: true

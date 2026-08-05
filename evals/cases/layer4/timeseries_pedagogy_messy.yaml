@@ -15,12 +15,26 @@ user_message: |
   methodology at that time. I use R.
 rubric:
   pedagogy:
-    - "Does the response explain WHY a pre-period structural break invalidates the counterfactual projection?"
-    - "Does the response explain what tests can detect structural breaks (Chow, CUSUM) and how to interpret them?"
-    - "Does the response explain the options: truncate pre-period, model the break, or acknowledge the limitation?"
+    - id: explain_pre_period_structural
+      question: "Does the response explain WHY a pre-period structural break invalidates the counterfactual projection?"
+      required: true
+    - id: explain_tests_detect_structural
+      question: "Does the response explain what tests can detect structural breaks (Chow, CUSUM) and how to interpret them?"
+      required: true
+    - id: explain_options_truncate_pre
+      question: "Does the response explain the options: truncate pre-period, model the break, or acknowledge the limitation?"
+      required: true
   safety:
-    - "Does the response clearly state that proceeding without addressing the break produces unreliable estimates?"
-    - "Does the response avoid presenting the break as a minor nuisance that can be ignored?"
+    - id: clearly_state_proceeding_without
+      question: "Does the response clearly state that proceeding without addressing the break produces unreliable estimates?"
+      required: true
+    - id: avoid_presenting_break_minor
+      question: "Does the response avoid presenting the break as a minor nuisance that can be ignored?"
+      required: true
   actionable:
-    - "Does the response provide code to test for and visualize the structural break?"
-    - "Does the response suggest a concrete path forward (e.g., use only post-break pre-period, add a level shift dummy)?"
+    - id: provide_code_test_visualize
+      question: "Does the response provide code to test for and visualize the structural break?"
+      required: true
+    - id: suggest_concrete_path_forward
+      question: "Does the response suggest a concrete path forward (e.g., use only post-break pre-period, add a level shift dummy)?"
+      required: true

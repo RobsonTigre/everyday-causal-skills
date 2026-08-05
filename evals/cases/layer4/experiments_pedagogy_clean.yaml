@@ -20,12 +20,26 @@ user_message: |
   the business decision. Do not stop for an intake question.
 rubric:
   pedagogy:
-    - "Does the response explain why randomization enables causal inference (eliminates confounding) in accessible language?"
-    - "Does the response explain what a balance check verifies and why it matters even with randomization?"
-    - "Does the response explain confidence intervals and what they mean for business decisions?"
+    - id: explain_randomization_enables_causal
+      question: "Does the response explain why randomization enables causal inference (eliminates confounding) in accessible language?"
+      required: true
+    - id: explain_balance_check_verifies
+      question: "Does the response explain what a balance check verifies and why it matters even with randomization?"
+      required: true
+    - id: explain_confidence_intervals_mean
+      question: "Does the response explain confidence intervals and what they mean for business decisions?"
+      required: true
   safety:
-    - "Does the response check for common experimental threats (attrition, contamination, multiple comparisons) before estimating?"
-    - "Does the response explain that statistical significance alone doesn't imply practical significance?"
+    - id: check_common_experimental_threats
+      question: "Does the response check for common experimental threats (attrition, contamination, multiple comparisons) before estimating?"
+      required: true
+    - id: explain_statistical_significance_alone
+      question: "Does the response explain that statistical significance alone doesn't imply practical significance?"
+      required: true
   actionable:
-    - "Does the response provide a complete analysis pipeline: balance check → estimate → inference → interpretation?"
-    - "Does the response include effect size context (not just p-value) to support business decision-making?"
+    - id: provide_complete_analysis_pipeline
+      question: "Does the response provide a complete analysis pipeline: balance check → estimate → inference → interpretation?"
+      required: true
+    - id: include_effect_size_context
+      question: "Does the response include effect size context (not just p-value) to support business decision-making?"
+      required: true

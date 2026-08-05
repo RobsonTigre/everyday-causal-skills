@@ -13,8 +13,14 @@ user_message: |
   the DAG.
 rubric:
   pedagogy:
-    - "Does the response recognize that treatment (new checkout page) and outcome (conversion rate) are already given, rather than re-asking for them?"
+    - id: recognize_treatment_outcome_already
+      question: "Does the response recognize that treatment (new checkout page) and outcome (conversion rate) are already given, rather than re-asking for them?"
+      required: true
   safety:
-    - "Does it avoid inventing or assuming confounders on the user's behalf instead of asking about them?"
+    - id: avoid_inventing_assuming_confounders
+      question: "Does it avoid inventing or assuming confounders on the user's behalf instead of asking about them?"
+      required: true
   actionable:
-    - "Does it ask exactly one next decision-relevant question (e.g., what determines who sees the new page, or what else affects conversion), rather than dumping the remaining Stage-1 questions as a bulk list or form?"
+    - id: ask_exactly_one_next_question
+      question: "Does it ask exactly one next decision-relevant question (e.g., what determines who sees the new page, or what else affects conversion), rather than dumping the remaining Stage-1 questions as a bulk list or form?"
+      required: true

@@ -16,12 +16,26 @@ user_message: |
   follow-up questions first.
 rubric:
   pedagogy:
-    - "Does the report use plain language with formal names in parentheses?"
-    - "Does it include a summary regression table but explain it in accessible terms?"
-    - "Is it readable by a quantitatively literate non-specialist?"
+    - id: use_plain_language_formal
+      question: "Does the report use plain language with formal names in parentheses?"
+      required: true
+    - id: include_summary_regression_table
+      question: "Does it include a summary regression table but explain it in accessible terms?"
+      required: true
+    - id: readable_quantitatively_literate_non
+      question: "Is it readable by a quantitatively literate non-specialist?"
+      required: true
   safety:
-    - "Does it include meaningful limitations, not just a token mention?"
-    - "Does it avoid both oversimplification and unnecessary jargon?"
+    - id: include_meaningful_limitations
+      question: "Does it include meaningful limitations, not just a token mention?"
+      required: true
+    - id: avoid_both_oversimplification_unnecessary
+      question: "Does it avoid both oversimplification and unnecessary jargon?"
+      required: true
   actionable:
-    - "Does it balance recommendations with caveats?"
-    - "Could both a data scientist and a product manager read this?"
+    - id: balance_recommendations_caveats
+      question: "Does it balance recommendations with caveats?"
+      required: true
+    - id: both_data_scientist_product
+      question: "Could both a data scientist and a product manager read this?"
+      required: true

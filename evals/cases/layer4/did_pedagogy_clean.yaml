@@ -16,12 +16,26 @@ user_message: |
   stop for an intake question.
 rubric:
   pedagogy:
-    - "Does the response explain what parallel trends means in plain language, not just say 'check parallel trends'?"
-    - "Does the response explain what the DiD estimate captures (the ATT) and what it does NOT capture?"
-    - "Does the response walk through what each part of the regression specification means?"
+    - id: explain_parallel_trends_means
+      question: "Does the response explain what parallel trends means in plain language, not just say 'check parallel trends'?"
+      required: true
+    - id: explain_what_att_does_and_does_not_capture
+      question: "Does the response explain what the DiD estimate captures (the ATT) and what it does NOT capture?"
+      required: true
+    - id: walk_through_part_regression
+      question: "Does the response walk through what each part of the regression specification means?"
+      required: true
   safety:
-    - "Does the response mention that even with good pre-trends, DiD assumes future trends would have continued — and this is untestable?"
-    - "Does the response warn about standard error clustering and why it matters for inference?"
+    - id: mention_future_trends_untestable
+      question: "Does the response mention that even with good pre-trends, DiD assumes future trends would have continued — and this is untestable?"
+      required: true
+    - id: warn_standard_error_clustering
+      question: "Does the response warn about standard error clustering and why it matters for inference?"
+      required: true
   actionable:
-    - "Does the response provide complete, runnable code (not pseudocode or fragments)?"
-    - "Does the response include diagnostic code (event study plot, pre-trends test) alongside the main estimate?"
+    - id: provide_complete_runnable_code
+      question: "Does the response provide complete, runnable code (not pseudocode or fragments)?"
+      required: true
+    - id: include_diagnostic_code_alongside
+      question: "Does the response include diagnostic code (event study plot, pre-trends test) alongside the main estimate?"
+      required: true

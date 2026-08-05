@@ -9,11 +9,32 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import validate_cases  # noqa: E402
 from validate_cases import validate_case, validate_tree, warn_case  # noqa: E402
 
 L4_GOOD = """
 name: good_l4
 description: fine
+layer: 4
+skill: causal-did
+response_contract: final_output
+user_message: hello
+rubric:
+  pedagogy:
+    - id: q_one
+      question: "Q1?"
+      required: true
+  safety:
+    - id: q_two
+      question: "Q2?"
+      required: true
+"""
+
+#: The pre-migration shape, kept deliberately so the advisory rule has something to
+#: fire on and the backward-compatible readers stay exercised.
+L4_BARE_RUBRIC = """
+name: bare_l4
+description: rubric entries with no ids
 layer: 4
 skill: causal-did
 response_contract: final_output
@@ -60,6 +81,12 @@ user_message: hello
 rubric:
   - "Q1?"
 """
+
+
+def _question_text(item) -> str:
+    """L4 rubric entries are `{id, question, required}` after the rubric-id migration
+    and bare strings before it."""
+    return item["question"] if isinstance(item, dict) else item
 
 
 def _write(tmp, layer_dir, filename, text):
@@ -227,7 +254,9 @@ deferred_rubric:
   - "Was the adjustment set correctly justified?"
 rubric:
   pedagogy:
-    - "Q1?"
+    - id: q_one
+      question: "Q1?"
+      required: true
 """
     with tempfile.TemporaryDirectory() as t:
         p = _write(t, "layer4", "probe.yaml", text)
@@ -632,12 +661,15 @@ def test_d3_interview_guards_are_exactly_four_first_turn_skill_specific_cases():
         assert case.get("response_contract") == "first_turn", (name, case.get("response_contract"))
         assert case.get("layer") == 4, (name, case.get("layer"))
         rubric = case.get("rubric") or {}
-        # Skill-specific: no two guards may share a rubric line verbatim.
-        all_qs = [q for dim in rubric.values() for q in dim]
+        # Skill-specific: no two guards may share a rubric line verbatim. Entries are
+        # {id, question, required} after the rubric-id migration; the question text is
+        # what "shares a line verbatim" has always meant, and it did not change.
+        all_qs = [_question_text(q) for dim in rubric.values() for q in dim]
         assert all_qs, f"{name} has no rubric questions"
     seen_questions = {}
     for name in expected:
-        for q in [q for dim in found[name].get("rubric", {}).values() for q in dim]:
+        for q in [_question_text(q)
+                  for dim in found[name].get("rubric", {}).values() for q in dim]:
             assert q not in seen_questions, (
                 f"{name} shares a rubric line with {seen_questions.get(q)}: {q!r}")
             seen_questions[q] = name
@@ -1051,6 +1083,138 @@ def test_roi_carveout_bounds_by_hand_math_to_gate_result():
     # script-gated, and the final roi.md re-computes the gate's ΔProfit₀ via the Stage 3 script.
     assert "If the script didn't compute a downstream number" in skill
     assert "including the gate's ΔProfit₀" in skill
+
+
+# --- T1.1: L4 rubric entries become {id, question, required} objects ---
+#
+# L4 rubric answers come back from the judge as a positional array, so identity is an
+# array index. Reword or reorder a question and every stored answer silently re-points
+# onto a different one; only a length change is detectable. That is what made the
+# 2026-08-03 ledger un-reanalysable and what invalidated a month of diagnosis.
+#
+# These call `_check_l4_rubric` DIRECTLY, on synthetic dicts. It is deliberately not
+# wired into `validate_case` yet: doing so invalidates all 37 shipped L4 cases until
+# they are migrated, and the migration is its own commit (PLAN-harness-integrity T1.1,
+# "Ordering hazard").
+
+def _l4_errors(rubric, expected_rubric=None):
+    case = {"layer": 4, "rubric": rubric} if rubric is not None else {"layer": 4}
+    expected = {"rubric": expected_rubric} if expected_rubric is not None else {}
+    errors = []
+    validate_cases._check_l4_rubric(case, expected, errors)
+    return errors
+
+
+def test_validator_rejects_an_l4_rubric_entry_without_an_id():
+    """Today's shape — a bare question string — is exactly what cannot be gated."""
+    errs = _l4_errors({"pedagogy": ["Does it explain parallel trends?"]})
+    assert errs, "a bare string entry must be rejected"
+    assert any("id" in e for e in errs), errs
+
+
+def test_wellformed_l4_rubric_objects_pass():
+    """Discriminating half: the target shape must validate clean."""
+    errs = _l4_errors({
+        "pedagogy": [{"id": "explains_parallel_trends",
+                      "question": "Does it explain parallel trends?",
+                      "required": True}],
+        "safety": [{"id": "flags_confounding",
+                    "question": "Does it flag confounding?",
+                    "required": False}],
+    })
+    assert errs == [], errs
+
+
+def test_l4_rubric_ids_must_be_unique_across_dimensions():
+    """The id is the key `question_stats` is stored under, so a collision across
+    dimensions would silently merge two different questions' counts."""
+    entry = {"question": "Q?", "required": True}
+    errs = _l4_errors({"pedagogy": [{**entry, "id": "same_id"}],
+                       "safety": [{**entry, "id": "same_id"}]})
+    assert any("duplicate" in e for e in errs), errs
+
+
+def test_l4_rubric_rejects_an_unknown_field():
+    errs = _l4_errors({"pedagogy": [{"id": "a", "question": "Q?", "required": True,
+                                     "weight": 2}]})
+    assert any("weight" in e for e in errs), errs
+
+
+def test_l4_rubric_required_must_be_a_bool():
+    errs = _l4_errors({"pedagogy": [{"id": "a", "question": "Q?", "required": "yes"}]})
+    assert any("required" in e for e in errs), errs
+
+
+def test_l4_rubric_id_must_be_snake_case():
+    errs = _l4_errors({"pedagogy": [{"id": "Explains Parallel Trends",
+                                     "question": "Q?", "required": True}]})
+    assert any("snake_case" in e for e in errs), errs
+
+
+def test_l4_rubric_declared_in_both_places_is_rejected():
+    """Same trap `_check_l2_rubric` closes: two legal locations, one silently dropped."""
+    good = [{"id": "a", "question": "Q?", "required": True}]
+    errs = _l4_errors({"pedagogy": good}, expected_rubric={"pedagogy": good})
+    assert any("both" in e for e in errs), errs
+
+
+def test_l4_rubric_question_must_be_a_nonempty_string():
+    errs = _l4_errors({"pedagogy": [{"id": "a", "question": "  ", "required": True}]})
+    assert any("question" in e for e in errs), errs
+
+
+def test_a_bare_string_l4_rubric_is_reported_once_not_twice():
+    """The rule moved from `warn_case` to `validate_case` and must not sit in both.
+
+    `validate_tree` is a hard gate at `sweep.py:671` and `warn_tree` is advisory at
+    `:682`, so a case that fails validation never runs and its warning is never read —
+    the duplicate line is pure noise on the one output a reader does see. Advisory
+    output that repeats a blocking error is the scale-aware lesson from T1.4.
+    """
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "bare_l4.yaml", L4_BARE_RUBRIC)
+        assert any("id" in e for e in validate_case(p)), validate_case(p)
+        assert not [w for w in warn_case(p) if "id" in w and "rubric" in w], warn_case(p)
+
+
+def test_bare_string_l4_rubric_is_a_hard_validation_error():
+    """Promoted from a warning once the L4 gate started depending on the ids.
+
+    A bare-string rubric produces `question_stats` keyed positionally with no
+    `required` flags, so `case_gate`'s required list comes back empty and the
+    per-question floor is skipped in silence. Measured on identical answer data: a
+    dimension mean of exactly 0.70 with one question at 2/5 gates **PASS** with bare
+    strings and **FAIL** with ids. That is a hole in the gate, not a style
+    preference, and the L2 equivalent has been blocking since Package F.
+
+    Not a mid-investigation promotion of the kind `tasks/lessons.md` warns about: all
+    37 shipped L4 cases are migrated and this is silent on every one of them.
+    """
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "bare_l4.yaml", L4_BARE_RUBRIC)
+        errs = validate_case(p)
+        assert errs, "a bare-string L4 rubric must fail validation"
+        assert any("id" in e for e in errs), errs
+
+
+def test_every_shipped_case_still_validates_under_the_blocking_l4_schema():
+    """The promotion must be provably silent on the tree it lands in — otherwise it is
+    a build break dressed as a tightening."""
+    failing = {p.name: validate_case(p) for p in
+               sorted(Path("evals/cases/layer4").glob("*.yaml"))}
+    assert not {n: e for n, e in failing.items() if e}, \
+        {n: e for n, e in failing.items() if e}
+
+
+def test_every_shipped_l4_case_is_warning_free_after_the_id_migration():
+    """The 37 migrated files must produce zero warnings, or the new advisory rule is
+    noise on every run and will be ignored — the scale-aware lesson from T1.4."""
+    noisy = {}
+    for path in sorted(Path("evals/cases/layer4").glob("*.yaml")):
+        w = [x for x in warn_case(path) if "rubric" in x or "id" in x]
+        if w:
+            noisy[path.stem] = w
+    assert noisy == {}, noisy
 
 
 def _run_all():

@@ -16,12 +16,26 @@ user_message: |
   choose more parameters.
 rubric:
   pedagogy:
-    - "Does the scenario describe a realistic business situation (not a textbook example with artificial setup)?"
-    - "Does the exercise explain what the student should look for (parallel trends, treatment effect) without giving the answer?"
-    - "Are the hints progressive — guiding the student's thinking rather than revealing the solution?"
+    - id: scenario_describe_realistic_business
+      question: "Does the scenario describe a realistic business situation (not a textbook example with artificial setup)?"
+      required: true
+    - id: explain_student_look_without
+      question: "Does the exercise explain what the student should look for (parallel trends, treatment effect) without giving the answer?"
+      required: true
+    - id: hints_progressive_guiding_students
+      question: "Are the hints progressive — guiding the student's thinking rather than revealing the solution?"
+      required: true
   safety:
-    - "Does the exercise include at least one realistic complication the student must address (not a pure textbook case)?"
-    - "Does the exercise make clear what assumptions the student should verify before estimating?"
+    - id: include_realistic_complication
+      question: "Does the exercise include at least one realistic complication the student must address (not a pure textbook case)?"
+      required: true
+    - id: clear_assumptions_student_verify
+      question: "Does the exercise make clear what assumptions the student should verify before estimating?"
+      required: true
   actionable:
-    - "Does the exercise provide the data (or code to generate it) so the student can start immediately?"
-    - "Does the exercise clearly state what the deliverable is (estimate, plot, interpretation)?"
+    - id: provide_data_student_start
+      question: "Does the exercise provide the data (or code to generate it) so the student can start immediately?"
+      required: true
+    - id: clearly_state_deliverable
+      question: "Does the exercise clearly state what the deliverable is (estimate, plot, interpretation)?"
+      required: true

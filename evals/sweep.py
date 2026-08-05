@@ -165,6 +165,41 @@ def _l2_gate_contract(case_paths) -> list:
     return out
 
 
+def _l4_gate_contract(case_paths) -> list:
+    """Which L4 rubric questions exist and which are required — normalized.
+
+    The L2 sibling above, on the other gating layer, and normalized the same way:
+    sorted `(dimension, id, required)`, so rewording stays measurement while adding,
+    renaming or demoting a question moves the hash. An id is not cosmetic here —
+    stored answers are mapped back onto the rubric by it, so a rename re-points
+    every one of them.
+
+    Both gating layers now declare their contract, which is the point: an L4 gate
+    that holds each question to a floor depends on this list exactly as the L2 gate
+    depends on `_l2_gate_contract`, and leaving it out would let a question be
+    demoted while every hashed function stayed byte identical.
+    """
+    out = []
+    for p in sorted(str(x) for x in case_paths):
+        try:
+            case = yaml.safe_load(Path(p).read_text()) or {}
+        except Exception:  # noqa: BLE001 — an unreadable case is the validator's job
+            out.append([Path(p).stem, "unreadable"])
+            continue
+        if case.get("layer") != 4:
+            continue
+        rubric = case.get("rubric")
+        if not isinstance(rubric, dict):
+            continue
+        entries = sorted(
+            (dim, e.get("id"), e.get("required") is True)
+            for dim in ("pedagogy", "safety", "actionable")
+            for e in (rubric.get(dim) or []) if isinstance(e, dict))
+        if entries:
+            out.append([Path(p).stem, entries])
+    return out
+
+
 def _gate_digest(config: dict, case_paths=()) -> str:
     """Everything that decides PASS/FAIL, separate from what was measured.
 
@@ -185,6 +220,7 @@ def _gate_digest(config: dict, case_paths=()) -> str:
                         sort_keys=True).encode())
     h.update(json.dumps(runner.DEFAULT_THRESHOLDS, sort_keys=True).encode())
     h.update(json.dumps(_l2_gate_contract(case_paths), sort_keys=True).encode())
+    h.update(json.dumps(_l4_gate_contract(case_paths), sort_keys=True).encode())
 
     # The whole gate, not just its entry point. case_gate calls _meets and _threshold but
     # does not define them, so hashing case_gate alone left the comparison logic and the
@@ -365,7 +401,8 @@ def _r_requires(case_path: Path) -> list[str]:
 
 def build_fingerprint(config: dict, case_paths: list[str],
                       config_path: str | None = None,
-                      backend: str | None = None) -> dict:
+                      backend: str | None = None,
+                      extra_harness_files: tuple = ()) -> dict:
     """Identify the exact code, config and transport a verdict describes.
 
     A verdict is only evidence for the tree it was measured against, so resume
@@ -376,6 +413,13 @@ def build_fingerprint(config: dict, case_paths: list[str],
     dependency instead of leaving a reader to infer it, and because a pre-backend
     ledger (which carries None) is then correctly refused for resume rather than
     silently extended under a harness that has since changed.
+
+    `extra_harness_files` lets a caller that runs additional code declare it, without
+    that code entering every other run's fingerprint. `harness_sha256` is a resume
+    key, so folding a diagnostic module into `_HARNESS_FILES` would make an ordinary
+    release sweep's fingerprint depend on something that grades none of it — and
+    would refuse resume for runs that never touched it. Opt-in per caller; the empty
+    default is byte-identical to hashing `_HARNESS_FILES` alone, which a test pins.
     """
     h = hashlib.sha256()
     for p in sorted(case_paths):
@@ -385,7 +429,7 @@ def build_fingerprint(config: dict, case_paths: list[str],
     # mid-sweep silently changes the meaning of results already collected, and
     # the commit hash won't move while the tree is dirty.
     harness = hashlib.sha256()
-    for name in _HARNESS_FILES:
+    for name in (*_HARNESS_FILES, *sorted(extra_harness_files)):
         harness.update((Path(__file__).parent / name).read_bytes())
 
     return {
@@ -433,6 +477,42 @@ MEASUREMENT_KEYS = (
 def fingerprint_mismatch(a: dict, b: dict) -> list[str]:
     """Differences that make two runs non-comparable (dirty paths excluded)."""
     return [k for k in MEASUREMENT_KEYS if a.get(k) != b.get(k)]
+
+
+#: What each measurement key actually covers, in words a reader can act on. A bare
+#: `cases_sha256` means nothing to someone deciding whether to trust a verdict.
+_KEY_MEANING = {
+    "commit": "the commit measured",
+    "cases_sha256": "the case files that did the grading (evals/cases)",
+    "harness_sha256": "the scoring code (" + ", ".join(_HARNESS_FILES) + ")",
+    "content_sha256": "the skills, references, templates and fixtures the model saw",
+    "config_path": "which config file was loaded",
+    "backend": "the transport that answered",
+    "model": "the model requested",
+    "model_alias_invoked": "the model alias invoked",
+    "judge_model": "the judge model",
+    "claude_cli": "the Claude CLI version",
+    "manifests": "the plugin manifests",
+    "interpreters": "the R / Python interpreters",
+    "dependencies": "the declared dependency versions",
+}
+
+
+def staleness_report(stored: dict, current: dict) -> list[str]:
+    """Why a stored measurement no longer describes the current tree, in plain words.
+
+    `fingerprint_mismatch` has always known this, but only resume ever asked. A result
+    is a statement about three things at once — the skill, the case, and the harness —
+    and when any of them moves, the stored numbers describe a tree that is gone. Nothing
+    surfaced that to a human reading a ledger or a verdict, so on 2026-08-04 a whole
+    diagnosis was built on the 2026-08-03 L4 sweep after 24 of its 37 case files, 7 skill
+    files and both scorer.py and runner.py had changed underneath it.
+
+    Empty means comparable. A ledger with no fingerprint at all reports every key, which
+    is correct: it is maximally stale, not silently current.
+    """
+    return [f"{key} — {_KEY_MEANING[key]} changed"
+            for key in fingerprint_mismatch(stored or {}, current)]
 
 
 # --- Ledger ---
@@ -796,7 +876,7 @@ def _load_ledger_case(name: str, case_entry: dict) -> dict:
 
 
 def _unmeasured_reason(case: dict, agg: dict) -> str | None:
-    """Why an L2 case with required criteria came back UNMEASURED.
+    """Why a case came back UNMEASURED.
 
     A verdict that just says UNMEASURED sends the reader back to the ledger to
     work out whether the data is old or the run is incomplete; those need
@@ -806,35 +886,57 @@ def _unmeasured_reason(case: dict, agg: dict) -> str | None:
     Deciding here from the stored `rate` instead would leave a criterion the gate
     rejected on its counts with no reason printed at all — UNMEASURED and silent.
     """
-    required = [e["id"] for e in runner.l2_rubric(case)
-                if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+    # L4 rubric drift: the stored answers no longer describe this case's questions
+    # (runner._l4_question_drift). Always a rerun — a recompile would re-apply the
+    # same mismatch, and there is no older rule to fall back to.
+    drift = agg.get("question_drift")
+    if drift:
+        return ("the rubric moved after this was measured, so the stored answers no "
+                "longer name the questions the case asks — rerun this case, do not "
+                "recompile: " + "; ".join(drift))
+
+    if case.get("layer") == 4:
+        rubric = case.get("rubric") or {}
+        required = [e["id"] for dim in ("pedagogy", "safety", "actionable")
+                    for e in (rubric.get(dim) or [])
+                    if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+        blocks = agg.get("question_stats")
+        legacy = ("ledger predates the per-question L4 answers — nothing on file to "
+                  "hold each question to; rerun this case, do not recompile")
+    else:
+        required = [e["id"] for e in runner.l2_rubric(case)
+                    if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+        blocks = agg.get("rubric_criteria")
+        legacy = ("ledger predates the per-criterion rubric gate — no per-question "
+                  "answers on file; rerun this case, do not recompile")
+
     if not required:
         return None
-    criteria = agg.get("rubric_criteria")
-    if not criteria:
-        return ("ledger predates the per-criterion rubric gate — no per-question "
-                "answers on file; rerun this case, do not recompile")
+    if not blocks:
+        return legacy
 
     runs_valid = agg.get("runs_valid") or 0
     buckets: dict[str, list[str]] = {}
     for cid in required:
-        status, _ = runner.criterion_status(criteria.get(cid), runs_valid)
+        status, _ = runner.criterion_status(blocks.get(cid), runs_valid)
         if status != "ok":
             buckets.setdefault(status, []).append(cid)
 
     parts = []
     if buckets.get("missing"):
+        # On L4 this is also how a pre-id ledger reads: its blocks are keyed
+        # positionally (`actionable[0]`), so no declared id resolves to one.
         parts.append("no answer block at all: " + ", ".join(sorted(buckets["missing"])))
     if buckets.get("partial"):
         # Split by whether anyone answered: nothing at all points at the judge or the
         # rubric wiring, a partial count at specific runs.
         never = sorted(c for c in buckets["partial"]
-                       if not (criteria.get(c) or {}).get("answered"))
+                       if not (blocks.get(c) or {}).get("answered"))
         some = sorted(c for c in buckets["partial"] if c not in never)
         if never:
             parts.append("never answered in any valid run: " + ", ".join(never))
         for cid in some:
-            crit = criteria[cid]
+            crit = blocks[cid]
             parts.append(f"{cid} answered in only {crit.get('answered')} of "
                          f"{runs_valid} valid runs")
     if buckets.get("inconsistent"):
@@ -842,6 +944,52 @@ def _unmeasured_reason(case: dict, agg: dict) -> str | None:
             "counts contradict themselves (untrustworthy ledger, rerun — do not "
             "recompile): " + ", ".join(sorted(buckets["inconsistent"])))
     return "; ".join(parts) if parts else None
+
+
+def _threshold_for(verdict: dict, layer: int, key: str):
+    """The threshold this verdict was compiled under, for reporting only.
+
+    `thresholds_applied` is stamped by `recompile_verdict`; a freshly compiled verdict
+    has none, and the defaults are what ran.
+    """
+    return runner._threshold(verdict.get("thresholds_applied"), layer, key)
+
+
+def _l4_fail_detail(agg: dict, floor: float) -> list[str]:
+    """Which required L4 questions missed the floor, and in which of the two ways.
+
+    **Dead** (0 of 5) and **non-discriminating** (1–3 of 5) read identically in a bare
+    FAIL and need opposite responses. Dead means the behaviour never appeared once:
+    either the skill cannot do it, or the case demands something it is right to
+    withhold — `exercise_did_quality` grades progressive hints in a turn where the
+    student has not asked for them, and the skill correctly refuses. Non-discriminating
+    means the behaviour is there but unreliable, which is a skill gap and nothing else.
+    Replaying the 2026-08-04 ledger under the floor gives 3 dead and 11
+    non-discriminating; sending both to the same queue is how the two get confused.
+
+    Deliberately NOT a fourth verdict token: `compile_verdict` buckets into a hardcoded
+    three-key dict, so a new token would `KeyError` in three places. The release
+    vocabulary stays PASS / FAIL / UNMEASURED and the distinction rides in the text.
+    """
+    stats = agg.get("question_stats")
+    if not stats:
+        return []
+    runs_valid = agg.get("runs_valid") or 0
+    out = []
+    for qid, q in sorted(stats.items()):
+        if not q.get("required"):
+            continue
+        state, rate = runner.criterion_status(q, runs_valid)
+        if state != "ok" or runner._meets(rate, floor):
+            continue   # incomplete blocks are the UNMEASURED reason's job, not this one
+        passed = q.get("passed", 0)
+        if passed == 0:
+            out.append(f"{qid} is **dead** — never satisfied in any of "
+                       f"{runs_valid} valid runs")
+        else:
+            out.append(f"{qid} is non-discriminating — satisfied in {passed} of "
+                       f"{runs_valid} valid runs")
+    return out
 
 
 def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Path,
@@ -1038,11 +1186,35 @@ def compile_verdict(ledger: dict) -> dict:
     }
 
 
-def render_verdict_md(verdict: dict) -> str:
+def render_verdict_md(verdict: dict, current_fingerprint: dict | None = None) -> str:
+    """Render a verdict, and say on its face when it no longer describes the tree.
+
+    `current_fingerprint` is optional because two of the three call sites have no tree
+    to compare against — a release verdict is written the moment it is measured, and a
+    stored verdict re-rendered later has no live repo in scope. Omitting it renders
+    exactly as before rather than emitting a warning that means nothing.
+    """
     fp = verdict["fingerprint"]
+    stale = staleness_report(fp, current_fingerprint) if current_fingerprint else []
     lines = [
         f"# Eval sweep verdict — {verdict['overall']}",
         "",
+    ]
+    if stale:
+        # Above the numbers, deliberately. A reader who reaches the totals before the
+        # warning has already formed the belief the warning exists to prevent.
+        lines += [
+            "> ⚠️ **STALE — this verdict does not describe the current tree.**",
+            ">",
+            "> A result is a statement about the skill, the case and the harness at "
+            "once. These moved after it was measured:",
+            ">",
+            *(f"> - {line}" for line in stale),
+            ">",
+            "> Re-run before citing these numbers as current.",
+            "",
+        ]
+    lines += [
         f"**Sweep**: {verdict['sweep_id']} · started {verdict['started']} · "
         f"compiled {verdict['compiled']}",
         f"**Runs per case**: {verdict['runs_per_case']}",
@@ -1149,6 +1321,49 @@ def render_verdict_md(verdict: dict) -> str:
                 lines.append(f"| {name} | {cid} | {status} | {rate} "
                              f"| {crit.get('question', '')} |")
 
+    # The same table for L4, and for the same reason. Under the per-question floor
+    # every L4 failure is a per-question failure — replaying the 2026-08-04 ledger
+    # produced 14 of them and not one was a dimension-mean failure — so a verdict that
+    # prints only FAIL names nothing at all.
+    #
+    # Rendered from the stored aggregate, never by reloading the case: `question_stats`
+    # carries the question text and its required status, and re-deriving them here
+    # would let the table describe a rubric the measurement was not taken against.
+    # This function is deliberately outside `_gate_digest`; reporting is not the rule,
+    # and a digest that moved when a table was added would cry wolf.
+    q_cases = {name: (c.get("aggregate") or {}).get("question_stats")
+               for name, c in verdict["cases"].items()}
+    q_cases = {name: qs for name, qs in q_cases.items() if qs}
+    if q_cases:
+        lines += ["", "## L4 rubric questions", "",
+                  "| Case | Question ID | Status | Rate | Question |",
+                  "|------|-------------|--------|------|----------|"]
+        for name in sorted(q_cases):
+            runs_valid = ((verdict["cases"][name].get("aggregate") or {})
+                          .get("runs_valid") or 0)
+            for qid, q in sorted(q_cases[name].items()):
+                status = "required" if q.get("required") else "informational"
+                state, _ = runner.criterion_status(q, runs_valid)
+                if state == "ok":
+                    rate = f"{q.get('passed', 0)}/{q.get('valid', 0)}"
+                elif state == "partial":
+                    rate = f"— ({q.get('answered', 0)} of {runs_valid} runs answered)"
+                else:
+                    rate = (f"— ({state}: passed {q.get('passed')}, answered "
+                            f"{q.get('answered')}, valid {q.get('valid')}, "
+                            f"{runs_valid} valid runs)")
+                lines.append(f"| {name} | {qid} | {status} | {rate} "
+                             f"| {q.get('question', '')} |")
+
+    failing = {name: _l4_fail_detail(c.get("aggregate") or {},
+                                     _threshold_for(verdict, 4, "question_rate"))
+               for name, c in verdict["cases"].items() if c.get("verdict") == "FAIL"}
+    failing = {name: detail for name, detail in failing.items() if detail}
+    if failing:
+        lines += ["", "### Which L4 questions failed", ""]
+        for name in sorted(failing):
+            lines.extend(f"- **{name}**: {d}" for d in failing[name])
+
     unmeasured = {name: c["unmeasured_reason"] for name, c in verdict["cases"].items()
                   if c.get("unmeasured_reason")}
     if unmeasured:
@@ -1219,7 +1434,18 @@ def recompile_verdict(ledger_path: Path, config: dict) -> tuple[dict, Path]:
         n += 1
     (sweep_dir / f"verdict-recompiled-{n}.json").write_text(json.dumps(verdict, indent=2))
     out_md = sweep_dir / f"verdict-recompiled-{n}.md"
-    out_md.write_text(render_verdict_md(verdict))
+    # A recompile re-renders an old measurement into a file that looks freshly measured.
+    # Build the tree's fingerprint now so the output can say when it no longer describes
+    # it. `config_path` and `backend` come from the stored fingerprint: a recompile
+    # re-grades one measurement, so re-declaring its transport would flag every recompile
+    # as drifted and bury the tree keys that actually matter.
+    stored_fp = ledger.get("fingerprint") or {}
+    current = build_fingerprint(
+        config,
+        [str(REPO_ROOT / e["path"]) for e in ledger["cases"].values() if e.get("path")],
+        stored_fp.get("config_path"),
+        ledger.get("backend"))
+    out_md.write_text(render_verdict_md(verdict, current))
     return verdict, out_md
 
 

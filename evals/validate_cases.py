@@ -49,7 +49,10 @@ def _check_common(case: dict, path: Path, errors: list[str]) -> int | None:
     return layer
 
 
-_L2_RUBRIC_FIELDS = {"id", "question", "required"}
+#: The gateable rubric-entry schema, shared by L2 (Package F) and L4 (T1.1). One
+#: definition on purpose: both layers gate per question, so the shape that makes a
+#: question gateable is the same fact stated once.
+_RUBRIC_ENTRY_FIELDS = {"id", "question", "required"}
 _SNAKE_CASE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
 
 
@@ -86,14 +89,14 @@ def _check_l2_rubric(case: dict, expected: dict, errors: list[str]) -> None:
         where = f"L2 rubric[{i}]"
         if not isinstance(entry, dict):
             errors.append(
-                f"{where} must be a mapping with {sorted(_L2_RUBRIC_FIELDS)} "
+                f"{where} must be a mapping with {sorted(_RUBRIC_ENTRY_FIELDS)} "
                 f"(a bare question string cannot be gated — it has no id)")
             continue
 
-        unknown = set(entry) - _L2_RUBRIC_FIELDS
+        unknown = set(entry) - _RUBRIC_ENTRY_FIELDS
         if unknown:
             errors.append(f"{where} has unknown field(s): {sorted(unknown)}")
-        missing = _L2_RUBRIC_FIELDS - set(entry)
+        missing = _RUBRIC_ENTRY_FIELDS - set(entry)
         if missing:
             errors.append(f"{where} is missing {sorted(missing)}")
 
@@ -113,6 +116,83 @@ def _check_l2_rubric(case: dict, expected: dict, errors: list[str]) -> None:
         if "required" in entry and not isinstance(entry["required"], bool):
             errors.append(
                 f"{where} required must be true or false, got {entry['required']!r}")
+
+
+def _check_l4_rubric(case: dict, expected: dict, errors: list[str]) -> None:
+    """L4 rubric entries are `{id, question, required}` objects, like L2's.
+
+    The judge returns L4 answers as a positional array per dimension, so a question's
+    identity is its index. Reword or reorder one and every stored answer silently
+    re-points onto a different question — only a length change is detectable. That is
+    what made the 2026-08-03 ledger un-reanalysable and invalidated a month of
+    diagnosis: the question texts quoted from it were not the questions asked. The `id`
+    is what lets a stored answer name the question it answered.
+
+    Ids are unique across the whole case, not per dimension. They key the aggregate's
+    per-question block, so a collision would merge two different questions' counts.
+
+    NOT wired into `validate_case` yet — all 37 shipped L4 cases still carry bare
+    strings, and the migration is a separate commit.
+    """
+    under_expected = expected.get("rubric")
+    top_level = case.get("rubric")
+    if under_expected is not None and top_level is not None:
+        errors.append(
+            "L4 rubric declared in both expected.rubric and top-level rubric — "
+            "the scorer reads the top-level one and silently drops the other")
+        return
+
+    # Top level wins: `_judge_l4` reads the top-level rubric, not expected.rubric.
+    rubric = top_level if top_level is not None else under_expected
+    if rubric is None:
+        return
+    if not isinstance(rubric, dict):
+        errors.append("L4 rubric must be a mapping of dimension -> entries")
+        return
+
+    seen: set[str] = set()
+    for dim in DIMENSIONS:
+        entries = rubric.get(dim)
+        if entries is None:
+            continue
+        if not isinstance(entries, list):
+            errors.append(f"L4 rubric[{dim}] must be a list")
+            continue
+
+        for i, entry in enumerate(entries):
+            where = f"L4 rubric[{dim}][{i}]"
+            if not isinstance(entry, dict):
+                errors.append(
+                    f"{where} must be a mapping with {sorted(_RUBRIC_ENTRY_FIELDS)} "
+                    f"(a bare question string has no id, so a stored answer cannot "
+                    f"name the question it answered)")
+                continue
+
+            unknown = set(entry) - _RUBRIC_ENTRY_FIELDS
+            if unknown:
+                errors.append(f"{where} has unknown field(s): {sorted(unknown)}")
+            missing = _RUBRIC_ENTRY_FIELDS - set(entry)
+            if missing:
+                errors.append(f"{where} is missing {sorted(missing)}")
+
+            cid = entry.get("id")
+            if "id" in entry:
+                if not isinstance(cid, str) or not _SNAKE_CASE.match(cid):
+                    errors.append(f"{where} id must be snake_case, got {cid!r}")
+                elif cid in seen:
+                    errors.append(f"{where} duplicate id {cid!r}")
+                else:
+                    seen.add(cid)
+
+            question = entry.get("question")
+            if "question" in entry and (
+                    not isinstance(question, str) or not question.strip()):
+                errors.append(f"{where} question must be a non-empty string")
+
+            if "required" in entry and not isinstance(entry["required"], bool):
+                errors.append(
+                    f"{where} required must be true or false, "
+                    f"got {entry['required']!r}")
 
 
 def _check_paths(case: dict, errors: list[str]) -> None:
@@ -371,6 +451,13 @@ def validate_case(path: Path) -> list[str]:
         # _judge_l4 reads a TOP-LEVEL rubric keyed by dimension. A flat list
         # under expected.rubric yields zero questions and a silent 0.0 score.
         _check_single_skill(case, errors)
+        # Blocking since the L4 gate began holding each required question to its own
+        # floor. A bare-string rubric yields `question_stats` keyed positionally with
+        # no `required` flags, so `case_gate`'s required list is empty and the floor is
+        # skipped in silence: identical answer data gates PASS with bare strings and
+        # FAIL with ids. `_check_l2_rubric` has been blocking here since Package F for
+        # the same reason. Silent on all 37 shipped cases, which a test pins.
+        _check_l4_rubric(case, expected, errors)
         rubric = case.get("rubric")
         if isinstance(expected.get("rubric"), list):
             errors.append(
@@ -478,6 +565,12 @@ def warn_case(path: Path) -> list[str]:
         for key in sorted(set(expected) - allowed_expected):
             warnings.append(
                 f"expected.{key} is not read by the harness at L{layer} — dead metadata")
+
+    # `_check_l4_rubric` used to run here, advisory, because the 37 shipped cases still
+    # carried bare strings. They are migrated and the L4 gate now depends on the ids, so
+    # it is a blocking check in `validate_case` and deliberately not repeated here: a
+    # case that fails validation never runs, and a warning nobody reaches is noise on
+    # the one output they do.
     return warnings
 
 

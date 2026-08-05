@@ -276,6 +276,113 @@ def test_resume_tolerates_dirty_path_changes():
     assert fingerprint_mismatch(base, other) == []
 
 
+# --- Staleness reporting (T1.3) ---
+#
+# `fingerprint_mismatch` has always known when a stored result stopped describing the
+# tree, but only resume ever asked it. Nothing told a person — or an agent — reading a
+# ledger or a verdict that HEAD had moved past it. On 2026-08-04 that cost a full
+# diagnosis: the 2026-08-03 L4 sweep was mined as current evidence when 24 of its 37
+# case files, 7 skill files and both scorer.py and runner.py had changed underneath it.
+
+def test_staleness_report_is_empty_for_an_identical_fingerprint():
+    base = _ledger({})["fingerprint"]
+    assert sweep.staleness_report(base, dict(base)) == []
+
+
+def test_staleness_report_names_each_moved_measurement_key():
+    base = _ledger({})["fingerprint"]
+    stale = {**base, "commit": "3bf5738", "cases_sha256": "x", "harness_sha256": "y"}
+    report = sweep.staleness_report(stale, base)
+    joined = "\n".join(report)
+    assert "commit" in joined, report
+    assert "cases_sha256" in joined, report
+    assert "harness_sha256" in joined, report
+
+
+def test_staleness_report_explains_what_a_moved_key_means():
+    """A reader must not have to know what `cases_sha256` is to act on the warning.
+
+    The whole failure mode is a human reading a stale verdict and believing it. A bare
+    key name is jargon; the line has to say the cases that did the grading changed.
+    """
+    base = _ledger({})["fingerprint"]
+    report = sweep.staleness_report({**base, "cases_sha256": "x"}, base)
+    joined = " ".join(report).lower()
+    assert "case" in joined, report
+    assert any(w in joined for w in ("changed", "moved", "differ")), report
+
+
+def test_staleness_report_ignores_keys_that_do_not_change_the_measurement():
+    """Mirrors `fingerprint_mismatch`: a dirty unrelated file, or a corrected gate,
+    does not make a stored result describe a different measurement."""
+    base = _ledger({})["fingerprint"]
+    assert sweep.staleness_report({**base, "dirty_paths": ["README.md"]}, base) == []
+    assert sweep.staleness_report({**base, "gate_sha256": "different"}, base) == []
+
+
+def test_every_measurement_key_has_a_plain_language_meaning():
+    """Invariant pin, not a feature test — its job is to fail for whoever adds a key.
+
+    `staleness_report` indexes `_KEY_MEANING` directly, so a new MEASUREMENT_KEY without
+    a meaning is a KeyError inside the check that is supposed to be warning you about
+    drift. Verified as a real pin by removing a key and watching this fail.
+    """
+    missing = [k for k in sweep.MEASUREMENT_KEYS if k not in sweep._KEY_MEANING]
+    assert missing == [], f"MEASUREMENT_KEYS without a plain-language meaning: {missing}"
+
+
+def test_staleness_report_flags_a_ledger_with_no_fingerprint_at_all():
+    """A pre-fingerprint ledger is maximally stale, not silently comparable."""
+    base = _ledger({})["fingerprint"]
+    report = sweep.staleness_report({}, base)
+    assert report, "a fingerprint-less ledger must not read as current"
+
+
+def test_verdict_markdown_warns_when_the_measured_tree_has_moved():
+    """T1.3's report has to reach the artifact people actually read.
+
+    `staleness_report` landed as a pure function that only `repo_doctor` called, so a
+    stale `verdict.md` still presented itself as a current statement about the repo.
+    That is precisely how the 2026-08-03 sweep was mined as evidence on 2026-08-04:
+    nobody runs `repo_doctor` before reading a verdict they already have open.
+    """
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    v = compile_verdict(ledger)
+    current = {**ledger["fingerprint"], "commit": "dda4885", "cases_sha256": "moved"}
+    md = render_verdict_md(v, current)
+    assert "STALE" in md.upper(), md
+    assert "cases_sha256" in md, md
+    assert "commit" in md, md
+
+
+def test_verdict_markdown_staleness_warning_explains_each_moved_key():
+    """Same reason `staleness_report` spells the keys out: a bare `cases_sha256` in a
+    verdict tells a reader nothing about whether to trust the numbers above it."""
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    v = compile_verdict(ledger)
+    md = render_verdict_md(v, {**ledger["fingerprint"], "cases_sha256": "moved"})
+    assert "the case files that did the grading" in md, md
+
+
+def test_verdict_markdown_has_no_staleness_warning_when_the_tree_has_not_moved():
+    """Discriminating half — a warning on every verdict is a warning on none."""
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    v = compile_verdict(ledger)
+    md = render_verdict_md(v, dict(ledger["fingerprint"]))
+    assert "stale" not in md.lower(), md
+
+
+def test_verdict_markdown_without_a_current_fingerprint_is_unchanged():
+    """Pin, not a red test: this passes today and must keep passing.
+
+    Every stored verdict and the release-verdict writer render with no tree to compare
+    against. Rendering must stay byte-compatible there rather than growing a warning
+    that says nothing.
+    """
+    v = compile_verdict(_ledger({"a": _entry(1, verdict_agg=_L1_PASS)}))
+    assert "stale" not in render_verdict_md(v).lower()
+
+
 # --- Requeue selection ---
 
 def test_only_unmeasured_cases_are_pending():
@@ -714,6 +821,144 @@ def test_self_contradicting_counts_are_named_as_untrustworthy_not_merely_incompl
     assert "inconsistent" in crit_line, crit_line
 
 
+def test_a_drifted_l4_ledger_says_which_rubric_moved_not_just_unmeasured():
+    """UNMEASURED with no reason sends the reader back to the ledger to work out
+    whether to rerun or recompile. For L4 drift the answer is always rerun, and the
+    verdict should say which questions stopped matching so the reader can see the
+    rubric moved rather than suspecting the judge.
+    """
+    agg = {"runs_valid": 5, "runs_total": 5, "pedagogy": 0.2, "safety": None,
+           "actionable": None, "overall": 0.2, "rate": None,
+           "question_drift": ["pedagogy[1]: graded 'Is it tailored?', "
+                              "the case now asks 'Does it name a method skill?'"]}
+    v = compile_verdict(_ledger({"drifted_case": _entry(
+        4, verdict_agg=agg,
+        case_fields={"rubric": {"pedagogy": ["Is it clear?",
+                                             "Does it name a method skill?"]}})}))
+
+    assert v["cases"]["drifted_case"]["verdict"] == "UNMEASURED", v["cases"]
+    reason = v["cases"]["drifted_case"]["unmeasured_reason"]
+    assert reason and "pedagogy[1]" in reason, reason
+    assert "rerun" in reason, reason
+    assert reason in render_verdict_md(v)
+
+
+def _l4_rubric_case_body(*specs):
+    return {"rubric": {"actionable": [
+        {"id": qid, "question": f"{qid}?", "required": req} for qid, req in specs]}}
+
+
+def test_a_recompiled_l4_ledger_says_which_questions_it_could_not_find():
+    """The real shape of the 2026-08-04 baseline read through `--recompile`.
+
+    Its stored `question_stats` are keyed positionally (`actionable[0]`) because it
+    was measured before the rubric ids existed. The gate looks required questions up
+    by id, finds nothing, and correctly refuses — but a silent UNMEASURED sends the
+    reader hunting for a broken judge instead of an aggregate that predates the ids.
+    """
+    agg = {"runs_valid": 5, "runs_total": 5, "pedagogy": None, "safety": None,
+           "actionable": 1.0, "overall": 1.0, "rate": 1.0,
+           "question_stats": {"actionable[0]": {"question": "tailored?", "passed": 5,
+                                                "answered": 5, "valid": 5, "rate": 1.0}}}
+    v = compile_verdict(_ledger({"positional_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(("tailored", True)))}))
+
+    assert v["cases"]["positional_case"]["verdict"] == "UNMEASURED", v["cases"]
+    reason = v["cases"]["positional_case"]["unmeasured_reason"]
+    assert reason and "tailored" in reason, reason
+    assert reason in render_verdict_md(v)
+
+
+def test_a_partly_answered_l4_question_says_how_far_short_it_fell():
+    agg = {"runs_valid": 5, "runs_total": 5, "pedagogy": None, "safety": None,
+           "actionable": 1.0, "overall": 1.0, "rate": 1.0,
+           "question_stats": {"tailored": {"question": "tailored?", "passed": 4,
+                                           "answered": 4, "valid": 5, "rate": None}}}
+    v = compile_verdict(_ledger({"partial_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(("tailored", True)))}))
+
+    reason = v["cases"]["partial_case"]["unmeasured_reason"]
+    assert reason and "tailored" in reason, reason
+    assert "4" in reason and "5" in reason, reason
+
+
+def _l4_stats(*specs):
+    """`question_stats` blocks: (id, passed, answered, required)."""
+    return {qid: {"question": f"{qid}?", "required": req, "passed": p,
+                  "answered": a, "valid": 5, "rate": p / 5 if a == 5 else None}
+            for qid, p, a, req in specs}
+
+
+def _l4_agg(stats, rate=0.7):
+    return {"runs_valid": 5, "runs_total": 5, "pedagogy": None, "safety": None,
+            "actionable": rate, "overall": rate, "rate": rate, "question_stats": stats}
+
+
+def test_verdict_markdown_reports_each_l4_question_and_its_rate():
+    """Every one of the 14 failures under the per-question floor is a per-question
+    failure — not one is a dimension-mean failure. A verdict that prints only FAIL
+    therefore names nothing, and the reader has to open the ledger to learn anything.
+    """
+    agg = _l4_agg(_l4_stats(("tailored", 5, 5, True), ("names_method", 2, 5, True),
+                            ("cites_paper", 1, 5, False)))
+    v = compile_verdict(_ledger({"l4_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(
+            ("tailored", True), ("names_method", True), ("cites_paper", False)))}))
+    assert v["cases"]["l4_case"]["verdict"] == "FAIL", v["cases"]
+    md = render_verdict_md(v)
+
+    assert "names_method" in md and "tailored" in md, md
+    assert "2/5" in md, md                    # the rate as measured, not a mean
+    line = [ln for ln in md.splitlines() if "names_method" in ln][0]
+    assert "required" in line.lower(), line
+    # An informational question must be visibly distinguishable from a gating one.
+    fyi = [ln for ln in md.splitlines() if "cites_paper" in ln][0]
+    assert "informational" in fyi.lower(), fyi
+
+
+def test_a_refused_l4_question_block_never_renders_as_a_rate():
+    """Same rule the L2 table follows: a block the gate would not grade must not print
+    a confident `4/5`, and a gap must not be mistakable for a pass rate."""
+    agg = _l4_agg(_l4_stats(("tailored", 4, 4, True)), rate=0.8)
+    v = compile_verdict(_ledger({"l4_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(("tailored", True)))}))
+    assert v["cases"]["l4_case"]["verdict"] == "UNMEASURED", v["cases"]
+
+    line = [ln for ln in render_verdict_md(v).splitlines()
+            if "tailored" in ln and ln.startswith("|")][0]
+    rate_cell = line.split("|")[4].strip()
+    assert not re.search(r"\d+\s*/\s*\d+", rate_cell), rate_cell
+    assert rate_cell.startswith("—") and "answered" in rate_cell, rate_cell
+
+
+def test_a_dead_l4_question_reads_differently_from_a_non_discriminating_one():
+    """0/5 and 2/5 need different responses and currently read identically.
+
+    Dead means the behaviour never appeared — either the skill cannot do it or the
+    case is asking for something unreachable. Non-discriminating means it appears
+    sometimes, which is a reliability gap in the skill. Carried in the reason, NOT as
+    a fourth verdict token: `compile_verdict` buckets into a hardcoded three-key dict,
+    so a new token KeyErrors.
+    """
+    agg = _l4_agg(_l4_stats(("never_once", 0, 5, True), ("sometimes", 2, 5, True),
+                            ("solid", 5, 5, True)))
+    v = compile_verdict(_ledger({"l4_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(
+            ("never_once", True), ("sometimes", True), ("solid", True)))}))
+    md = render_verdict_md(v)
+
+    dead_line = [ln for ln in md.splitlines()
+                 if "never_once" in ln and not ln.startswith("|")][0]
+    assert "dead" in dead_line.lower(), dead_line
+    weak_line = [ln for ln in md.splitlines()
+                 if "sometimes" in ln and not ln.startswith("|")][0]
+    assert "2 of 5" in weak_line, weak_line
+    assert "dead" not in weak_line.lower(), weak_line
+    # A question that met the floor is not named as a problem at all.
+    assert not [ln for ln in md.splitlines()
+                if "solid" in ln and not ln.startswith("|")], md
+
+
 def test_green_release_sweep_writes_one_history_row_with_sweep_id_and_rc_sha():
     """The sweep has never written a consolidated HISTORY row — every slot runs
     `runner.py --no-history` and the release writer only emitted verdict files."""
@@ -1133,6 +1378,72 @@ def test_gate_digest_covers_the_required_criterion_contract():
         assert sweep._gate_digest({}, [path, other]) == write(True, "Does it hold?")
 
 
+def test_gate_digest_covers_the_l4_rubric_contract():
+    """T2.5. Once the L4 gate holds each question to a floor, the set of questions
+    and which of them are required IS the decision rule, exactly as for L2.
+
+    Without this, adding a question or demoting one to informational would change
+    what PASS means while every hashed function stayed byte identical — Package F
+    finding #5, repeated on the other gating layer. Rewording is measurement and
+    must NOT move it, so the digest keeps saying what it means: this is the rule,
+    `cases_sha256` is the wording.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "c.yaml"
+
+        def write(entries):
+            path.write_text(yaml.safe_dump(
+                {"name": "c", "layer": 4, "rubric": {"pedagogy": entries}}))
+            return sweep._gate_digest({}, [path])
+
+        one = [{"id": "explains_why", "question": "Does it explain why?",
+                "required": True}]
+        gating = write(one)
+
+        assert write([{**one[0], "required": False}]) != gating, \
+            "demoting an L4 question to informational must move the gate digest"
+        assert write([{**one[0], "question": "Reworded entirely?"}]) == gating, \
+            "L4 question wording is measurement, not gate policy"
+        assert write(one + [{"id": "names_a_method", "question": "Which method?",
+                             "required": True}]) != gating, \
+            "adding an L4 question changes what PASS means"
+        assert write([{**one[0], "id": "explains_the_why"}]) != gating, \
+            "renaming an L4 question id re-points every stored answer"
+
+        # A case from another layer contributes nothing, so unrelated cases cannot
+        # perturb the hash. `write` is called first: it rewrites `path`, and the
+        # comparison has to be against that content, not the last id tried above.
+        restored = write(one)
+        other = Path(d) / "l1.yaml"
+        other.write_text(yaml.safe_dump({"name": "l1", "layer": 1}))
+        assert sweep._gate_digest({}, [path, other]) == restored
+
+
+def test_extra_harness_files_leave_an_ordinary_sweep_untouched():
+    """A diagnostic module must not enter the release fingerprint.
+
+    `harness_sha256` is a resume key, so folding `regrade.py` into `_HARNESS_FILES`
+    would make every unrelated sweep's fingerprint depend on a module that grades
+    nothing — and invalidate resume for runs that never used it. The extra files
+    are opt-in per caller, and the default has to be provably inert.
+    """
+    paths = [str(p) for p in sorted(Path("evals/cases/layer4").glob("*.yaml"))[:2]]
+    base = sweep.build_fingerprint({}, paths, None, None)
+    same = sweep.build_fingerprint({}, paths, None, None, extra_harness_files=())
+    assert same["harness_sha256"] == base["harness_sha256"], \
+        "the default must be byte-identical to the pre-change behaviour"
+
+    extra = sweep.build_fingerprint({}, paths, None, None,
+                                    extra_harness_files=("scorer.py",))
+    assert extra["harness_sha256"] != base["harness_sha256"], \
+        "an extra hashed file must move the harness digest"
+    # Only the harness digest may move. Everything else describes the same tree,
+    # and a caller opting into an extra file is not declaring a different one.
+    assert extra["cases_sha256"] == base["cases_sha256"]
+    assert extra["gate_sha256"] == base["gate_sha256"], \
+        "hashing more harness code must not touch the decision rule"
+
+
 def test_gate_digest_excluded_from_resume_drift():
     """--recompile exists to re-apply a corrected gate to existing measurements, so a
     changed gate must not block resume the way changed measurement inputs do."""
@@ -1303,6 +1614,40 @@ def test_recompile_never_overwrites_and_numbers_each_run():
             "same measurement, so the ledger hash must match"
         assert v1["thresholds_source"] == "ledger", v1["thresholds_source"]
         assert v2["thresholds_source"] == "config", v2["thresholds_source"]
+
+
+def test_recompile_marks_its_output_stale_when_the_ledger_predates_the_tree():
+    """`--recompile` is the one path that regenerates verdict markdown from an old
+    measurement, and the file it writes reads exactly like a freshly measured one.
+
+    That is the shape of the 2026-08-04 mistake: a verdict for `3bf5738` read as a
+    statement about HEAD. The regenerated file has to carry the warning on its face,
+    because the person reading it will not independently check a fingerprint.
+    """
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
+        ledger_path = Path(d) / "ledger.json"
+        save_ledger(ledger, ledger_path)
+        _, md_path = sweep.recompile_verdict(ledger_path, {})
+        md = md_path.read_text()
+    assert "STALE" in md.upper(), md
+    assert "cases_sha256" in md, md
+
+
+def test_recompile_of_a_current_ledger_carries_no_stale_warning():
+    """Discriminating half: recompiling a ledger whose fingerprint still matches the
+    tree is a legitimate re-grade of a live measurement, and must not be labelled."""
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
+        ledger_path = Path(d) / "ledger.json"
+        # Stamp the ledger with the fingerprint the tree actually has right now.
+        ledger["fingerprint"] = sweep.build_fingerprint(
+            {}, [str(sweep.REPO_ROOT / e["path"]) for e in ledger["cases"].values()],
+            None, None)
+        save_ledger(ledger, ledger_path)
+        _, md_path = sweep.recompile_verdict(ledger_path, {})
+        md = md_path.read_text()
+    assert "stale" not in md.lower(), md
 
 
 def test_recompile_records_which_thresholds_it_applied():

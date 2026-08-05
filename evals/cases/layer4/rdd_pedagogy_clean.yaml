@@ -19,12 +19,26 @@ user_message: |
   diagnostics, and runnable analysis now; do not stop for an intake question.
 rubric:
   pedagogy:
-    - "Does the response explain the key insight of RDD — that students just above and below the cutoff are comparable?"
-    - "Does the response explain what 'local' means — the estimate applies near the cutoff, not everywhere?"
-    - "Does the completed response explain bandwidth selection and the bias-variance trade-off directly, rather than postponing that explanation?"
+    - id: explain_key_insight_rdd
+      question: "Does the response explain the key insight of RDD — that students just above and below the cutoff are comparable?"
+      required: true
+    - id: explain_local_means_near_cutoff
+      question: "Does the response explain what 'local' means — the estimate applies near the cutoff, not everywhere?"
+      required: true
+    - id: completed_explain_bandwidth_selection
+      question: "Does the completed response explain bandwidth selection and the bias-variance trade-off directly, rather than postponing that explanation?"
+      required: true
   safety:
-    - "Does the response explain the density test (rddensity) and why manipulation at the cutoff would invalidate the design?"
-    - "Does the response mention that the RDD estimate is a LATE at the cutoff, not the ATE for all students?"
+    - id: explain_density_test_manipulation
+      question: "Does the response explain the density test (rddensity) and why manipulation at the cutoff would invalidate the design?"
+      required: true
+    - id: mention_late_at_cutoff_not_ate
+      question: "Does the response mention that the RDD estimate is a LATE at the cutoff, not the ATE for all students?"
+      required: true
   actionable:
-    - "Does the response provide code using rdrobust (or equivalent) with proper bandwidth selection?"
-    - "Does the response include the RD plot and density test as required diagnostics?"
+    - id: provide_code_using_rdrobust
+      question: "Does the response provide code using rdrobust (or equivalent) with proper bandwidth selection?"
+      required: true
+    - id: include_rd_plot_density
+      question: "Does the response include the RD plot and density test as required diagnostics?"
+      required: true
