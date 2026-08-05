@@ -18,11 +18,23 @@ user_message: |
   That's everything I have — please go ahead and run the full analysis.
 rubric:
   pedagogy:
-    - "Does it note binary outcome and warn about boundary issues?"
-    - "Does it emphasize that observational data means unconfoundedness is required?"
+    - id: note_binary_outcome_warn
+      question: "Does it note binary outcome and warn about boundary issues?"
+      required: true
+    - id: emphasize_observational_data_means
+      question: "Does it emphasize that observational data means unconfoundedness is required?"
+      required: true
   safety:
-    - "Does it flag 'number of follow-up visits' as a post-treatment variable (FATAL)?"
-    - "Does it warn about small sample size (n=800 < 2000) as SERIOUS?"
-    - "Does it NOT proceed to policytree given the FATAL and multiple SERIOUS flags?"
+    - id: flag_follow_up_visits_post_treatment
+      question: "Does it flag 'number of follow-up visits' as a post-treatment variable (FATAL)?"
+      required: true
+    - id: warn_small_sample_size
+      question: "Does it warn about small sample size (n=800 < 2000) as SERIOUS?"
+      required: true
+    - id: does_not_proceed_to_policytree
+      question: "Does it NOT proceed to policytree given the FATAL and multiple SERIOUS flags?"
+      required: true
   actionable:
-    - "Does it recommend LinearDML over causal forest given the small sample?"
+    - id: recommend_lineardml_causal_forest
+      question: "Does it recommend LinearDML over causal forest given the small sample?"
+      required: true

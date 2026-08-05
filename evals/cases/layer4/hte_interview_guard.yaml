@@ -13,9 +13,17 @@ user_message: |
   Python.
 rubric:
   pedagogy:
-    - "Does it ask which variables might be effect modifiers, rather than assuming which covariates belong in X?"
+    - id: ask_variables_might_effect
+      question: "Does it ask which variables might be effect modifiers, rather than assuming which covariates belong in X?"
+      required: true
   safety:
-    - "Does it ask whether treatment is randomized or observational before proceeding?"
-    - "Does it ask whether the outcome is continuous or binary?"
+    - id: ask_treatment_randomized_observational
+      question: "Does it ask whether treatment is randomized or observational before proceeding?"
+      required: true
+    - id: ask_outcome_continuous_binary
+      question: "Does it ask whether the outcome is continuous or binary?"
+      required: true
   actionable:
-    - "Does it ask whether the user has pre-specified subgroup hypotheses or is exploring?"
+    - id: ask_has_pre_specified
+      question: "Does it ask whether the user has pre-specified subgroup hypotheses or is exploring?"
+      required: true

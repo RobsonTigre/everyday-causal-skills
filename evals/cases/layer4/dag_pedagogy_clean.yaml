@@ -14,12 +14,22 @@ user_message: |
   to control for. I use R.
 rubric:
   pedagogy:
-    - "Does the skill explain WHY age is a confounder (not just label it)?"
-    - "Does it explain the backdoor path concept in accessible language?"
+    - id: explain_age_confounder
+      question: "Does the skill explain WHY age is a confounder (not just label it)?"
+      required: true
+    - id: explain_backdoor_path_concept
+      question: "Does it explain the backdoor path concept in accessible language?"
+      required: true
   safety:
-    - "Does it warn that the DAG encodes assumptions, not facts, and unobserved confounders could change the conclusion?"
+    - id: warn_dag_encodes_assumptions
+      question: "Does it warn that the DAG encodes assumptions, not facts, and unobserved confounders could change the conclusion?"
+      required: true
   actionable:
-    - "Is the explanation tailored to the user's specific context (exercise/BP, not generic)?"
-    - "Does it recommend a next step (method skill)?"
+    - id: explanation_tailored_to_context
+      question: "Is the explanation tailored to the user's specific context (exercise/BP, not generic)?"
+      required: true
+    - id: recommend_next_step
+      question: "Does it recommend a next step (method skill)?"
+      required: true
 deferred_rubric:
   - "Does it justify the adjustment set (not just list it)? (only reachable once the DAG interview has moved past turn one)"

@@ -16,12 +16,26 @@ user_message: |
   unavailable as such; don't ask me follow-up questions first.
 rubric:
   pedagogy:
-    - "Does the report avoid Greek letters and formal statistical notation?"
-    - "Does it explain the method in plain language a VP would understand?"
-    - "Does it convey the business impact of the effect using only figures the user supplied, or recommend /causal-roi (or ask for economics) for the financial translation — without inventing monetary values?"
+    - id: avoid_greek_letters_formal
+      question: "Does the report avoid Greek letters and formal statistical notation?"
+      required: true
+    - id: explain_method_plain_language
+      question: "Does it explain the method in plain language a VP would understand?"
+      required: true
+    - id: convey_business_impact_effect
+      question: "Does it convey the business impact of the effect using only figures the user supplied, or recommend /causal-roi (or ask for economics) for the financial translation — without inventing monetary values?"
+      required: true
   safety:
-    - "Does it still include limitations even in plain language?"
-    - "Does it avoid overstating the findings?"
+    - id: include_limitations_plain_language
+      question: "Does it still include limitations even in plain language?"
+      required: true
+    - id: avoid_overstating_findings
+      question: "Does it avoid overstating the findings?"
+      required: true
   actionable:
-    - "Does the recommendations section provide concrete next steps?"
-    - "Is the executive summary a clear bottom-line statement?"
+    - id: recommendations_section_provide_concrete
+      question: "Does the recommendations section provide concrete next steps?"
+      required: true
+    - id: executive_summary_clear_bottom
+      question: "Is the executive summary a clear bottom-line statement?"
+      required: true

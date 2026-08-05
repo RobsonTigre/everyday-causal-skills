@@ -19,12 +19,26 @@ user_message: |
   the complete response and runnable analysis now; do not stop for an intake question.
 rubric:
   pedagogy:
-    - "Does the response explain that matching relies on conditional independence (no unmeasured confounders) and why this is a strong, untestable assumption?"
-    - "Does the response explain what balance means, how to check it with SMDs and a love plot, and the conventional |SMD| < 0.10 target?"
-    - "Does the response distinguish ATT from ATE and explain why the requested estimator targets ATT for the treated patients?"
+    - id: explain_matching_relies_conditional
+      question: "Does the response explain that matching relies on conditional independence (no unmeasured confounders) and why this is a strong, untestable assumption?"
+      required: true
+    - id: explain_balance_means_check
+      question: "Does the response explain what balance means, how to check it with SMDs and a love plot, and the conventional |SMD| < 0.10 target?"
+      required: true
+    - id: distinguish_att_ate_explain
+      question: "Does the response distinguish ATT from ATE and explain why the requested estimator targets ATT for the treated patients?"
+      required: true
   safety:
-    - "Does the response explicitly warn that unobserved confounders can still bias the estimate?"
-    - "Does the response recommend sensitivity analysis (Rosenbaum bounds or similar) to assess robustness?"
+    - id: explicitly_warn_unobserved_confounders
+      question: "Does the response explicitly warn that unobserved confounders can still bias the estimate?"
+      required: true
+    - id: recommend_sensitivity_analysis_assess
+      question: "Does the response recommend sensitivity analysis (Rosenbaum bounds or similar) to assess robustness?"
+      required: true
   actionable:
-    - "Does the response provide complete code with balance checking before and after matching?"
-    - "Does the response explain the estimator choice and when matching, IPW, or a doubly robust estimator would be preferred rather than merely listing options?"
+    - id: provide_complete_code_balance
+      question: "Does the response provide complete code with balance checking before and after matching?"
+      required: true
+    - id: explain_estimator_choice_matching
+      question: "Does the response explain the estimator choice and when matching, IPW, or a doubly robust estimator would be preferred rather than merely listing options?"
+      required: true

@@ -19,12 +19,26 @@ user_message: |
   diagnostics, and placebo workflow now; do not stop for an intake question.
 rubric:
   pedagogy:
-    - "Does the response explain the core idea — creating a weighted combination of untreated units that tracks the treated unit pre-treatment?"
-    - "Does the response explain why good pre-treatment fit matters and what RMSPE means?"
-    - "Does the response explain how to interpret donor weights (and why concentration in few donors can be a concern)?"
+    - id: explain_core_idea_creating
+      question: "Does the response explain the core idea — creating a weighted combination of untreated units that tracks the treated unit pre-treatment?"
+      required: true
+    - id: explain_good_pre_treatment
+      question: "Does the response explain why good pre-treatment fit matters and what RMSPE means?"
+      required: true
+    - id: explain_interpret_donor_weights
+      question: "Does the response explain how to interpret donor weights (and why concentration in few donors can be a concern)?"
+      required: true
   safety:
-    - "Does the response explain that SC results depend on the donor pool choice and this is a researcher decision?"
-    - "Does the response explain inference in SC (placebo tests, not standard p-values) and why it's different?"
+    - id: explain_sc_results_depend
+      question: "Does the response explain that SC results depend on the donor pool choice and this is a researcher decision?"
+      required: true
+    - id: explain_placebo_inference_not_pvalues
+      question: "Does the response explain inference in SC (placebo tests, not standard p-values) and why it's different?"
+      required: true
   actionable:
-    - "Does the response provide complete code with the Synth package that the user can run?"
-    - "Does the response include placebo test code for inference?"
+    - id: provide_complete_code_synth
+      question: "Does the response provide complete code with the Synth package that the user can run?"
+      required: true
+    - id: include_placebo_test_code
+      question: "Does the response include placebo test code for inference?"
+      required: true

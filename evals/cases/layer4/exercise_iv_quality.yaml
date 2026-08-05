@@ -17,13 +17,29 @@ user_message: |
   LATE interpretation concrete by identifying the scenario's compliers.
 rubric:
   pedagogy:
-    - "Does the scenario teach the student about instrument validity through the scenario design itself (not just by telling them)?"
-    - "Does the exercise distinguish instrument strength/relevance from instrument validity rather than treating a strong first stage as evidence that exclusion or independence holds?"
-    - "Does the exercise vary or diagnose instrument strength so the student can compare a strong and a weak first stage?"
-    - "Does the exercise explain LATE through scenario-specific compliers, including who changes treatment because of the instrument?"
+    - id: scenario_teach_student_instrument
+      question: "Does the scenario teach the student about instrument validity through the scenario design itself (not just by telling them)?"
+      required: true
+    - id: distinguish_instrument_strength_relevance
+      question: "Does the exercise distinguish instrument strength/relevance from instrument validity rather than treating a strong first stage as evidence that exclusion or independence holds?"
+      required: true
+    - id: vary_diagnose_instrument_strength
+      question: "Does the exercise vary or diagnose instrument strength so the student can compare a strong and a weak first stage?"
+      required: true
+    - id: explain_late_through_scenario
+      question: "Does the exercise explain LATE through scenario-specific compliers, including who changes treatment because of the instrument?"
+      required: true
   safety:
-    - "Does the exercise include a realistic challenge (e.g., potentially invalid exclusion restriction the student must reason about)?"
-    - "Does the exercise avoid presenting IV as straightforward — does it convey that IV requires strong assumptions?"
+    - id: include_realistic_challenge
+      question: "Does the exercise include a realistic challenge (e.g., potentially invalid exclusion restriction the student must reason about)?"
+      required: true
+    - id: avoid_presenting_iv_straightforward
+      question: "Does the exercise avoid presenting IV as straightforward — does it convey that IV requires strong assumptions?"
+      required: true
   actionable:
-    - "Does the exercise provide runnable code or clear data description?"
-    - "Is there a clear path from data to estimation to interpretation?"
+    - id: provide_runnable_code_clear
+      question: "Does the exercise provide runnable code or clear data description?"
+      required: true
+    - id: clear_path_data_estimation
+      question: "Is there a clear path from data to estimation to interpretation?"
+      required: true

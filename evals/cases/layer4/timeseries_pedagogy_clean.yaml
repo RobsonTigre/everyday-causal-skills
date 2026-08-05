@@ -22,12 +22,26 @@ user_message: |
   code, diagnostics, and visualization now; do not stop for intake questions.
 rubric:
   pedagogy:
-    - "Does the response explain the core idea — modeling what WOULD have happened without the intervention using pre-period patterns?"
-    - "Does the response explain what stationarity means and why it matters for the counterfactual?"
-    - "Does the response compare CausalArima (the no-control primary method) with CausalImpact (which requires valid controls), treating segmented regression only as a descriptive level/slope supplement rather than the causal primary method?"
+    - id: explain_counterfactual_core_idea
+      question: "Does the response explain the core idea — modeling what WOULD have happened without the intervention using pre-period patterns?"
+      required: true
+    - id: explain_stationarity_means_matters
+      question: "Does the response explain what stationarity means and why it matters for the counterfactual?"
+      required: true
+    - id: compare_causalarima_causalimpact_treating
+      question: "Does the response compare CausalArima (the no-control primary method) with CausalImpact (which requires valid controls), treating segmented regression only as a descriptive level/slope supplement rather than the causal primary method?"
+      required: true
   safety:
-    - "Does the response warn about the fundamental limitation — without a control series, any concurrent event is a confounder?"
-    - "Does the response explain that a longer pre-period improves the counterfactual but doesn't eliminate confounding?"
+    - id: warn_fundamental_limitation_without
+      question: "Does the response warn about the fundamental limitation — without a control series, any concurrent event is a confounder?"
+      required: true
+    - id: explain_longer_pre_period_not_enough
+      question: "Does the response explain that a longer pre-period improves the counterfactual but doesn't eliminate confounding?"
+      required: true
   actionable:
-    - "Does the response provide complete code with pre-period model diagnostics?"
-    - "Does the response include a visualization of actual vs counterfactual with uncertainty bands?"
+    - id: provide_complete_code_pre
+      question: "Does the response provide complete code with pre-period model diagnostics?"
+      required: true
+    - id: include_visualization_actual_vs
+      question: "Does the response include a visualization of actual vs counterfactual with uncertainty bands?"
+      required: true

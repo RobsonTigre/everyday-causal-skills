@@ -14,12 +14,26 @@ user_message: |
   informal training on their own. I want the overall effect. I use Python.
 rubric:
   pedagogy:
-    - "Does the response explain WHY standard TWFE is problematic with staggered treatment and recommend a modern estimator?"
-    - "Does the response explain anticipation effects and why informal early adoption matters for the analysis?"
-    - "Does the response make clear what estimand is being targeted (ATT, group-time ATTs, aggregate)?"
+    - id: explain_standard_twfe_problematic
+      question: "Does the response explain WHY standard TWFE is problematic with staggered treatment and recommend a modern estimator?"
+      required: true
+    - id: explain_anticipation_effects_informal
+      question: "Does the response explain anticipation effects and why informal early adoption matters for the analysis?"
+      required: true
+    - id: clear_estimand_targeted
+      question: "Does the response make clear what estimand is being targeted (ATT, group-time ATTs, aggregate)?"
+      required: true
   safety:
-    - "Does the response flag anticipation/contamination as a threat to the no-anticipation assumption?"
-    - "Does the response avoid dismissing the staggered timing issue as minor?"
+    - id: flag_anticipation_contamination_threat
+      question: "Does the response flag anticipation/contamination as a threat to the no-anticipation assumption?"
+      required: true
+    - id: avoid_dismissing_staggered_timing
+      question: "Does the response avoid dismissing the staggered timing issue as minor?"
+      required: true
   actionable:
-    - "Does the response provide code using a modern staggered DiD estimator (Callaway-Sant'Anna, Sun-Abraham, or equivalent)?"
-    - "Does the response suggest how to test for anticipation effects in the data?"
+    - id: provide_code_using_modern
+      question: "Does the response provide code using a modern staggered DiD estimator (Callaway-Sant'Anna, Sun-Abraham, or equivalent)?"
+      required: true
+    - id: suggest_test_anticipation_effects
+      question: "Does the response suggest how to test for anticipation effects in the data?"
+      required: true

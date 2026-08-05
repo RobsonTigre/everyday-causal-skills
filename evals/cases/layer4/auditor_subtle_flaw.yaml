@@ -27,11 +27,23 @@ user_message: |
   Balance: all SMDs < 0.05 after matching
 rubric:
   pedagogy:
-    - "Does the response explain WHY controlling for performance_rating_q3 is problematic, using clear causal reasoning (e.g., mediator, post-treatment, collider)?"
-    - "Does the response explain the direction of bias this introduces (and why it matters for the estimate)?"
+    - id: explain_controlling_performance_rating
+      question: "Does the response explain WHY controlling for performance_rating_q3 is problematic, using clear causal reasoning (e.g., mediator, post-treatment, collider)?"
+      required: true
+    - id: explain_direction_bias_introduces
+      question: "Does the response explain the direction of bias this introduces (and why it matters for the estimate)?"
+      required: true
   safety:
-    - "Does the response clearly communicate that this flaw undermines the entire analysis, not just adds noise?"
-    - "Does the response explain this in a way that helps the user learn to avoid the mistake in future analyses?"
+    - id: communicate_flaw_undermines_analysis
+      question: "Does the response clearly communicate that this flaw undermines the entire analysis, not just adds noise?"
+      required: true
+    - id: explain_helps_learn_avoid
+      question: "Does the response explain this in a way that helps the user learn to avoid the mistake in future analyses?"
+      required: true
   actionable:
-    - "Does the response suggest a concrete fix (remove post-treatment variable, use pre-treatment ratings instead)?"
-    - "Does the response indicate whether the results can be partially salvaged or need complete re-analysis?"
+    - id: suggest_concrete_fix
+      question: "Does the response suggest a concrete fix (remove post-treatment variable, use pre-treatment ratings instead)?"
+      required: true
+    - id: indicate_results_partially_salvaged
+      question: "Does the response indicate whether the results can be partially salvaged or need complete re-analysis?"
+      required: true

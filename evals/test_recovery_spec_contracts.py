@@ -22,9 +22,17 @@ def _normalized_case_message(layer: int, name: str) -> str:
     return " ".join(_case(layer, name)["user_message"].split())
 
 
+def _question_text(item) -> str:
+    """L4 entries are `{id, question, required}` after the rubric-id migration and
+    bare strings before it. These pins assert on the question TEXT, which the
+    migration preserved byte-for-byte, so they keep their exact meaning either way."""
+    return item["question"] if isinstance(item, dict) else item
+
+
 def _normalized_case_rubric(layer: int, name: str) -> str:
     rubric = _case(layer, name)["rubric"]
-    return " ".join(item for criteria in rubric.values() for item in criteria)
+    return " ".join(_question_text(item)
+                    for criteria in rubric.values() for item in criteria)
 
 
 def test_deferred_rubric_is_exactly_the_unreachable_policy_table():

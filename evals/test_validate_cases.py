@@ -63,6 +63,12 @@ rubric:
 """
 
 
+def _question_text(item) -> str:
+    """L4 rubric entries are `{id, question, required}` after the rubric-id migration
+    and bare strings before it."""
+    return item["question"] if isinstance(item, dict) else item
+
+
 def _write(tmp, layer_dir, filename, text):
     d = Path(tmp) / layer_dir
     d.mkdir(parents=True, exist_ok=True)
@@ -633,12 +639,15 @@ def test_d3_interview_guards_are_exactly_four_first_turn_skill_specific_cases():
         assert case.get("response_contract") == "first_turn", (name, case.get("response_contract"))
         assert case.get("layer") == 4, (name, case.get("layer"))
         rubric = case.get("rubric") or {}
-        # Skill-specific: no two guards may share a rubric line verbatim.
-        all_qs = [q for dim in rubric.values() for q in dim]
+        # Skill-specific: no two guards may share a rubric line verbatim. Entries are
+        # {id, question, required} after the rubric-id migration; the question text is
+        # what "shares a line verbatim" has always meant, and it did not change.
+        all_qs = [_question_text(q) for dim in rubric.values() for q in dim]
         assert all_qs, f"{name} has no rubric questions"
     seen_questions = {}
     for name in expected:
-        for q in [q for dim in found[name].get("rubric", {}).values() for q in dim]:
+        for q in [_question_text(q)
+                  for dim in found[name].get("rubric", {}).values() for q in dim]:
             assert q not in seen_questions, (
                 f"{name} shares a rubric line with {seen_questions.get(q)}: {q!r}")
             seen_questions[q] = name

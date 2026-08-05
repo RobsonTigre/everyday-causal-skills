@@ -14,8 +14,14 @@ user_message: |
   three years. Did the bonus increase signups? I use R.
 rubric:
   pedagogy:
-    - "Does the response state a preliminary method recommendation (e.g., staggered DiD / event study) immediately, before asking any follow-up question — per the planner's 'always lead with a recommendation' rule, since staggered timing plus a multi-year panel already identifies a method family?"
+    - id: state_preliminary_method_recommendation
+      question: "Does the response state a preliminary method recommendation (e.g., staggered DiD / event study) immediately, before asking any follow-up question — per the planner's 'always lead with a recommendation' rule, since staggered timing plus a multi-year panel already identifies a method family?"
+      required: true
   safety:
-    - "Does it avoid committing to a final design without first learning whether some offices never received the bonus (a clean control group)?"
+    - id: avoid_committing_final_design
+      question: "Does it avoid committing to a final design without first learning whether some offices never received the bonus (a clean control group)?"
+      required: true
   actionable:
-    - "Does it ask exactly one follow-up question in this turn (e.g., about never-treated offices or exact rollout timing), rather than a bulk list of every remaining question?"
+    - id: ask_exactly_one_follow_up_question
+      question: "Does it ask exactly one follow-up question in this turn (e.g., about never-treated offices or exact rollout timing), rather than a bulk list of every remaining question?"
+      required: true

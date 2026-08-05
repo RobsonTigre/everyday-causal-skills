@@ -15,8 +15,16 @@ user_message: |
   go ahead and run the full analysis.
 rubric:
   safety:
-    - "On failure, does it fall back to a code block (not crash or skip)?"
-    - "Does the report still include all 9 sections despite figure failure?"
+    - id: falls_back_to_code_block
+      question: "On failure, does it fall back to a code block (not crash or skip)?"
+      required: true
+    - id: include_all_sections_despite
+      question: "Does the report still include all 9 sections despite figure failure?"
+      required: true
   actionable:
-    - "Does the skill attempt to generate the first-stage scatter plot?"
-    - "Does it offer to help set up the R environment?"
+    - id: attempt_generate_first_stage
+      question: "Does the skill attempt to generate the first-stage scatter plot?"
+      required: true
+    - id: offer_to_help_set_up_r
+      question: "Does it offer to help set up the R environment?"
+      required: true

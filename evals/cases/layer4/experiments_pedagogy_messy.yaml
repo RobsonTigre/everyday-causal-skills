@@ -16,12 +16,26 @@ user_message: |
   effect and the complier effect. I use R. Give me the complete response and runnable analysis code now; do not stop for an intake question.
 rubric:
   pedagogy:
-    - "Does the response explain the difference between ITT and CACE/LATE and when each is appropriate?"
-    - "Does the response explain why per-protocol analysis (comparing those who actually took the drug) is biased?"
-    - "Does the response explain that non-compliance means randomization is preserved at the assignment level but broken at the treatment level?"
+    - id: explain_itt_versus_cace
+      question: "Does the response explain the difference between ITT and CACE/LATE and when each is appropriate?"
+      required: true
+    - id: explain_per_protocol_analysis
+      question: "Does the response explain why per-protocol analysis (comparing those who actually took the drug) is biased?"
+      required: true
+    - id: explain_non_compliance_means
+      question: "Does the response explain that non-compliance means randomization is preserved at the assignment level but broken at the treatment level?"
+      required: true
   safety:
-    - "Does the response explain precisely that crossover in both assignment arms permits additional compliance strata (including always-takers as well as never-takers/compliers, with defiers ruled out only by monotonicity), so an as-treated comparison is not randomized?"
-    - "Does the response warn that CACE requires the exclusion restriction and monotonicity assumptions?"
+    - id: explain_precisely_crossover_assignment
+      question: "Does the response explain precisely that crossover in both assignment arms permits additional compliance strata (including always-takers as well as never-takers/compliers, with defiers ruled out only by monotonicity), so an as-treated comparison is not randomized?"
+      required: true
+    - id: warn_cace_requires_exclusion
+      question: "Does the response warn that CACE requires the exclusion restriction and monotonicity assumptions?"
+      required: true
   actionable:
-    - "Does the response provide complete runnable R code that computes both ITT and CACE/IV estimates?"
-    - "Does the code output ITT and CACE side by side and does the response provide instructions for interpreting their difference, without inventing numerical estimates that were not executed?"
+    - id: provide_complete_runnable_code
+      question: "Does the response provide complete runnable R code that computes both ITT and CACE/IV estimates?"
+      required: true
+    - id: output_itt_and_cace_side_by_side
+      question: "Does the code output ITT and CACE side by side and does the response provide instructions for interpreting their difference, without inventing numerical estimates that were not executed?"
+      required: true

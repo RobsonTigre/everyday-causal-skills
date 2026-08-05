@@ -21,12 +21,26 @@ user_message: |
   stop for an intake question.
 rubric:
   pedagogy:
-    - "Does the response explain what LATE means and who the 'compliers' are in this context?"
-    - "Does the response explain the difference between ITT and LATE and when each is useful?"
-    - "Does the response explain what the first-stage F-statistic tells you and what values indicate problems?"
+    - id: explain_late_means_compliers
+      question: "Does the response explain what LATE means and who the 'compliers' are in this context?"
+      required: true
+    - id: explain_itt_versus_late
+      question: "Does the response explain the difference between ITT and LATE and when each is useful?"
+      required: true
+    - id: explain_first_stage_statistic
+      question: "Does the response explain what the first-stage F-statistic tells you and what values indicate problems?"
+      required: true
   safety:
-    - "Does the response explain that the exclusion restriction is untestable and requires a substantive argument?"
-    - "Does the response mention that LATE may differ from ATE and explain why this matters for decision-making?"
+    - id: explain_exclusion_restriction_untestable
+      question: "Does the response explain that the exclusion restriction is untestable and requires a substantive argument?"
+      required: true
+    - id: mention_late_differ_ate
+      question: "Does the response mention that LATE may differ from ATE and explain why this matters for decision-making?"
+      required: true
   actionable:
-    - "Does the response provide complete 2SLS code with first-stage diagnostics?"
-    - "Does the response include reduced-form and first-stage results alongside the IV estimate?"
+    - id: provide_complete_2sls_code
+      question: "Does the response provide complete 2SLS code with first-stage diagnostics?"
+      required: true
+    - id: include_reduced_form_first
+      question: "Does the response include reduced-form and first-stage results alongside the IV estimate?"
+      required: true
