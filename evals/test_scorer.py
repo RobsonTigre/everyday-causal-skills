@@ -763,6 +763,29 @@ def test_judge_l4_absent_grading_contract_defaults_safely():
     assert seen["num_questions"] == 2, seen
 
 
+def test_judge_l4_records_the_questions_it_actually_graded():
+    """T1.2: a run has to be able to say what it was asked.
+
+    `question_answers` is a positional array of booleans. Nothing in it identifies
+    the question each answer belongs to, so rewording a rubric silently re-points
+    every stored answer — which is what made the 2026-08-03 ledger un-reanalyzable.
+    The strings the judge actually saw are recorded beside the answers, per
+    dimension and in the same order, so a later read can refuse a ledger whose
+    questions no longer match the case.
+    """
+    case = {"rubric": {
+        "pedagogy": ["Does it explain parallel trends?"],
+        "safety": [{"id": "warns_on_pretrend", "question": "Does it warn on a pre-trend?",
+                    "required": True}]}}
+    out, _ = _with_fake_judge([True, False], lambda: _judge_l4("resp", case))
+    assert out["questions_asked"] == {
+        "pedagogy": ["Does it explain parallel trends?"],
+        "safety": ["Does it warn on a pre-trend?"],   # the text, never the mapping
+    }, out
+    # Same keys and ordering as the answers they explain.
+    assert list(out["questions_asked"]) == list(out["question_answers"]), out
+
+
 def test_judge_l4_passes_through_response_contract_and_deferred_rubric():
     case = {"rubric": {"pedagogy": ["Q1?"]},
             "response_contract": "first_turn",

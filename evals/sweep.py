@@ -832,7 +832,7 @@ def _load_ledger_case(name: str, case_entry: dict) -> dict:
 
 
 def _unmeasured_reason(case: dict, agg: dict) -> str | None:
-    """Why an L2 case with required criteria came back UNMEASURED.
+    """Why a case came back UNMEASURED.
 
     A verdict that just says UNMEASURED sends the reader back to the ledger to
     work out whether the data is old or the run is incomplete; those need
@@ -842,6 +842,15 @@ def _unmeasured_reason(case: dict, agg: dict) -> str | None:
     Deciding here from the stored `rate` instead would leave a criterion the gate
     rejected on its counts with no reason printed at all — UNMEASURED and silent.
     """
+    # L4 rubric drift: the stored answers no longer describe this case's questions
+    # (runner._l4_question_drift). Always a rerun — a recompile would re-apply the
+    # same mismatch, and there is no older rule to fall back to.
+    drift = agg.get("question_drift")
+    if drift:
+        return ("the rubric moved after this was measured, so the stored answers no "
+                "longer name the questions the case asks — rerun this case, do not "
+                "recompile: " + "; ".join(drift))
+
     required = [e["id"] for e in runner.l2_rubric(case)
                 if isinstance(e, dict) and e.get("required") is True and e.get("id")]
     if not required:

@@ -821,6 +821,28 @@ def test_self_contradicting_counts_are_named_as_untrustworthy_not_merely_incompl
     assert "inconsistent" in crit_line, crit_line
 
 
+def test_a_drifted_l4_ledger_says_which_rubric_moved_not_just_unmeasured():
+    """UNMEASURED with no reason sends the reader back to the ledger to work out
+    whether to rerun or recompile. For L4 drift the answer is always rerun, and the
+    verdict should say which questions stopped matching so the reader can see the
+    rubric moved rather than suspecting the judge.
+    """
+    agg = {"runs_valid": 5, "runs_total": 5, "pedagogy": 0.2, "safety": None,
+           "actionable": None, "overall": 0.2, "rate": None,
+           "question_drift": ["pedagogy[1]: graded 'Is it tailored?', "
+                              "the case now asks 'Does it name a method skill?'"]}
+    v = compile_verdict(_ledger({"drifted_case": _entry(
+        4, verdict_agg=agg,
+        case_fields={"rubric": {"pedagogy": ["Is it clear?",
+                                             "Does it name a method skill?"]}})}))
+
+    assert v["cases"]["drifted_case"]["verdict"] == "UNMEASURED", v["cases"]
+    reason = v["cases"]["drifted_case"]["unmeasured_reason"]
+    assert reason and "pedagogy[1]" in reason, reason
+    assert "rerun" in reason, reason
+    assert reason in render_verdict_md(v)
+
+
 def test_green_release_sweep_writes_one_history_row_with_sweep_id_and_rc_sha():
     """The sweep has never written a consolidated HISTORY row — every slot runs
     `runner.py --no-history` and the release writer only emitted verdict files."""

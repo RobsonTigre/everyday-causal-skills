@@ -611,6 +611,75 @@ def criterion_status(crit: dict | None, runs_valid: int) -> tuple[str, float | N
     return "ok", passed / cvalid
 
 
+def _l4_question_drift(valid: list[dict], case: dict) -> list[str]:
+    """Ways these runs' L4 answers no longer describe this case's rubric.
+
+    Empty means the stored answers and the case agree and can be mapped onto each
+    other. Anything else means they cannot, and the case is UNMEASURED — the same
+    ledger-and-case-must-agree discipline `sweep._load_ledger_case` enforces on
+    paths and layers.
+
+    The failure this exists to stop: on 2026-08-03 a sweep graded 37 L4 cases; by
+    2026-08-04, 24 of those case files had been rewritten. `report_figures_success`
+    stored three `actionable` answers and no `safety` answer at all, against a case
+    that today declares one safety question and two actionable ones. The harness
+    read the old array off the new rubric and reported two questions at a confident
+    0.2 — answers to questions nobody asked. Nothing warned; the numbers just moved.
+
+    Two checks, because ledgers on disk can only support one of them:
+
+    - **Shape**, on any ledger. `_call_judge` raises unless it yields exactly one
+      answer per question, so a valid run always carries the count its case declared
+      at measurement time. A stored count that disagrees with the case file today is
+      therefore proof the rubric moved, not a partial measurement.
+    - **Text**, on runs written since `questions_asked` existed. A reword keeps the
+      count, so shape alone cannot see it — and rewording is the common case. Only
+      the run's own record of what it was asked can catch that.
+
+    A run recording nothing (every ledger written before `questions_asked`, including
+    the 2026-08-04 baseline — the only valid measurement of HEAD) is shape-checked
+    and left alone. Refusing it outright would delete that measurement to punish it
+    for predating the fix.
+    """
+    rubric = case.get("rubric")
+    if not isinstance(rubric, dict):
+        return []
+
+    declared: dict[str, list] = {}
+    for dim in ("pedagogy", "safety", "actionable"):
+        entries = rubric.get(dim) or []
+        if isinstance(entries, list) and entries:
+            declared[dim] = [e.get("question") if isinstance(e, dict) else e
+                             for e in entries]
+
+    drift = set()
+    for r in valid:
+        scores = r["scores"]
+        stored = scores.get("question_answers")
+        if not isinstance(stored, dict):
+            continue  # pre-8e9420e run: no per-question data, nothing to disagree with
+        asked_all = scores.get("questions_asked") or {}
+        for dim in set(stored) | set(declared):
+            answers, texts = stored.get(dim), declared.get(dim)
+            if texts is None:
+                drift.add(f"{dim}: answered in the ledger, not declared by the case")
+                continue
+            if not isinstance(answers, list):
+                drift.add(f"{dim}: {len(texts)} question(s) declared, none answered")
+                continue
+            if len(answers) != len(texts):
+                drift.add(f"{dim}: {len(answers)} answer(s) stored against "
+                          f"{len(texts)} declared question(s)")
+                continue
+            asked = asked_all.get(dim)
+            if not isinstance(asked, list):
+                continue  # ledger predates `questions_asked` — shape is all there is
+            for i, (was, now) in enumerate(zip(asked, texts)):
+                if was != now:
+                    drift.add(f"{dim}[{i}]: graded {was!r}, the case now asks {now!r}")
+    return sorted(drift)
+
+
 def _l4_questions(valid: list[dict], case: dict) -> dict | None:
     """Per-question L4 rubric results, or None when this is pre-`8e9420e` data.
 
@@ -819,12 +888,22 @@ def aggregate(runs: list[dict], case: dict) -> dict:
                          if r["scores"].get("response_contract")), None)
         deferred = next((r["scores"].get("deferred_rubric") for r in valid
                          if r["scores"].get("deferred_rubric")), [])
-        return {**base, **dim_avgs, "overall": overall, "rate": overall,
+        # Do these answers still describe this case's rubric? If not, nothing derived
+        # from mapping them onto it can be trusted, so `rate` is withheld and the gate
+        # reports UNMEASURED. `overall` and the dimension means stay: those are the
+        # judge's own per-dimension fractions, a true record of what it said about the
+        # rubric it was given, and a reader chasing the drift needs to see them.
+        # `question_stats` does NOT stay — it is the mapping itself, and rendering it
+        # would print exactly the confident per-question rates this refuses to make.
+        drift = _l4_question_drift(valid, case)
+        return {**base, **dim_avgs, "overall": overall,
+                "rate": None if drift else overall,
                 "response_contract": contract, "deferred_rubric": deferred,
+                "question_drift": drift,
                 # Reported, NOT gated — gating on it moves the decision rule and is a
                 # separate, digest-moving change. Recorded now so the next sweep's
                 # ledger can answer "which question failed?" without a re-run.
-                "question_stats": _l4_questions(valid, case)}
+                "question_stats": None if drift else _l4_questions(valid, case)}
 
     elif layer == 5:
         handoff = sum(r["scores"].get("handoff_quality", 0.0) for r in valid) / n

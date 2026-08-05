@@ -55,9 +55,38 @@ behavior — fix the test, not the code.
   separate commit; only then wire it into `warn_case`, and into `validate_case` at a version
   boundary.
 
-### T1.2 `test_aggregate_refuses_a_ledger_whose_question_text_disagrees_with_the_case` ★
+### T1.2 `test_aggregate_refuses_a_ledger_whose_question_text_disagrees_with_the_case` ★ — **DONE 2026-08-05**
 
 **The keystone test.** This is the bug that invalidated a month of diagnosis.
+
+Landed as `runner._l4_question_drift`, wired into `aggregate()`'s L4 branch, plus
+`scorer._judge_l4` recording `questions_asked` and `sweep._unmeasured_reason` naming the
+drift. 7 tests in `test_runner.py`, 1 in `test_sweep.py`, all red first.
+
+**Correction to this plan: the text could not come from the aggregate.** This section said
+"store the question text alongside the counts in the aggregate", and T2.1 had already done
+that — but the text an aggregate stores is read out of *today's* case file, so comparing it
+to today's case file compares a value with itself. Only the run can say what it was graded
+on, so the record had to be pushed down into `_judge_l4`. That is why T1.2 changes the
+scorer, which this plan did not anticipate.
+
+Consequently there are two checks, not one, and only one of them works on ledgers that
+already exist:
+
+- **Shape**, on any ledger. `_call_judge` raises unless it yields exactly one answer per
+  question, so a valid run always carries the count its case declared at measurement time.
+  A stored count that disagrees with the case file today is proof the rubric moved.
+- **Text**, only on runs written since `questions_asked`. A reword keeps the count.
+
+**The limit this leaves, stated because it bounds every claim made off the 08-03 ledger:**
+12 of 37 L4 cases moved question text between `3bf5738` and HEAD; 3 changed shape and are
+caught, **9 were reworded at the same length and are permanently undetectable there**.
+Retroactive drift detection is partial by construction. Forward detection is complete.
+
+One consequence for Phase 2: `_l4_questions`' `partial` status is now unreachable through
+`aggregate` — a run holding fewer answers than the case declares is drift, refused a step
+earlier. `test_l4_question_denominator_is_every_valid_run` therefore calls `_l4_questions`
+directly. T2.4 must be written against that boundary, not against a short answer array.
 
 - **File:** `evals/test_runner.py`
 - **Real artifact:** the 08-03 ledger's `report_figures_success` slots (3 stored `actionable`

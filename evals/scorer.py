@@ -740,8 +740,19 @@ Questions:
         dim: [bool(answer) for answer in answers[start:end]]
         for dim, (start, end) in dim_ranges.items()
     }
+    # And WHICH questions produced them. `question_answers` is a positional array of
+    # booleans with nothing in it naming the question each answer belongs to, so a
+    # reworded rubric re-points every stored answer onto a question that was never
+    # asked — silently, because a reword keeps the length. That is what made the
+    # 2026-08-03 ledger un-reanalyzable. The strings the judge actually saw are
+    # recorded beside the answers so a later read can refuse the mismatch instead of
+    # grading it (runner._l4_question_drift).
+    questions_asked = {
+        dim: questions[start:end] for dim, (start, end) in dim_ranges.items()
+    }
     return {**dim_scores, "overall": overall, "dimensions_present": sorted(dim_ranges),
             "question_answers": question_answers,
+            "questions_asked": questions_asked,
             "response_contract": case.get("response_contract"),
             "deferred_rubric": case.get("deferred_rubric") or []}
 

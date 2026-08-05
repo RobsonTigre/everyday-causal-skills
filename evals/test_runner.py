@@ -716,11 +716,19 @@ def test_l4_question_denominator_is_every_valid_run():
 
     A question answered in 4 of 5 valid runs must report answered=4, valid=5 and
     rate None. Reading it as 4/4 turns a measurement gap into a perfect score.
+
+    Called directly rather than through `aggregate`, which since T1.2 refuses this
+    input one step earlier: a run holding fewer answers than the case declares cannot
+    be aligned at all, so the case is UNMEASURED rather than partly measured (see
+    `test_a_question_answered_in_only_some_runs_is_drift_not_a_partial_count`). The
+    denominator rule still has to hold here, because `_l4_questions` is what any
+    future caller reaches for.
     """
     short = _l4_scores([True, True], [True])
     short["question_answers"]["pedagogy"] = [True]  # second question unanswered
     runs = _runs(4, [_l4_scores([True, True], [True])] * 4 + [short])
-    stats = aggregate(runs, _L4_CASE)["question_stats"]
+    valid = [r for r in runs if not r.get("invalid")]
+    stats = runner._l4_questions(valid, _L4_CASE)
     assert stats["pedagogy[1]"]["answered"] == 4, stats
     assert stats["pedagogy[1]"]["valid"] == 5, stats
     assert stats["pedagogy[1]"]["rate"] is None, stats
@@ -752,6 +760,115 @@ def test_l4_question_blocks_are_validated_by_the_same_helper_as_l2_criteria():
     good = aggregate(_runs(4, [_l4_scores([True, False], [True])] * 5),
                      _L4_CASE)["question_stats"]["pedagogy[0]"]
     assert runner.criterion_status(good, 5) == ("ok", 1.0), good
+
+
+# --- L4 question drift (T1.2) ---
+#
+# The keystone. A stored run's answers are a positional array; the case file that
+# names those positions can be rewritten at any time. On 2026-08-03 that is exactly
+# what happened, and the harness went on grading the old answers against the new
+# questions with no complaint. A run now records the questions it was graded on, and
+# an aggregate whose runs disagree with the case is refused, not silently remapped.
+
+_L4_ASKED = {"pedagogy": ["Is it clear?", "Is it tailored?"], "safety": ["Does it warn?"]}
+
+
+def _l4_asked(ped, saf, asked=None, **extra):
+    """A run that records which questions it was graded on, as `_judge_l4` now does."""
+    return _l4_scores(ped, saf, questions_asked=asked or _L4_ASKED, **extra)
+
+
+def test_aggregate_refuses_a_ledger_whose_question_text_disagrees_with_the_case():
+    """The 2026-08-03 defect, made executable.
+
+    A reword keeps the length, so nothing about the stored array changes shape. The
+    answers re-point onto different questions and every rate downstream is a
+    confident statement about a question that was never asked.
+    """
+    reworded = dict(_L4_ASKED, pedagogy=["Is it clear?", "Does it name a method skill?"])
+    runs = _runs(4, [_l4_asked([True, False], [True], asked=reworded)] * 5)
+    agg = aggregate(runs, _L4_CASE)
+    assert agg["rate"] is None, agg
+    assert case_gate(_L4_CASE, agg) == "UNMEASURED", agg
+    assert agg["question_stats"] is None, agg  # refused, not rendered as 5/5 and 0/5
+    drift = " ".join(agg["question_drift"])
+    assert "pedagogy" in drift, agg["question_drift"]
+    assert "Is it tailored?" in drift, agg["question_drift"]
+
+
+def test_aggregate_refuses_a_ledger_whose_answer_shape_disagrees_with_the_case():
+    """`report_figures_success` in the 2026-08-03 ledger, reduced to its shape.
+
+    Stored: three `actionable` answers and no `safety` key. Declared today: one
+    safety question and two actionable ones. Before this check, actionable[0] and
+    actionable[1] were read off the old array and reported at a confident 0.2 each.
+    """
+    stored = {"pedagogy": 0.0, "safety": 0.0, "actionable": 1 / 3,
+              "dimensions_present": ["actionable"],
+              "question_answers": {"actionable": [True, False, False]}}
+    case = {"layer": 4, "rubric": {"safety": ["Are the findings treated as final?"],
+                                   "actionable": ["Is there parallel-trends code?",
+                                                  "Is there event-study code?"]}}
+    agg = aggregate(_runs(4, [stored] * 5), case)
+    assert agg["rate"] is None, agg
+    assert case_gate(case, agg) == "UNMEASURED", agg
+    assert agg["question_stats"] is None, agg
+    drift = " ".join(agg["question_drift"])
+    assert "actionable" in drift and "safety" in drift, agg["question_drift"]
+
+
+def test_aggregate_still_grades_a_ledger_whose_questions_match_the_case():
+    """The check has to discriminate, not refuse everything.
+
+    Same runs as the drift test but recording the questions this case actually
+    declares: graded normally, per-question stats intact.
+    """
+    runs = _runs(4, [_l4_asked([True, False], [True])] * 5)
+    agg = aggregate(runs, _L4_CASE)
+    assert agg["question_drift"] == [], agg
+    assert agg["rate"] == agg["overall"], agg
+    assert agg["question_stats"]["pedagogy[1]"]["passed"] == 0, agg
+
+
+def test_a_legacy_ledger_with_no_recorded_questions_grades_when_the_shape_matches():
+    """Backward-compatibility pin — passes today and must keep passing.
+
+    Every ledger on disk predates `questions_asked`, including the 2026-08-04
+    baseline, the only valid measurement of HEAD. A run that recorded no questions
+    cannot be text-checked; refusing it wholesale would delete that measurement.
+    The shape is still checked, which is what catches `report_figures_success`.
+    """
+    runs = _runs(4, [_l4_scores([True, True], [True])] * 5)
+    agg = aggregate(runs, _L4_CASE)
+    assert agg["question_drift"] == [], agg
+    assert case_gate(_L4_CASE, agg) == "PASS", agg
+    assert agg["question_stats"]["pedagogy[0]"]["rate"] == 1.0, agg
+
+
+def test_a_question_answered_in_only_some_runs_is_drift_not_a_partial_count():
+    """A missing answer means the array cannot be aligned at all.
+
+    T2.1 reported this per question as `answered: 4, rate: None` while the case still
+    gated on its dimension means. But if run 5 answered 1 of 2 pedagogy questions,
+    nothing says the answer it did give belongs to pedagogy[0] rather than
+    pedagogy[1] — so the case is unmeasured, not partly measured.
+    """
+    short = _l4_scores([True, True], [True])
+    short["question_answers"]["pedagogy"] = [True]
+    agg = aggregate(_runs(4, [_l4_scores([True, True], [True])] * 4 + [short]), _L4_CASE)
+    assert agg["rate"] is None, agg
+    assert case_gate(_L4_CASE, agg) == "UNMEASURED", agg
+
+
+def test_l4_drift_check_is_silent_when_there_is_nothing_to_compare():
+    """No rubric on file, or a pre-8e9420e run carrying no answers at all: there is
+    no disagreement to find, and inventing one would refuse every old ledger."""
+    runs = _runs(4, [_l4_scores([True, False], [True])] * 5)
+    assert aggregate(runs, {"layer": 4})["question_drift"] == []
+    legacy = {"pedagogy": 1.0, "safety": 1.0, "dimensions_present": ["pedagogy", "safety"]}
+    agg = aggregate(_runs(4, [legacy] * 5), _L4_CASE)
+    assert agg["question_drift"] == [], agg
+    assert agg["rate"] == 1.0, agg
 
 
 def test_l5_gate():
