@@ -21,6 +21,26 @@ response_contract: final_output
 user_message: hello
 rubric:
   pedagogy:
+    - id: q_one
+      question: "Q1?"
+      required: true
+  safety:
+    - id: q_two
+      question: "Q2?"
+      required: true
+"""
+
+#: The pre-migration shape, kept deliberately so the advisory rule has something to
+#: fire on and the backward-compatible readers stay exercised.
+L4_BARE_RUBRIC = """
+name: bare_l4
+description: rubric entries with no ids
+layer: 4
+skill: causal-did
+response_contract: final_output
+user_message: hello
+rubric:
+  pedagogy:
     - "Q1?"
   safety:
     - "Q2?"
@@ -234,7 +254,9 @@ deferred_rubric:
   - "Was the adjustment set correctly justified?"
 rubric:
   pedagogy:
-    - "Q1?"
+    - id: q_one
+      question: "Q1?"
+      required: true
 """
     with tempfile.TemporaryDirectory() as t:
         p = _write(t, "layer4", "probe.yaml", text)
@@ -1139,6 +1161,34 @@ def test_l4_rubric_declared_in_both_places_is_rejected():
 def test_l4_rubric_question_must_be_a_nonempty_string():
     errs = _l4_errors({"pedagogy": [{"id": "a", "question": "  ", "required": True}]})
     assert any("question" in e for e in errs), errs
+
+
+def test_warn_case_flags_an_l4_rubric_that_still_uses_bare_strings():
+    """Advisory, not blocking. `validate_tree` is a hard gate at `sweep.py:671` while
+    `warn_tree` is advisory at `:682`; promoting a new rule to a build error
+    mid-investigation is what `tasks/lessons.md` exists to prevent. Promote at a
+    version boundary.
+    """
+    warnings = _warn(L4_BARE_RUBRIC, name="bare_l4")
+    assert any("id" in w for w in warnings), warnings
+
+
+def test_bare_string_l4_rubric_is_still_valid_not_an_error():
+    """The discriminating half of the same decision: a warning, never a failure."""
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "bare_l4.yaml", L4_BARE_RUBRIC)
+        assert validate_case(p) == [], validate_case(p)
+
+
+def test_every_shipped_l4_case_is_warning_free_after_the_id_migration():
+    """The 37 migrated files must produce zero warnings, or the new advisory rule is
+    noise on every run and will be ignored — the scale-aware lesson from T1.4."""
+    noisy = {}
+    for path in sorted(Path("evals/cases/layer4").glob("*.yaml")):
+        w = [x for x in warn_case(path) if "rubric" in x or "id" in x]
+        if w:
+            noisy[path.stem] = w
+    assert noisy == {}, noisy
 
 
 def _run_all():

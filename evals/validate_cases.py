@@ -558,6 +558,13 @@ def warn_case(path: Path) -> list[str]:
         for key in sorted(set(expected) - allowed_expected):
             warnings.append(
                 f"expected.{key} is not read by the harness at L{layer} — dead metadata")
+
+    # Advisory on purpose. All 37 shipped L4 cases carry ids, so this is silent today
+    # and fires only on a new or reverted case. `validate_tree` is a hard gate at
+    # `sweep.py:671` while `warn_tree` is advisory at `:682`; promoting this to a build
+    # error belongs at a version boundary, not mid-investigation.
+    if layer == 4:
+        _check_l4_rubric(case, expected if isinstance(expected, dict) else {}, warnings)
     return warnings
 
 
