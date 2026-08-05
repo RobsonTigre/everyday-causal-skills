@@ -9,6 +9,7 @@ from pathlib import Path
 import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import validate_cases  # noqa: E402
 from validate_cases import validate_case, validate_tree, warn_case  # noqa: E402
 
 L4_GOOD = """
@@ -1051,6 +1052,84 @@ def test_roi_carveout_bounds_by_hand_math_to_gate_result():
     # script-gated, and the final roi.md re-computes the gate's ΔProfit₀ via the Stage 3 script.
     assert "If the script didn't compute a downstream number" in skill
     assert "including the gate's ΔProfit₀" in skill
+
+
+# --- T1.1: L4 rubric entries become {id, question, required} objects ---
+#
+# L4 rubric answers come back from the judge as a positional array, so identity is an
+# array index. Reword or reorder a question and every stored answer silently re-points
+# onto a different one; only a length change is detectable. That is what made the
+# 2026-08-03 ledger un-reanalysable and what invalidated a month of diagnosis.
+#
+# These call `_check_l4_rubric` DIRECTLY, on synthetic dicts. It is deliberately not
+# wired into `validate_case` yet: doing so invalidates all 37 shipped L4 cases until
+# they are migrated, and the migration is its own commit (PLAN-harness-integrity T1.1,
+# "Ordering hazard").
+
+def _l4_errors(rubric, expected_rubric=None):
+    case = {"layer": 4, "rubric": rubric} if rubric is not None else {"layer": 4}
+    expected = {"rubric": expected_rubric} if expected_rubric is not None else {}
+    errors = []
+    validate_cases._check_l4_rubric(case, expected, errors)
+    return errors
+
+
+def test_validator_rejects_an_l4_rubric_entry_without_an_id():
+    """Today's shape — a bare question string — is exactly what cannot be gated."""
+    errs = _l4_errors({"pedagogy": ["Does it explain parallel trends?"]})
+    assert errs, "a bare string entry must be rejected"
+    assert any("id" in e for e in errs), errs
+
+
+def test_wellformed_l4_rubric_objects_pass():
+    """Discriminating half: the target shape must validate clean."""
+    errs = _l4_errors({
+        "pedagogy": [{"id": "explains_parallel_trends",
+                      "question": "Does it explain parallel trends?",
+                      "required": True}],
+        "safety": [{"id": "flags_confounding",
+                    "question": "Does it flag confounding?",
+                    "required": False}],
+    })
+    assert errs == [], errs
+
+
+def test_l4_rubric_ids_must_be_unique_across_dimensions():
+    """The id is the key `question_stats` is stored under, so a collision across
+    dimensions would silently merge two different questions' counts."""
+    entry = {"question": "Q?", "required": True}
+    errs = _l4_errors({"pedagogy": [{**entry, "id": "same_id"}],
+                       "safety": [{**entry, "id": "same_id"}]})
+    assert any("duplicate" in e for e in errs), errs
+
+
+def test_l4_rubric_rejects_an_unknown_field():
+    errs = _l4_errors({"pedagogy": [{"id": "a", "question": "Q?", "required": True,
+                                     "weight": 2}]})
+    assert any("weight" in e for e in errs), errs
+
+
+def test_l4_rubric_required_must_be_a_bool():
+    errs = _l4_errors({"pedagogy": [{"id": "a", "question": "Q?", "required": "yes"}]})
+    assert any("required" in e for e in errs), errs
+
+
+def test_l4_rubric_id_must_be_snake_case():
+    errs = _l4_errors({"pedagogy": [{"id": "Explains Parallel Trends",
+                                     "question": "Q?", "required": True}]})
+    assert any("snake_case" in e for e in errs), errs
+
+
+def test_l4_rubric_declared_in_both_places_is_rejected():
+    """Same trap `_check_l2_rubric` closes: two legal locations, one silently dropped."""
+    good = [{"id": "a", "question": "Q?", "required": True}]
+    errs = _l4_errors({"pedagogy": good}, expected_rubric={"pedagogy": good})
+    assert any("both" in e for e in errs), errs
+
+
+def test_l4_rubric_question_must_be_a_nonempty_string():
+    errs = _l4_errors({"pedagogy": [{"id": "a", "question": "  ", "required": True}]})
+    assert any("question" in e for e in errs), errs
 
 
 def _run_all():
