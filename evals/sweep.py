@@ -1074,11 +1074,35 @@ def compile_verdict(ledger: dict) -> dict:
     }
 
 
-def render_verdict_md(verdict: dict) -> str:
+def render_verdict_md(verdict: dict, current_fingerprint: dict | None = None) -> str:
+    """Render a verdict, and say on its face when it no longer describes the tree.
+
+    `current_fingerprint` is optional because two of the three call sites have no tree
+    to compare against — a release verdict is written the moment it is measured, and a
+    stored verdict re-rendered later has no live repo in scope. Omitting it renders
+    exactly as before rather than emitting a warning that means nothing.
+    """
     fp = verdict["fingerprint"]
+    stale = staleness_report(fp, current_fingerprint) if current_fingerprint else []
     lines = [
         f"# Eval sweep verdict — {verdict['overall']}",
         "",
+    ]
+    if stale:
+        # Above the numbers, deliberately. A reader who reaches the totals before the
+        # warning has already formed the belief the warning exists to prevent.
+        lines += [
+            "> ⚠️ **STALE — this verdict does not describe the current tree.**",
+            ">",
+            "> A result is a statement about the skill, the case and the harness at "
+            "once. These moved after it was measured:",
+            ">",
+            *(f"> - {line}" for line in stale),
+            ">",
+            "> Re-run before citing these numbers as current.",
+            "",
+        ]
+    lines += [
         f"**Sweep**: {verdict['sweep_id']} · started {verdict['started']} · "
         f"compiled {verdict['compiled']}",
         f"**Runs per case**: {verdict['runs_per_case']}",
@@ -1255,7 +1279,18 @@ def recompile_verdict(ledger_path: Path, config: dict) -> tuple[dict, Path]:
         n += 1
     (sweep_dir / f"verdict-recompiled-{n}.json").write_text(json.dumps(verdict, indent=2))
     out_md = sweep_dir / f"verdict-recompiled-{n}.md"
-    out_md.write_text(render_verdict_md(verdict))
+    # A recompile re-renders an old measurement into a file that looks freshly measured.
+    # Build the tree's fingerprint now so the output can say when it no longer describes
+    # it. `config_path` and `backend` come from the stored fingerprint: a recompile
+    # re-grades one measurement, so re-declaring its transport would flag every recompile
+    # as drifted and bury the tree keys that actually matter.
+    stored_fp = ledger.get("fingerprint") or {}
+    current = build_fingerprint(
+        config,
+        [str(REPO_ROOT / e["path"]) for e in ledger["cases"].values() if e.get("path")],
+        stored_fp.get("config_path"),
+        ledger.get("backend"))
+    out_md.write_text(render_verdict_md(verdict, current))
     return verdict, out_md
 
 

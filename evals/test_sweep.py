@@ -338,6 +338,51 @@ def test_staleness_report_flags_a_ledger_with_no_fingerprint_at_all():
     assert report, "a fingerprint-less ledger must not read as current"
 
 
+def test_verdict_markdown_warns_when_the_measured_tree_has_moved():
+    """T1.3's report has to reach the artifact people actually read.
+
+    `staleness_report` landed as a pure function that only `repo_doctor` called, so a
+    stale `verdict.md` still presented itself as a current statement about the repo.
+    That is precisely how the 2026-08-03 sweep was mined as evidence on 2026-08-04:
+    nobody runs `repo_doctor` before reading a verdict they already have open.
+    """
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    v = compile_verdict(ledger)
+    current = {**ledger["fingerprint"], "commit": "dda4885", "cases_sha256": "moved"}
+    md = render_verdict_md(v, current)
+    assert "STALE" in md.upper(), md
+    assert "cases_sha256" in md, md
+    assert "commit" in md, md
+
+
+def test_verdict_markdown_staleness_warning_explains_each_moved_key():
+    """Same reason `staleness_report` spells the keys out: a bare `cases_sha256` in a
+    verdict tells a reader nothing about whether to trust the numbers above it."""
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    v = compile_verdict(ledger)
+    md = render_verdict_md(v, {**ledger["fingerprint"], "cases_sha256": "moved"})
+    assert "the case files that did the grading" in md, md
+
+
+def test_verdict_markdown_has_no_staleness_warning_when_the_tree_has_not_moved():
+    """Discriminating half — a warning on every verdict is a warning on none."""
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    v = compile_verdict(ledger)
+    md = render_verdict_md(v, dict(ledger["fingerprint"]))
+    assert "stale" not in md.lower(), md
+
+
+def test_verdict_markdown_without_a_current_fingerprint_is_unchanged():
+    """Pin, not a red test: this passes today and must keep passing.
+
+    Every stored verdict and the release-verdict writer render with no tree to compare
+    against. Rendering must stay byte-compatible there rather than growing a warning
+    that says nothing.
+    """
+    v = compile_verdict(_ledger({"a": _entry(1, verdict_agg=_L1_PASS)}))
+    assert "stale" not in render_verdict_md(v).lower()
+
+
 # --- Requeue selection ---
 
 def test_only_unmeasured_cases_are_pending():
@@ -1365,6 +1410,40 @@ def test_recompile_never_overwrites_and_numbers_each_run():
             "same measurement, so the ledger hash must match"
         assert v1["thresholds_source"] == "ledger", v1["thresholds_source"]
         assert v2["thresholds_source"] == "config", v2["thresholds_source"]
+
+
+def test_recompile_marks_its_output_stale_when_the_ledger_predates_the_tree():
+    """`--recompile` is the one path that regenerates verdict markdown from an old
+    measurement, and the file it writes reads exactly like a freshly measured one.
+
+    That is the shape of the 2026-08-04 mistake: a verdict for `3bf5738` read as a
+    statement about HEAD. The regenerated file has to carry the warning on its face,
+    because the person reading it will not independently check a fingerprint.
+    """
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
+        ledger_path = Path(d) / "ledger.json"
+        save_ledger(ledger, ledger_path)
+        _, md_path = sweep.recompile_verdict(ledger_path, {})
+        md = md_path.read_text()
+    assert "STALE" in md.upper(), md
+    assert "cases_sha256" in md, md
+
+
+def test_recompile_of_a_current_ledger_carries_no_stale_warning():
+    """Discriminating half: recompiling a ledger whose fingerprint still matches the
+    tree is a legitimate re-grade of a live measurement, and must not be labelled."""
+    ledger = _ledger({"a": _entry(1, verdict_agg=_L1_PASS)})
+    with _materialised_cases(ledger), tempfile.TemporaryDirectory() as d:
+        ledger_path = Path(d) / "ledger.json"
+        # Stamp the ledger with the fingerprint the tree actually has right now.
+        ledger["fingerprint"] = sweep.build_fingerprint(
+            {}, [str(sweep.REPO_ROOT / e["path"]) for e in ledger["cases"].values()],
+            None, None)
+        save_ledger(ledger, ledger_path)
+        _, md_path = sweep.recompile_verdict(ledger_path, {})
+        md = md_path.read_text()
+    assert "stale" not in md.lower(), md
 
 
 def test_recompile_records_which_thresholds_it_applied():
