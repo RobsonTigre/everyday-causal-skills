@@ -165,6 +165,41 @@ def _l2_gate_contract(case_paths) -> list:
     return out
 
 
+def _l4_gate_contract(case_paths) -> list:
+    """Which L4 rubric questions exist and which are required — normalized.
+
+    The L2 sibling above, on the other gating layer, and normalized the same way:
+    sorted `(dimension, id, required)`, so rewording stays measurement while adding,
+    renaming or demoting a question moves the hash. An id is not cosmetic here —
+    stored answers are mapped back onto the rubric by it, so a rename re-points
+    every one of them.
+
+    Both gating layers now declare their contract, which is the point: an L4 gate
+    that holds each question to a floor depends on this list exactly as the L2 gate
+    depends on `_l2_gate_contract`, and leaving it out would let a question be
+    demoted while every hashed function stayed byte identical.
+    """
+    out = []
+    for p in sorted(str(x) for x in case_paths):
+        try:
+            case = yaml.safe_load(Path(p).read_text()) or {}
+        except Exception:  # noqa: BLE001 — an unreadable case is the validator's job
+            out.append([Path(p).stem, "unreadable"])
+            continue
+        if case.get("layer") != 4:
+            continue
+        rubric = case.get("rubric")
+        if not isinstance(rubric, dict):
+            continue
+        entries = sorted(
+            (dim, e.get("id"), e.get("required") is True)
+            for dim in ("pedagogy", "safety", "actionable")
+            for e in (rubric.get(dim) or []) if isinstance(e, dict))
+        if entries:
+            out.append([Path(p).stem, entries])
+    return out
+
+
 def _gate_digest(config: dict, case_paths=()) -> str:
     """Everything that decides PASS/FAIL, separate from what was measured.
 
@@ -185,6 +220,7 @@ def _gate_digest(config: dict, case_paths=()) -> str:
                         sort_keys=True).encode())
     h.update(json.dumps(runner.DEFAULT_THRESHOLDS, sort_keys=True).encode())
     h.update(json.dumps(_l2_gate_contract(case_paths), sort_keys=True).encode())
+    h.update(json.dumps(_l4_gate_contract(case_paths), sort_keys=True).encode())
 
     # The whole gate, not just its entry point. case_gate calls _meets and _threshold but
     # does not define them, so hashing case_gate alone left the comparison logic and the
@@ -851,35 +887,48 @@ def _unmeasured_reason(case: dict, agg: dict) -> str | None:
                 "longer name the questions the case asks — rerun this case, do not "
                 "recompile: " + "; ".join(drift))
 
-    required = [e["id"] for e in runner.l2_rubric(case)
-                if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+    if case.get("layer") == 4:
+        rubric = case.get("rubric") or {}
+        required = [e["id"] for dim in ("pedagogy", "safety", "actionable")
+                    for e in (rubric.get(dim) or [])
+                    if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+        blocks = agg.get("question_stats")
+        legacy = ("ledger predates the per-question L4 answers — nothing on file to "
+                  "hold each question to; rerun this case, do not recompile")
+    else:
+        required = [e["id"] for e in runner.l2_rubric(case)
+                    if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+        blocks = agg.get("rubric_criteria")
+        legacy = ("ledger predates the per-criterion rubric gate — no per-question "
+                  "answers on file; rerun this case, do not recompile")
+
     if not required:
         return None
-    criteria = agg.get("rubric_criteria")
-    if not criteria:
-        return ("ledger predates the per-criterion rubric gate — no per-question "
-                "answers on file; rerun this case, do not recompile")
+    if not blocks:
+        return legacy
 
     runs_valid = agg.get("runs_valid") or 0
     buckets: dict[str, list[str]] = {}
     for cid in required:
-        status, _ = runner.criterion_status(criteria.get(cid), runs_valid)
+        status, _ = runner.criterion_status(blocks.get(cid), runs_valid)
         if status != "ok":
             buckets.setdefault(status, []).append(cid)
 
     parts = []
     if buckets.get("missing"):
+        # On L4 this is also how a pre-id ledger reads: its blocks are keyed
+        # positionally (`actionable[0]`), so no declared id resolves to one.
         parts.append("no answer block at all: " + ", ".join(sorted(buckets["missing"])))
     if buckets.get("partial"):
         # Split by whether anyone answered: nothing at all points at the judge or the
         # rubric wiring, a partial count at specific runs.
         never = sorted(c for c in buckets["partial"]
-                       if not (criteria.get(c) or {}).get("answered"))
+                       if not (blocks.get(c) or {}).get("answered"))
         some = sorted(c for c in buckets["partial"] if c not in never)
         if never:
             parts.append("never answered in any valid run: " + ", ".join(never))
         for cid in some:
-            crit = criteria[cid]
+            crit = blocks[cid]
             parts.append(f"{cid} answered in only {crit.get('answered')} of "
                          f"{runs_valid} valid runs")
     if buckets.get("inconsistent"):
@@ -887,6 +936,52 @@ def _unmeasured_reason(case: dict, agg: dict) -> str | None:
             "counts contradict themselves (untrustworthy ledger, rerun — do not "
             "recompile): " + ", ".join(sorted(buckets["inconsistent"])))
     return "; ".join(parts) if parts else None
+
+
+def _threshold_for(verdict: dict, layer: int, key: str):
+    """The threshold this verdict was compiled under, for reporting only.
+
+    `thresholds_applied` is stamped by `recompile_verdict`; a freshly compiled verdict
+    has none, and the defaults are what ran.
+    """
+    return runner._threshold(verdict.get("thresholds_applied"), layer, key)
+
+
+def _l4_fail_detail(agg: dict, floor: float) -> list[str]:
+    """Which required L4 questions missed the floor, and in which of the two ways.
+
+    **Dead** (0 of 5) and **non-discriminating** (1–3 of 5) read identically in a bare
+    FAIL and need opposite responses. Dead means the behaviour never appeared once:
+    either the skill cannot do it, or the case demands something it is right to
+    withhold — `exercise_did_quality` grades progressive hints in a turn where the
+    student has not asked for them, and the skill correctly refuses. Non-discriminating
+    means the behaviour is there but unreliable, which is a skill gap and nothing else.
+    Replaying the 2026-08-04 ledger under the floor gives 3 dead and 11
+    non-discriminating; sending both to the same queue is how the two get confused.
+
+    Deliberately NOT a fourth verdict token: `compile_verdict` buckets into a hardcoded
+    three-key dict, so a new token would `KeyError` in three places. The release
+    vocabulary stays PASS / FAIL / UNMEASURED and the distinction rides in the text.
+    """
+    stats = agg.get("question_stats")
+    if not stats:
+        return []
+    runs_valid = agg.get("runs_valid") or 0
+    out = []
+    for qid, q in sorted(stats.items()):
+        if not q.get("required"):
+            continue
+        state, rate = runner.criterion_status(q, runs_valid)
+        if state != "ok" or runner._meets(rate, floor):
+            continue   # incomplete blocks are the UNMEASURED reason's job, not this one
+        passed = q.get("passed", 0)
+        if passed == 0:
+            out.append(f"{qid} is **dead** — never satisfied in any of "
+                       f"{runs_valid} valid runs")
+        else:
+            out.append(f"{qid} is non-discriminating — satisfied in {passed} of "
+                       f"{runs_valid} valid runs")
+    return out
 
 
 def run_case_slots(name: str, case_entry: dict, config_path: str, sweep_dir: Path,
@@ -1217,6 +1312,49 @@ def render_verdict_md(verdict: dict, current_fingerprint: dict | None = None) ->
                             f"{runs_valid} valid runs)")
                 lines.append(f"| {name} | {cid} | {status} | {rate} "
                              f"| {crit.get('question', '')} |")
+
+    # The same table for L4, and for the same reason. Under the per-question floor
+    # every L4 failure is a per-question failure — replaying the 2026-08-04 ledger
+    # produced 14 of them and not one was a dimension-mean failure — so a verdict that
+    # prints only FAIL names nothing at all.
+    #
+    # Rendered from the stored aggregate, never by reloading the case: `question_stats`
+    # carries the question text and its required status, and re-deriving them here
+    # would let the table describe a rubric the measurement was not taken against.
+    # This function is deliberately outside `_gate_digest`; reporting is not the rule,
+    # and a digest that moved when a table was added would cry wolf.
+    q_cases = {name: (c.get("aggregate") or {}).get("question_stats")
+               for name, c in verdict["cases"].items()}
+    q_cases = {name: qs for name, qs in q_cases.items() if qs}
+    if q_cases:
+        lines += ["", "## L4 rubric questions", "",
+                  "| Case | Question ID | Status | Rate | Question |",
+                  "|------|-------------|--------|------|----------|"]
+        for name in sorted(q_cases):
+            runs_valid = ((verdict["cases"][name].get("aggregate") or {})
+                          .get("runs_valid") or 0)
+            for qid, q in sorted(q_cases[name].items()):
+                status = "required" if q.get("required") else "informational"
+                state, _ = runner.criterion_status(q, runs_valid)
+                if state == "ok":
+                    rate = f"{q.get('passed', 0)}/{q.get('valid', 0)}"
+                elif state == "partial":
+                    rate = f"— ({q.get('answered', 0)} of {runs_valid} runs answered)"
+                else:
+                    rate = (f"— ({state}: passed {q.get('passed')}, answered "
+                            f"{q.get('answered')}, valid {q.get('valid')}, "
+                            f"{runs_valid} valid runs)")
+                lines.append(f"| {name} | {qid} | {status} | {rate} "
+                             f"| {q.get('question', '')} |")
+
+    failing = {name: _l4_fail_detail(c.get("aggregate") or {},
+                                     _threshold_for(verdict, 4, "question_rate"))
+               for name, c in verdict["cases"].items() if c.get("verdict") == "FAIL"}
+    failing = {name: detail for name, detail in failing.items() if detail}
+    if failing:
+        lines += ["", "### Which L4 questions failed", ""]
+        for name in sorted(failing):
+            lines.extend(f"- **{name}**: {d}" for d in failing[name])
 
     unmeasured = {name: c["unmeasured_reason"] for name, c in verdict["cases"].items()
                   if c.get("unmeasured_reason")}

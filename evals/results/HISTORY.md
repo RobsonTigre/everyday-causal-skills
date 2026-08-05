@@ -10,6 +10,15 @@ not gate on the case's declared contract. Those rows are still valid records of
 what was measured at the time; they are simply not comparable to the rows below
 them, and no trend should be read straight across the boundary.
 
+**L4 Exp changed units at the same boundary.** Every `%` in that column is a mean
+of means of means: each case's score averaged its rubric dimensions, each dimension
+averaged its questions, and the column averaged that across cases. A question the
+skill answered 2 times in 5 was three averages deep by the time it reached this
+table, so the column could not move when such a question did. It is now PASS/total
+through the same gate the release uses, where each required question must hold at
+>=4/5 on its own. A fraction and a percentage in this column are different
+measurements, not a better and a worse score.
+
 | Date | Model | L0 Trigger | L1 Acc | L2 Detect | L2 Severity | L3 Runs OK | L3 Est Acc | L4 Exp | L5 Wkfl | Notes |
 |------|-------|------------|--------|-----------|-------------|------------|------------|--------|---------|-------|
 | 2026-03-31 23:32 | claude-sonnet-4-20250514 | -- | 8/8 | 7/8 | 3/8 | 2/4 | 3/4 | -- | -- | v0.0.1 baseline (pre-fix) |

@@ -187,7 +187,14 @@ Pinned by `test_l4_question_blocks_are_validated_by_the_same_helper_as_l2_criter
 asserts both Package F forged shapes (`{passed: 999}`, `{passed: True}`) and the partial shape
 are rejected, and that a real `_l4_questions` block validates clean through the same call.
 
-### T2.3 `test_l4_gate_fails_a_case_whose_dimension_passes_but_one_question_is_dead` ★
+### T2.3 `test_l4_gate_fails_a_case_whose_dimension_passes_but_one_question_is_dead` ★ — **DONE 2026-08-05**
+
+Landed with T2.4, T2.5 and T2.6 in one cycle, in the order this plan prescribes: digest
+coverage first, then the rule.
+
+**Measured effect on the 2026-08-04 baseline: 32 PASS / 5 FAIL becomes 23 PASS / 14 FAIL.**
+Nine cases were clearing a dimension mean while a question inside it ran at 20–60%. That is
+the defect this test describes, nine times over, in the only valid measurement of HEAD.
 
 The `tasks/lessons.md` 2026-08-03 scenario, made executable.
 
@@ -200,12 +207,20 @@ The `tasks/lessons.md` 2026-08-03 scenario, made executable.
 - **Assert the existing thresholds are untouched** in the same test, so the change is provably
   additive.
 
-### T2.4 `test_l4_gate_is_unmeasured_when_a_question_is_answered_in_only_some_runs`
+### T2.4 `test_l4_gate_is_unmeasured_when_a_question_is_answered_in_only_some_runs` — **DONE 2026-08-05**
 
 - Package F's "never shrink the denominator" rule, ported to L4. A question answered in 4 of 5
   valid runs must read as **UNMEASURED**, never as 4/4 = 100%.
+- Written against a **stored** aggregate, per T1.2's note: aggregation now refuses a short
+  answer array before this rule can see it, so the state survives only in a ledger already on
+  disk — which is exactly where `compile_verdict` meets it.
 
-### T2.5 `test_gate_digest_moves_when_an_l4_rubric_question_changes` ★
+### T2.5 `test_gate_digest_moves_when_an_l4_rubric_question_changes` ★ — **DONE 2026-08-05**
+
+Landed as `_l4_gate_contract`, hashing sorted `(dimension, id, required)` per L4 case.
+**Correction: there is no `question_status` to add** — T2.2 already established that
+`criterion_status` is reused rather than cloned, and Package F hashed it. The digest moved
+from `7aac29ec…` to `a001661d…` across this cycle, which is the point.
 
 - **File:** `evals/test_sweep.py`, beside
   `test_gate_digest_covers_the_rubric_accessor_and_the_ledger_case_loader`
@@ -218,7 +233,11 @@ The `tasks/lessons.md` 2026-08-03 scenario, made executable.
 - **Assert the inverse too:** rewording a question's *text* is measurement, not gate, and must
   **not** move the digest — mirroring the L2 rule.
 
-### T2.6 `test_save_history_l4_column_is_a_pass_fraction`
+### T2.6 `test_save_history_l4_column_is_a_pass_fraction` — **DONE 2026-08-05**
+
+`layer_stats[4]` gained its `"pass"` key, `case_gate` now covers layer 4, and `HISTORY.md`'s
+demarcation note says the column changed units so no one reads a fraction against a
+percentage as a fall.
 
 - **Fails today because:** `save_history` calls `case_gate` only for layers 0–3
   (`runner.py:891`) and renders L4 as `avg_pct` of each case's `rate` (`runner.py:916-917, 938`)
@@ -343,9 +362,14 @@ The six tests in `evals/test_runner.py` (lines 577, 584, 599, 613, 624, 635) tha
 `case_gate({"layer": 4}, agg)` with a stripped case dict break as soon as the L4 **gate** needs
 the rubric — exactly as `case_gate`'s D9 docstring predicts.
 
-**Correction to this plan:** they were listed as "before step 2". They are not. Step 2 changes
-only `aggregate`, and all six still pass (verified: 422 tests green after T2.1/T2.2). They must
-be fixed **before step 4**, the gate change.
+**Correction to this plan, twice over:** they were first listed as "before step 2", then moved
+to "before step 4". Neither is right — **they never break at all.** Each pairs
+`case_gate({"layer": 4}, agg)` with an aggregate built from that same stripped dict, so it
+carries no `question_stats`, no required question resolves, and the guard has nothing to fire
+on. That pairing cannot occur in production, where `_load_ledger_case` always loads the real
+case. The D9 shape that *can* occur is a real aggregate against a stripped case, and that is
+now pinned by `test_l4_gate_refuses_a_stripped_case_dict_carrying_question_stats`, which
+raises. Predicting a test will fail is not the same as watching it fail.
 
 ## Definition of done
 

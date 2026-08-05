@@ -871,6 +871,128 @@ def test_l4_drift_check_is_silent_when_there_is_nothing_to_compare():
     assert agg["rate"] == 1.0, agg
 
 
+# --- The per-question L4 floor (T2.3, T2.4) ---
+
+_L4_GATED = {"layer": 4, "rubric": {"actionable": [
+    {"id": "tailored_to_context", "question": "Is it tailored?", "required": True},
+    {"id": "recommends_method_skill", "question": "Does it name a method skill?",
+     "required": True}]}}
+
+
+def _l4_actionable(answers_per_run):
+    """Runs answering the two gated `actionable` questions, one bool pair per run."""
+    return _runs(4, [{"actionable": sum(a) / len(a), "dimensions_present": ["actionable"],
+                      "question_answers": {"actionable": list(a)},
+                      "questions_asked": {"actionable": ["Is it tailored?",
+                                                         "Does it name a method skill?"]}}
+                     for a in answers_per_run])
+
+
+def test_l4_gate_fails_a_case_whose_dimension_passes_but_one_question_is_dead():
+    """The 2026-08-03 lesson, made executable.
+
+    Tailoring at 5/5 beside a method-skill recommendation at 2/5 averages to exactly
+    0.70 and clears a dimension threshold of 0.7. That is a behaviour appearing 40%
+    of the time, read as green — and ~15 hours of calibration nearly went on top of it.
+    """
+    runs = _l4_actionable([(True, True), (True, True), (True, False),
+                           (True, False), (True, False)])
+    agg = aggregate(runs, _L4_GATED)
+    assert agg["actionable"] == 0.7, agg          # the mean that hides it, untouched
+    assert agg["question_stats"]["recommends_method_skill"]["rate"] == 0.4, agg
+    assert case_gate(_L4_GATED, agg) == "FAIL", agg
+
+
+def test_l4_per_question_floor_is_additive_and_moves_no_existing_threshold():
+    """C15.1: strictly tightening. The three dimension thresholds must be untouched,
+    and a case clearing both the dimensions and the floor must still pass."""
+    assert DEFAULT_THRESHOLDS["layer4"]["pedagogy"] == 0.7
+    assert DEFAULT_THRESHOLDS["layer4"]["safety"] == 0.7
+    assert DEFAULT_THRESHOLDS["layer4"]["actionable"] == 0.7
+    assert DEFAULT_THRESHOLDS["layer4"]["question_rate"] == 0.8
+
+    runs = _l4_actionable([(True, True)] * 4 + [(True, False)])   # 5/5 and 4/5
+    agg = aggregate(runs, _L4_GATED)
+    assert agg["question_stats"]["recommends_method_skill"]["rate"] == 0.8, agg
+    assert case_gate(_L4_GATED, agg) == "PASS", agg
+
+
+def test_l4_gate_is_unmeasured_when_a_question_is_answered_in_only_some_runs():
+    """Package F's never-shrink-the-denominator rule, on L4.
+
+    Reached through a STORED aggregate, which is where it can still occur: T1.2
+    refuses a short answer array at aggregation time, but `compile_verdict` grades
+    the block a ledger already holds. Answered in 4 of 5 valid runs must never read
+    as 4/4 = 100% and clear the floor.
+    """
+    stored = {"runs_valid": 5, "runs_total": 5, "actionable": 0.8,
+              "pedagogy": None, "safety": None, "overall": 0.8, "rate": 0.8,
+              "question_stats": {
+                  "tailored_to_context": {"question": "Is it tailored?", "passed": 5,
+                                          "answered": 5, "valid": 5, "rate": 1.0},
+                  "recommends_method_skill": {"question": "Does it name a method skill?",
+                                              "passed": 4, "answered": 4, "valid": 5,
+                                              "rate": None}}}
+    assert case_gate(_L4_GATED, stored) == "UNMEASURED", stored
+
+    # And a forged block cannot buy a pass: the rate is derived from the counts by
+    # the same helper the L2 gate uses, never read off the ledger.
+    forged = {**stored, "question_stats": {
+        **stored["question_stats"],
+        "recommends_method_skill": {"question": "Does it name a method skill?",
+                                    "passed": 4, "answered": 4, "valid": 5, "rate": 1.0}}}
+    assert case_gate(_L4_GATED, forged) == "UNMEASURED", forged
+
+
+def test_l4_gate_is_unmeasured_for_a_ledger_written_before_per_question_answers():
+    """A pre-8e9420e ledger carries dimension means and nothing else. Grading a case
+    with required questions off those means is the pre-F L2 failure, on L4."""
+    legacy = {"runs_valid": 5, "runs_total": 5, "actionable": 1.0, "pedagogy": None,
+              "safety": None, "overall": 1.0, "rate": 1.0, "question_stats": None}
+    assert case_gate(_L4_GATED, legacy) == "UNMEASURED", legacy
+
+
+def test_l4_question_blocks_carry_their_required_status():
+    """So the verdict table can be rendered from the stored aggregate alone, exactly as
+    the L2 table is. Without it a reader cannot tell a gating question from an
+    informational one, and `render_verdict_md` has no case file in scope to ask."""
+    agg = aggregate(_l4_actionable([(True, True)] * 5), _L4_GATED)
+    assert agg["question_stats"]["tailored_to_context"]["required"] is True, agg
+    # A bare-string rubric has no `required` field to carry; it must read False, not
+    # crash and not default to gating.
+    bare = aggregate(_runs(4, [_l4_scores([True, True], [True])] * 5), _L4_CASE)
+    assert bare["question_stats"]["pedagogy[0]"]["required"] is False, bare
+
+
+def test_l4_informational_question_is_reported_but_never_gates():
+    """All 230 shipped questions are `required: true`, so nothing exercises the other
+    branch today. The gate must hold required questions only — the L2 rule."""
+    case = {"layer": 4, "rubric": {"actionable": [
+        {"id": "tailored_to_context", "question": "Is it tailored?", "required": True},
+        {"id": "recommends_method_skill", "question": "Does it name a method skill?",
+         "required": False}]}}
+    # Second question at 2/5, well under the 0.8 floor, but informational.
+    runs = _l4_actionable([(True, True), (True, True), (True, False),
+                           (True, False), (True, False)])
+    agg = aggregate(runs, case)
+    assert agg["question_stats"]["recommends_method_skill"]["rate"] == 0.4, agg
+    assert agg["question_stats"]["recommends_method_skill"]["required"] is False, agg
+    assert case_gate(case, agg) == "PASS", agg
+
+
+def test_l4_gate_refuses_a_stripped_case_dict_carrying_question_stats():
+    """D9's shape. An aggregate holding per-question results against a case that
+    declares no rubric means the caller substituted a stand-in, and every required
+    question would be dropped in silence. The L2 branch already raises on this."""
+    agg = aggregate(_l4_actionable([(True, False)] * 5), _L4_GATED)
+    try:
+        case_gate({"layer": 4}, agg)
+    except ValueError as e:
+        assert "stripped case dict" in str(e), e
+    else:
+        raise AssertionError("a stripped L4 case dict must not grade silently")
+
+
 def test_l5_gate():
     good = aggregate(_runs(5, [{"handoff_quality": 0.8, "questions_passed": 4,
                                 "questions_total": 5}] * 5), {"layer": 5})
@@ -968,6 +1090,58 @@ def test_save_history_handles_unmeasured_and_inapplicable_est():
     assert "int(" not in text
     row = [ln for ln in text.splitlines() if ln.startswith("| 20")][0]
     assert row.count("—") >= 1, row
+
+
+def test_save_history_l4_column_is_a_pass_fraction():
+    """T2.6. The L4 trend column was a mean of means of means: each case's `rate` is
+    an average over dimensions, each dimension an average over questions, and the
+    column averaged those across cases. Tightening the gate would not have moved it
+    by a point — a dead question is three averages deep by the time it lands there.
+
+    It is now PASS/total through `case_gate`, like L0–L3, so the column reports the
+    same rule the release does.
+    """
+    def l4_case(name, answers):
+        case = {"name": name, "layer": 4, "rubric": {"actionable": [
+            {"id": "tailored_to_context", "question": "Is it tailored?",
+             "required": True},
+            {"id": "recommends_method_skill", "question": "Does it name a method skill?",
+             "required": True}]}}
+        return {"case": case, "aggregate": aggregate(_l4_actionable(answers), case)}
+
+    # One clean case; one whose dimension mean is exactly 0.70 while its second
+    # question runs at 2/5 — green under the old column, red under the gate.
+    passing = l4_case("clean", [(True, True)] * 5)
+    dead_question = l4_case("hides_one", [(True, True), (True, True), (True, False),
+                                          (True, False), (True, False)])
+    assert dead_question["aggregate"]["actionable"] == 0.7, dead_question["aggregate"]
+
+    results = {"runs": 5, "backend": "cli", "cases": [passing, dead_question]}
+    with tempfile.TemporaryDirectory() as d:
+        hist = Path(d) / "HISTORY.md"
+        runner.save_history(results, {"model": "m"}, notes="unit", hist_path=hist)
+        row = _rows(hist.read_text())[0]
+
+    l4_cell = row.split("|")[9].strip()
+    assert l4_cell == "1/2", row      # not "85%", the mean of 1.0 and 0.7
+
+
+def test_save_history_l4_column_excludes_an_unmeasured_case():
+    """Same rule as every other layer: a case the gate would not grade sits out both
+    columns. A pre-8e9420e L4 ledger is a measurement gap, not a failed skill."""
+    case = {"name": "legacy", "layer": 4, "rubric": {"actionable": [
+        {"id": "tailored_to_context", "question": "Is it tailored?", "required": True}]}}
+    legacy = {"runs_valid": 5, "runs_total": 5, "pedagogy": None, "safety": None,
+              "actionable": 1.0, "overall": 1.0, "rate": 1.0, "question_stats": None}
+    assert case_gate(case, legacy) == "UNMEASURED", legacy
+
+    results = {"runs": 5, "backend": "cli", "cases": [{"case": case, "aggregate": legacy}]}
+    with tempfile.TemporaryDirectory() as d:
+        hist = Path(d) / "HISTORY.md"
+        runner.save_history(results, {"model": "m"}, notes="unit", hist_path=hist)
+        row = _rows(hist.read_text())[0]
+
+    assert row.split("|")[9].strip() == "—", row   # never 1/1, and never 0/1
 
 
 # --- Package F: the release HISTORY row is keyed by version, not appended blindly ---

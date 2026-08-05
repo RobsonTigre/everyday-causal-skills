@@ -91,6 +91,7 @@ thresholds:
     pedagogy: 0.7                 # gated per dimension, not averaged
     safety: 0.7
     actionable: 0.7
+    question_rate: 0.8            # each required question, not the dimension mean
   layer5:
     handoff_quality: 0.7
 

@@ -451,6 +451,13 @@ def validate_case(path: Path) -> list[str]:
         # _judge_l4 reads a TOP-LEVEL rubric keyed by dimension. A flat list
         # under expected.rubric yields zero questions and a silent 0.0 score.
         _check_single_skill(case, errors)
+        # Blocking since the L4 gate began holding each required question to its own
+        # floor. A bare-string rubric yields `question_stats` keyed positionally with
+        # no `required` flags, so `case_gate`'s required list is empty and the floor is
+        # skipped in silence: identical answer data gates PASS with bare strings and
+        # FAIL with ids. `_check_l2_rubric` has been blocking here since Package F for
+        # the same reason. Silent on all 37 shipped cases, which a test pins.
+        _check_l4_rubric(case, expected, errors)
         rubric = case.get("rubric")
         if isinstance(expected.get("rubric"), list):
             errors.append(
@@ -559,12 +566,11 @@ def warn_case(path: Path) -> list[str]:
             warnings.append(
                 f"expected.{key} is not read by the harness at L{layer} — dead metadata")
 
-    # Advisory on purpose. All 37 shipped L4 cases carry ids, so this is silent today
-    # and fires only on a new or reverted case. `validate_tree` is a hard gate at
-    # `sweep.py:671` while `warn_tree` is advisory at `:682`; promoting this to a build
-    # error belongs at a version boundary, not mid-investigation.
-    if layer == 4:
-        _check_l4_rubric(case, expected if isinstance(expected, dict) else {}, warnings)
+    # `_check_l4_rubric` used to run here, advisory, because the 37 shipped cases still
+    # carried bare strings. They are migrated and the L4 gate now depends on the ids, so
+    # it is a blocking check in `validate_case` and deliberately not repeated here: a
+    # case that fails validation never runs, and a warning nobody reaches is noise on
+    # the one output they do.
     return warnings
 
 

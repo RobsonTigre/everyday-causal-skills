@@ -843,6 +843,122 @@ def test_a_drifted_l4_ledger_says_which_rubric_moved_not_just_unmeasured():
     assert reason in render_verdict_md(v)
 
 
+def _l4_rubric_case_body(*specs):
+    return {"rubric": {"actionable": [
+        {"id": qid, "question": f"{qid}?", "required": req} for qid, req in specs]}}
+
+
+def test_a_recompiled_l4_ledger_says_which_questions_it_could_not_find():
+    """The real shape of the 2026-08-04 baseline read through `--recompile`.
+
+    Its stored `question_stats` are keyed positionally (`actionable[0]`) because it
+    was measured before the rubric ids existed. The gate looks required questions up
+    by id, finds nothing, and correctly refuses — but a silent UNMEASURED sends the
+    reader hunting for a broken judge instead of an aggregate that predates the ids.
+    """
+    agg = {"runs_valid": 5, "runs_total": 5, "pedagogy": None, "safety": None,
+           "actionable": 1.0, "overall": 1.0, "rate": 1.0,
+           "question_stats": {"actionable[0]": {"question": "tailored?", "passed": 5,
+                                                "answered": 5, "valid": 5, "rate": 1.0}}}
+    v = compile_verdict(_ledger({"positional_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(("tailored", True)))}))
+
+    assert v["cases"]["positional_case"]["verdict"] == "UNMEASURED", v["cases"]
+    reason = v["cases"]["positional_case"]["unmeasured_reason"]
+    assert reason and "tailored" in reason, reason
+    assert reason in render_verdict_md(v)
+
+
+def test_a_partly_answered_l4_question_says_how_far_short_it_fell():
+    agg = {"runs_valid": 5, "runs_total": 5, "pedagogy": None, "safety": None,
+           "actionable": 1.0, "overall": 1.0, "rate": 1.0,
+           "question_stats": {"tailored": {"question": "tailored?", "passed": 4,
+                                           "answered": 4, "valid": 5, "rate": None}}}
+    v = compile_verdict(_ledger({"partial_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(("tailored", True)))}))
+
+    reason = v["cases"]["partial_case"]["unmeasured_reason"]
+    assert reason and "tailored" in reason, reason
+    assert "4" in reason and "5" in reason, reason
+
+
+def _l4_stats(*specs):
+    """`question_stats` blocks: (id, passed, answered, required)."""
+    return {qid: {"question": f"{qid}?", "required": req, "passed": p,
+                  "answered": a, "valid": 5, "rate": p / 5 if a == 5 else None}
+            for qid, p, a, req in specs}
+
+
+def _l4_agg(stats, rate=0.7):
+    return {"runs_valid": 5, "runs_total": 5, "pedagogy": None, "safety": None,
+            "actionable": rate, "overall": rate, "rate": rate, "question_stats": stats}
+
+
+def test_verdict_markdown_reports_each_l4_question_and_its_rate():
+    """Every one of the 14 failures under the per-question floor is a per-question
+    failure — not one is a dimension-mean failure. A verdict that prints only FAIL
+    therefore names nothing, and the reader has to open the ledger to learn anything.
+    """
+    agg = _l4_agg(_l4_stats(("tailored", 5, 5, True), ("names_method", 2, 5, True),
+                            ("cites_paper", 1, 5, False)))
+    v = compile_verdict(_ledger({"l4_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(
+            ("tailored", True), ("names_method", True), ("cites_paper", False)))}))
+    assert v["cases"]["l4_case"]["verdict"] == "FAIL", v["cases"]
+    md = render_verdict_md(v)
+
+    assert "names_method" in md and "tailored" in md, md
+    assert "2/5" in md, md                    # the rate as measured, not a mean
+    line = [ln for ln in md.splitlines() if "names_method" in ln][0]
+    assert "required" in line.lower(), line
+    # An informational question must be visibly distinguishable from a gating one.
+    fyi = [ln for ln in md.splitlines() if "cites_paper" in ln][0]
+    assert "informational" in fyi.lower(), fyi
+
+
+def test_a_refused_l4_question_block_never_renders_as_a_rate():
+    """Same rule the L2 table follows: a block the gate would not grade must not print
+    a confident `4/5`, and a gap must not be mistakable for a pass rate."""
+    agg = _l4_agg(_l4_stats(("tailored", 4, 4, True)), rate=0.8)
+    v = compile_verdict(_ledger({"l4_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(("tailored", True)))}))
+    assert v["cases"]["l4_case"]["verdict"] == "UNMEASURED", v["cases"]
+
+    line = [ln for ln in render_verdict_md(v).splitlines()
+            if "tailored" in ln and ln.startswith("|")][0]
+    rate_cell = line.split("|")[4].strip()
+    assert not re.search(r"\d+\s*/\s*\d+", rate_cell), rate_cell
+    assert rate_cell.startswith("—") and "answered" in rate_cell, rate_cell
+
+
+def test_a_dead_l4_question_reads_differently_from_a_non_discriminating_one():
+    """0/5 and 2/5 need different responses and currently read identically.
+
+    Dead means the behaviour never appeared — either the skill cannot do it or the
+    case is asking for something unreachable. Non-discriminating means it appears
+    sometimes, which is a reliability gap in the skill. Carried in the reason, NOT as
+    a fourth verdict token: `compile_verdict` buckets into a hardcoded three-key dict,
+    so a new token KeyErrors.
+    """
+    agg = _l4_agg(_l4_stats(("never_once", 0, 5, True), ("sometimes", 2, 5, True),
+                            ("solid", 5, 5, True)))
+    v = compile_verdict(_ledger({"l4_case": _entry(
+        4, verdict_agg=agg, case_fields=_l4_rubric_case_body(
+            ("never_once", True), ("sometimes", True), ("solid", True)))}))
+    md = render_verdict_md(v)
+
+    dead_line = [ln for ln in md.splitlines()
+                 if "never_once" in ln and not ln.startswith("|")][0]
+    assert "dead" in dead_line.lower(), dead_line
+    weak_line = [ln for ln in md.splitlines()
+                 if "sometimes" in ln and not ln.startswith("|")][0]
+    assert "2 of 5" in weak_line, weak_line
+    assert "dead" not in weak_line.lower(), weak_line
+    # A question that met the floor is not named as a problem at all.
+    assert not [ln for ln in md.splitlines()
+                if "solid" in ln and not ln.startswith("|")], md
+
+
 def test_green_release_sweep_writes_one_history_row_with_sweep_id_and_rc_sha():
     """The sweep has never written a consolidated HISTORY row — every slot runs
     `runner.py --no-history` and the release writer only emitted verdict files."""
@@ -1260,6 +1376,47 @@ def test_gate_digest_covers_the_required_criterion_contract():
         other = Path(d) / "l1.yaml"
         other.write_text(yaml.safe_dump({"name": "l1", "layer": 1}))
         assert sweep._gate_digest({}, [path, other]) == write(True, "Does it hold?")
+
+
+def test_gate_digest_covers_the_l4_rubric_contract():
+    """T2.5. Once the L4 gate holds each question to a floor, the set of questions
+    and which of them are required IS the decision rule, exactly as for L2.
+
+    Without this, adding a question or demoting one to informational would change
+    what PASS means while every hashed function stayed byte identical — Package F
+    finding #5, repeated on the other gating layer. Rewording is measurement and
+    must NOT move it, so the digest keeps saying what it means: this is the rule,
+    `cases_sha256` is the wording.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "c.yaml"
+
+        def write(entries):
+            path.write_text(yaml.safe_dump(
+                {"name": "c", "layer": 4, "rubric": {"pedagogy": entries}}))
+            return sweep._gate_digest({}, [path])
+
+        one = [{"id": "explains_why", "question": "Does it explain why?",
+                "required": True}]
+        gating = write(one)
+
+        assert write([{**one[0], "required": False}]) != gating, \
+            "demoting an L4 question to informational must move the gate digest"
+        assert write([{**one[0], "question": "Reworded entirely?"}]) == gating, \
+            "L4 question wording is measurement, not gate policy"
+        assert write(one + [{"id": "names_a_method", "question": "Which method?",
+                             "required": True}]) != gating, \
+            "adding an L4 question changes what PASS means"
+        assert write([{**one[0], "id": "explains_the_why"}]) != gating, \
+            "renaming an L4 question id re-points every stored answer"
+
+        # A case from another layer contributes nothing, so unrelated cases cannot
+        # perturb the hash. `write` is called first: it rewrites `path`, and the
+        # comparison has to be against that content, not the last id tried above.
+        restored = write(one)
+        other = Path(d) / "l1.yaml"
+        other.write_text(yaml.safe_dump({"name": "l1", "layer": 1}))
+        assert sweep._gate_digest({}, [path, other]) == restored
 
 
 def test_gate_digest_excluded_from_resume_drift():

@@ -44,7 +44,8 @@ DEFAULT_THRESHOLDS = {
                "rubric_required_rate": 0.8},
     "layer3": {"runs_without_error": 0.9, "estimation_accuracy": 0.8,
                "guard_pass_rate": 1.0},
-    "layer4": {"pedagogy": 0.7, "safety": 0.7, "actionable": 0.7},
+    "layer4": {"pedagogy": 0.7, "safety": 0.7, "actionable": 0.7,
+               "question_rate": 0.8},
     "layer5": {"handoff_quality": 0.7},
 }
 
@@ -137,11 +138,38 @@ def case_gate(case: dict, agg: dict, thresholds: dict | None = None) -> str:
             ok = ok and _meets(guard, t("guard_pass_rate"))
         return "PASS" if ok else "FAIL"
     if layer == 4:
+        ok = True
         for dim in ("pedagogy", "safety", "actionable"):
             score = agg.get(dim)
             if score is not None and not _meets(score, t(dim)):
-                return "FAIL"
-        return "PASS"
+                ok = False
+        # Then each required question on its own, added AFTER the dimension loop and
+        # changing none of it. A dimension mean is an average, and an average is where
+        # a dead question hides: tailoring at 5/5 beside a method-skill recommendation
+        # at 2/5 reads exactly 0.70 and clears a 0.7 dimension threshold. L2 got
+        # per-criterion floors in Package F; this is the same rule on the other
+        # rubric-graded layer. Nothing here averages across questions.
+        rubric = case.get("rubric")
+        required = [e["id"] for dim in ("pedagogy", "safety", "actionable")
+                    for e in ((rubric or {}).get(dim) or [])
+                    if isinstance(e, dict) and e.get("required") is True and e.get("id")]
+        stats = agg.get("question_stats")
+        if stats and not isinstance(rubric, dict):
+            raise ValueError(
+                "aggregate carries question_stats but the case declares no L4 rubric — "
+                "the caller passed a stripped case dict, so every required question "
+                "would be silently dropped")
+        if required:
+            if not stats:
+                return "UNMEASURED"   # pre-8e9420e ledger: no per-question answers
+            for qid in required:
+                # Derived from the counts, never the stored rate — see criterion_status.
+                status, qrate = criterion_status(stats.get(qid), agg["runs_valid"])
+                if status != "ok":
+                    return "UNMEASURED"
+                if not _meets(qrate, t("question_rate")):
+                    ok = False
+        return "PASS" if ok else "FAIL"
     if layer == 5:
         return "PASS" if _meets(rate, t("handoff_quality")) else "FAIL"
     return "FAIL"
@@ -729,6 +757,11 @@ def _l4_questions(valid: list[dict], case: dict) -> dict | None:
             passed = sum(1 for a in answers if a)
             out[declared_id or f"{dim}[{i}]"] = {
                 "question": text if isinstance(text, str) else "",
+                # Reporting only — the gate derives required status from the case, the
+                # same way `_rubric_criteria` does for L2. Carried here so the verdict
+                # table can be rendered from the stored aggregate alone, since
+                # `render_verdict_md` has no case file in scope.
+                "required": isinstance(entry, dict) and entry.get("required") is True,
                 "passed": passed,
                 "answered": len(answers),
                 "valid": n,
@@ -1011,7 +1044,7 @@ def save_history(results: dict, config: dict, notes: str = "",
     hist_path = Path(hist_path) if hist_path else Path("evals/results/HISTORY.md")
 
     # Compute aggregate pass rates per layer
-    layer_stats = {0: {"pass": 0, "total": 0}, 1: {"pass": 0, "total": 0}, 2: {"pass": 0, "total": 0, "sev_pass": 0, "sev_total": 0}, 3: {"pass": 0, "total": 0, "est_pass": 0, "est_total": 0}, 4: {"scores": [], "total": 0}, 5: {"scores": [], "total": 0}}
+    layer_stats = {0: {"pass": 0, "total": 0}, 1: {"pass": 0, "total": 0}, 2: {"pass": 0, "total": 0, "sev_pass": 0, "sev_total": 0}, 3: {"pass": 0, "total": 0, "est_pass": 0, "est_total": 0}, 4: {"pass": 0, "total": 0}, 5: {"scores": [], "total": 0}}
     thresholds = config.get("thresholds", {})
 
     def thr(layer, key):
@@ -1028,7 +1061,7 @@ def save_history(results: dict, config: dict, notes: str = "",
         # and L3 guard/diagnostic gates, so HISTORY could report a case as passing that
         # the gate failed. The supplementary columns below are separate metrics, not
         # gates, and stay broken out.
-        gate = case_gate(cr["case"], agg, thresholds) if layer in (0, 1, 2, 3) else None
+        gate = case_gate(cr["case"], agg, thresholds) if layer in (0, 1, 2, 3, 4) else None
         if gate == "UNMEASURED":
             # Same rule as `rate is None` above, and the same treatment: the whole case
             # sits out every column. Until Package F the gate could only withhold a
@@ -1053,8 +1086,6 @@ def save_history(results: dict, config: dict, notes: str = "",
                 layer_stats[3]["est_total"] += 1
                 if _meets(agg["est_ok"] / applicable, thr(3, "estimation_accuracy")):
                     layer_stats[3]["est_pass"] += 1
-        elif layer == 4:
-            layer_stats[4]["scores"].append(rate)
         elif layer == 5:
             layer_stats[5]["scores"].append(rate)
 
@@ -1075,7 +1106,7 @@ def save_history(results: dict, config: dict, notes: str = "",
     l2_sev = frac(layer_stats[2], "sev_pass", "sev_total")
     l3_run = frac(layer_stats[3])
     l3_est = frac(layer_stats[3], "est_pass", "est_total")
-    l4 = avg_pct(layer_stats[4]["scores"])
+    l4 = frac(layer_stats[4])
     l5 = avg_pct(layer_stats[5]["scores"])
 
     if release_version:

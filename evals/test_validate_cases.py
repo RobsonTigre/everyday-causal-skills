@@ -1163,21 +1163,47 @@ def test_l4_rubric_question_must_be_a_nonempty_string():
     assert any("question" in e for e in errs), errs
 
 
-def test_warn_case_flags_an_l4_rubric_that_still_uses_bare_strings():
-    """Advisory, not blocking. `validate_tree` is a hard gate at `sweep.py:671` while
-    `warn_tree` is advisory at `:682`; promoting a new rule to a build error
-    mid-investigation is what `tasks/lessons.md` exists to prevent. Promote at a
-    version boundary.
+def test_a_bare_string_l4_rubric_is_reported_once_not_twice():
+    """The rule moved from `warn_case` to `validate_case` and must not sit in both.
+
+    `validate_tree` is a hard gate at `sweep.py:671` and `warn_tree` is advisory at
+    `:682`, so a case that fails validation never runs and its warning is never read —
+    the duplicate line is pure noise on the one output a reader does see. Advisory
+    output that repeats a blocking error is the scale-aware lesson from T1.4.
     """
-    warnings = _warn(L4_BARE_RUBRIC, name="bare_l4")
-    assert any("id" in w for w in warnings), warnings
-
-
-def test_bare_string_l4_rubric_is_still_valid_not_an_error():
-    """The discriminating half of the same decision: a warning, never a failure."""
     with tempfile.TemporaryDirectory() as t:
         p = _write(t, "layer4", "bare_l4.yaml", L4_BARE_RUBRIC)
-        assert validate_case(p) == [], validate_case(p)
+        assert any("id" in e for e in validate_case(p)), validate_case(p)
+        assert not [w for w in warn_case(p) if "id" in w and "rubric" in w], warn_case(p)
+
+
+def test_bare_string_l4_rubric_is_a_hard_validation_error():
+    """Promoted from a warning once the L4 gate started depending on the ids.
+
+    A bare-string rubric produces `question_stats` keyed positionally with no
+    `required` flags, so `case_gate`'s required list comes back empty and the
+    per-question floor is skipped in silence. Measured on identical answer data: a
+    dimension mean of exactly 0.70 with one question at 2/5 gates **PASS** with bare
+    strings and **FAIL** with ids. That is a hole in the gate, not a style
+    preference, and the L2 equivalent has been blocking since Package F.
+
+    Not a mid-investigation promotion of the kind `tasks/lessons.md` warns about: all
+    37 shipped L4 cases are migrated and this is silent on every one of them.
+    """
+    with tempfile.TemporaryDirectory() as t:
+        p = _write(t, "layer4", "bare_l4.yaml", L4_BARE_RUBRIC)
+        errs = validate_case(p)
+        assert errs, "a bare-string L4 rubric must fail validation"
+        assert any("id" in e for e in errs), errs
+
+
+def test_every_shipped_case_still_validates_under_the_blocking_l4_schema():
+    """The promotion must be provably silent on the tree it lands in — otherwise it is
+    a build break dressed as a tightening."""
+    failing = {p.name: validate_case(p) for p in
+               sorted(Path("evals/cases/layer4").glob("*.yaml"))}
+    assert not {n: e for n, e in failing.items() if e}, \
+        {n: e for n, e in failing.items() if e}
 
 
 def test_every_shipped_l4_case_is_warning_free_after_the_id_migration():
