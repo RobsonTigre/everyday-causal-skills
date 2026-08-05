@@ -1419,6 +1419,31 @@ def test_gate_digest_covers_the_l4_rubric_contract():
         assert sweep._gate_digest({}, [path, other]) == restored
 
 
+def test_extra_harness_files_leave_an_ordinary_sweep_untouched():
+    """A diagnostic module must not enter the release fingerprint.
+
+    `harness_sha256` is a resume key, so folding `regrade.py` into `_HARNESS_FILES`
+    would make every unrelated sweep's fingerprint depend on a module that grades
+    nothing — and invalidate resume for runs that never used it. The extra files
+    are opt-in per caller, and the default has to be provably inert.
+    """
+    paths = [str(p) for p in sorted(Path("evals/cases/layer4").glob("*.yaml"))[:2]]
+    base = sweep.build_fingerprint({}, paths, None, None)
+    same = sweep.build_fingerprint({}, paths, None, None, extra_harness_files=())
+    assert same["harness_sha256"] == base["harness_sha256"], \
+        "the default must be byte-identical to the pre-change behaviour"
+
+    extra = sweep.build_fingerprint({}, paths, None, None,
+                                    extra_harness_files=("scorer.py",))
+    assert extra["harness_sha256"] != base["harness_sha256"], \
+        "an extra hashed file must move the harness digest"
+    # Only the harness digest may move. Everything else describes the same tree,
+    # and a caller opting into an extra file is not declaring a different one.
+    assert extra["cases_sha256"] == base["cases_sha256"]
+    assert extra["gate_sha256"] == base["gate_sha256"], \
+        "hashing more harness code must not touch the decision rule"
+
+
 def test_gate_digest_excluded_from_resume_drift():
     """--recompile exists to re-apply a corrected gate to existing measurements, so a
     changed gate must not block resume the way changed measurement inputs do."""

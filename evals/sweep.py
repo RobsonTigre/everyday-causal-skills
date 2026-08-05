@@ -401,7 +401,8 @@ def _r_requires(case_path: Path) -> list[str]:
 
 def build_fingerprint(config: dict, case_paths: list[str],
                       config_path: str | None = None,
-                      backend: str | None = None) -> dict:
+                      backend: str | None = None,
+                      extra_harness_files: tuple = ()) -> dict:
     """Identify the exact code, config and transport a verdict describes.
 
     A verdict is only evidence for the tree it was measured against, so resume
@@ -412,6 +413,13 @@ def build_fingerprint(config: dict, case_paths: list[str],
     dependency instead of leaving a reader to infer it, and because a pre-backend
     ledger (which carries None) is then correctly refused for resume rather than
     silently extended under a harness that has since changed.
+
+    `extra_harness_files` lets a caller that runs additional code declare it, without
+    that code entering every other run's fingerprint. `harness_sha256` is a resume
+    key, so folding a diagnostic module into `_HARNESS_FILES` would make an ordinary
+    release sweep's fingerprint depend on something that grades none of it — and
+    would refuse resume for runs that never touched it. Opt-in per caller; the empty
+    default is byte-identical to hashing `_HARNESS_FILES` alone, which a test pins.
     """
     h = hashlib.sha256()
     for p in sorted(case_paths):
@@ -421,7 +429,7 @@ def build_fingerprint(config: dict, case_paths: list[str],
     # mid-sweep silently changes the meaning of results already collected, and
     # the commit hash won't move while the tree is dirty.
     harness = hashlib.sha256()
-    for name in _HARNESS_FILES:
+    for name in (*_HARNESS_FILES, *sorted(extra_harness_files)):
         harness.update((Path(__file__).parent / name).read_bytes())
 
     return {
