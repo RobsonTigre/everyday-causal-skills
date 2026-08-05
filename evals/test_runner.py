@@ -675,6 +675,42 @@ def test_l4_questions_carry_their_text_so_drift_is_detectable():
     assert agg["question_stats"]["pedagogy[1]"]["question"] == "Is it tailored?"
 
 
+_L4_CASE_WITH_IDS = {"layer": 4, "rubric": {
+    "pedagogy": [{"id": "is_clear", "question": "Is it clear?", "required": True},
+                 {"id": "is_tailored", "question": "Is it tailored?", "required": True}],
+    "safety": [{"id": "warns", "question": "Does it warn?", "required": True}]}}
+
+
+def test_l4_questions_keys_by_id_when_the_rubric_declares_one():
+    """T1.1's whole point: a stored answer must be able to name the question it
+    answered. A positional key cannot survive a reorder or a reword; an id can.
+
+    The judge still returns answers positionally — that is the transport. The id is
+    applied here, where the stored array is mapped back onto the declared rubric.
+    """
+    agg = aggregate(_runs(4, [_l4_scores([True, False], [True])] * 5),
+                    _L4_CASE_WITH_IDS)
+    stats = agg["question_stats"]
+    assert set(stats) == {"is_clear", "is_tailored", "warns"}, sorted(stats)
+    assert stats["is_clear"]["passed"] == 5, stats
+    assert stats["is_tailored"]["passed"] == 0, stats
+    assert stats["is_tailored"]["question"] == "Is it tailored?", stats
+    assert agg["pedagogy"] == 0.5, agg  # the dimension mean is untouched
+
+
+def test_l4_questions_still_keys_positionally_for_a_bare_string_rubric():
+    """Backward-compatibility pin — passes today and must keep passing.
+
+    The 2026-08-04 baseline ledger holds 37 cases of bare-string rubrics. If the
+    readers stopped understanding that shape the moment they learned about ids, the
+    only valid measurement of HEAD would stop replaying.
+    """
+    stats = aggregate(_runs(4, [_l4_scores([True, False], [True])] * 5),
+                      _L4_CASE)["question_stats"]
+    assert set(stats) == {"pedagogy[0]", "pedagogy[1]", "safety[0]"}, sorted(stats)
+    assert stats["pedagogy[0]"]["question"] == "Is it clear?", stats
+
+
 def test_l4_question_denominator_is_every_valid_run():
     """Never the subset that happens to carry an answer — the Package F rule.
 

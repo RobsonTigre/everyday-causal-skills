@@ -646,13 +646,20 @@ def _l4_questions(valid: list[dict], case: dict) -> dict | None:
         questions = rubric.get(dim) or []
         if not isinstance(questions, list):
             continue
-        for i, question in enumerate(questions):
+        for i, entry in enumerate(questions):
+            # The judge answers positionally — that is the transport, and stored
+            # ledgers keep that shape. The id is applied here, where the array is
+            # mapped back onto the declared rubric, so a migrated case gets a stable
+            # key while a bare-string rubric (every ledger written before the
+            # migration) still resolves.
+            declared_id = entry.get("id") if isinstance(entry, dict) else None
+            text = entry.get("question") if isinstance(entry, dict) else entry
             answers = [stored[dim][i] for stored in
                        (r["scores"].get("question_answers") or {} for r in valid)
                        if isinstance(stored.get(dim), list) and i < len(stored[dim])]
             passed = sum(1 for a in answers if a)
-            out[f"{dim}[{i}]"] = {
-                "question": question if isinstance(question, str) else "",
+            out[declared_id or f"{dim}[{i}]"] = {
+                "question": text if isinstance(text, str) else "",
                 "passed": passed,
                 "answered": len(answers),
                 "valid": n,

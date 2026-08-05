@@ -682,7 +682,12 @@ Grade only the rubric as written without assuming a later conversational turn.""
         dim_questions = rubric.get(dim, [])
         if dim_questions:
             start = len(questions)
-            questions.extend(dim_questions)
+            # Entries are `{id, question, required}` after the L4 rubric migration and
+            # bare strings before it. Extending with the raw entry would render a dict
+            # repr into the numbered prompt and have the model grade a Python object.
+            # Same shape-tolerant read as the L2 rubric below.
+            questions.extend(e["question"] if isinstance(e, dict) else e
+                             for e in dim_questions)
             dim_ranges[dim] = (start, len(questions))
 
     if not questions:
