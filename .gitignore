@@ -24,6 +24,15 @@ evals/results/*.json
 evals/results/sweep-*/
 !evals/results/verdict-v*.md
 !evals/results/verdict-v*.json
+# Worksheets embed response text from the gitignored sweep dirs; the key does not.
+evals/gold/worksheets/
+# Judge accuracy against the gold key is release evidence — it is what says whether
+# a per-question failure belongs to the skill or to the instrument. Same two-format
+# exception as a verdict: .md for humans, .json for tooling. Both must sit at the top
+# level of evals/results/, because line 24 ignores the sweep DIRECTORY and git cannot
+# re-include a file inside an excluded directory.
+!evals/results/gold-judge-accuracy.md
+!evals/results/gold-judge-accuracy.json
 # Ad-hoc case lists passed to sweep.py --cases @file
 evals/.*-cases.txt
 
