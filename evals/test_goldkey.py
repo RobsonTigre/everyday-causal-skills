@@ -4,6 +4,7 @@ import json
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 
@@ -126,8 +127,7 @@ def test_a_unit_is_one_response_and_carries_no_disputed_marker():
             cases, lambda: goldkey.worksheet_units(d, decoy_cases=0))
         assert len(units) == 5, len(units)
         for unit in units:
-            assert set(unit) == {"unit_id", "case", "slot", "response",
-                                 "response_sha256", "questions"}
+            assert set(unit) == goldkey._UNIT_FIELDS
             for q in unit["questions"]:
                 assert set(q) == {"qid", "text"}, q
         assert manifest[units[0]["unit_id"]]["disputed"] == ["is_tailored"]
@@ -482,3 +482,479 @@ def test_the_cli_refuses_an_unknown_subcommand():
         assert e.code != 0
     else:
         raise AssertionError("expected SystemExit")
+
+
+def test_the_scenario_is_the_schema_injected_message_the_model_actually_saw():
+    """runner.inject_schema pastes a df.head() sample into user_message before any
+    L4 run (runner.py:1180, unconditional and above the layer branch). Showing the
+    bare user_message would show the labeller LESS than the model read."""
+    failing = [{"pedagogy": [True, t], "safety": [True]}
+               for t in (True, True, False, True, False)]
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        csv = d / "iv_weak.csv"
+        csv.write_text("educ,earnings,distance\n12,40000,3.1\n16,62000,0.4\n")
+        case = dict(_CASE, name="alpha", skill="causal-iv",
+                    description="IV with a borderline instrument",
+                    user_message="Effect of education on earnings.",
+                    dataset=str(csv))
+        cases = {"alpha": (case, failing)}
+        d = _sweep_with_ledger(d, cases)
+        units, _ = _with_loaded_cases(
+            cases, lambda: goldkey.worksheet_units(d, decoy_cases=0))
+        unit = units[0]
+        assert set(unit) == goldkey._UNIT_FIELDS
+        assert "dataset" not in unit
+        assert unit["scenario"].startswith("Effect of education on earnings.")
+        assert "educ" in unit["scenario"] and "distance" in unit["scenario"]
+
+
+def test_the_dataset_path_never_reaches_a_unit():
+    """A real dataset value is a path like evals/data/iv_weak.csv — the filename
+    states the method and the condition, which is what hiding `description`
+    protects. The schema it points at is already in the injected message."""
+    failing = [{"pedagogy": [True, t], "safety": [True]}
+               for t in (True, True, False, True, False)]
+    case = dict(_CASE, name="alpha", user_message="A question.",
+                dataset="evals/data/iv_weak.csv")   # a real path in this repo
+    cases = {"alpha": (case, failing)}
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        units, _ = _with_loaded_cases(
+            cases, lambda: goldkey.worksheet_units(d, decoy_cases=0))
+        blob = json.dumps(units[0])
+        assert "iv_weak" not in blob
+        assert "evals/data" not in blob
+        # The schema the path points at IS carried — that is what the model saw —
+        # while the filename that names the method and condition is not.
+        assert units[0]["scenario"].startswith("A question.")
+        assert "Column types" in units[0]["scenario"]
+
+
+def test_a_dataset_path_that_does_not_exist_leaves_the_message_alone():
+    failing = [{"pedagogy": [True, t], "safety": [True]}
+               for t in (True, True, False, True, False)]
+    case = dict(_CASE, name="alpha", user_message="A question.",
+                dataset="evals/data/no_such_file_12345.csv")
+    cases = {"alpha": (case, failing)}
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        units, _ = _with_loaded_cases(
+            cases, lambda: goldkey.worksheet_units(d, decoy_cases=0))
+        assert units[0]["scenario"] == "A question."
+
+
+def _base(**over):
+    e = {"unit_id": "u1", "case": "alpha", "slot": 0, "qid": "explains_why",
+         "response_sha256": goldkey.sha256_text(_RESPONSE), "label": True,
+         "quote": "The F statistic is 8.4", "note": "", "suspect_case_defect": False,
+         "labeler": "robson", "pass_name": "pass1", "supersedes": None}
+    e.update(over)
+    return e
+
+
+def test_an_amendment_updates_evidence_and_never_the_label():
+    base = _base(quote="The F statistic is 8.4", note="")
+    amend = _base(quote="which is weak", note="clearer span", supersedes="d0")
+    out = goldkey.resolve_entries([base, amend])
+    assert len(out) == 1
+    assert out[0]["label"] is True
+    assert out[0]["quote"] == "which is weak"
+    assert out[0]["note"] == "clearer span"
+    assert out[0]["amendments"] == 1
+
+
+def test_the_latest_amendment_wins_over_an_earlier_one():
+    entries = [_base(note="first"),
+               _base(note="second", supersedes="d0"),
+               _base(note="third", supersedes="d1")]
+    assert goldkey.resolve_entries(entries)[0]["note"] == "third"
+    assert goldkey.resolve_entries(entries)[0]["amendments"] == 2
+
+
+def test_an_amendment_carrying_a_different_label_is_refused_on_read():
+    """collect refuses this at write time; a hand-edited file must not slip past."""
+    entries = [_base(label=True), _base(label=False, quote="", supersedes="d0")]
+    try:
+        goldkey.resolve_entries(entries)
+    except ValueError as e:
+        assert "label" in str(e).lower() and "explains_why" in str(e)
+    else:
+        raise AssertionError("a label change survived resolution")
+
+
+def test_unamended_entries_pass_through_unchanged():
+    a = _base(qid="explains_why")
+    b = _base(qid="warns", label=False, quote="")
+    out = goldkey.resolve_entries([a, b])
+    assert sorted(e["qid"] for e in out) == ["explains_why", "warns"]
+    assert all(e["amendments"] == 0 for e in out)
+
+
+def test_scoring_reads_the_amended_defect_flag_not_the_original():
+    judge = [{"pedagogy": [True, False], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), judge)}
+    gold = _gold_for("alpha", "is_tailored", [False] * 5)
+    # Both the base entry and its amendment carry the flag, so without resolution
+    # the same cell is counted twice. That is what makes this test discriminating:
+    # it fails on the unresolved path rather than passing by luck.
+    gold[0] = {**gold[0], "suspect_case_defect": True, "note": "first"}
+    gold.append({**gold[0], "suspect_case_defect": True,
+                 "note": "unfair", "supersedes": "d0"})
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        summary = _with_loaded_cases(
+            cases, lambda: goldkey.score_judge_against_gold(gold, d))
+        assert len(summary["suspected_case_defects"]) == 1
+        assert summary["criteria"][0]["labelled"] == 5
+
+
+def _units_for_build():
+    r = "The first stage F is 8.4, which is weak."
+    return [{"unit_id": "u1", "case": "alpha", "slot": 3, "response": r,
+             "response_sha256": goldkey.sha256_text(r),
+             "questions": [{"qid": "explains_why", "text": "Does it explain why?"}],
+             "scenario": "Effect of education on earnings."}]
+
+
+def _one_unit_env():
+    return _units_for_build(), {"u1": {"case": "alpha", "slot": 3,
+                                       "disputed": ["explains_why"], "decoy": []}}
+
+
+def _answer(**over):
+    units = _units_for_build()
+    a = {"unit_id": "u1", "qid": "explains_why", "pass": 1, "label": True,
+         "quote": "The first stage F is 8.4", "note": "",
+         "suspect_case_defect": False,
+         "response_sha256": units[0]["response_sha256"],
+         "labeled_at": "2026-08-05T11:00:00Z"}
+    a.update(over)
+    return a
+
+
+def _export(answers, build=None):
+    units, _ = _one_unit_env()
+    return {"build": build or goldkey.build_id(units),
+            "exported": "2026-08-05T12:00:00Z", "answers": answers}
+
+
+def _collect(export, units, manifest, d, **kw):
+    p1, p2 = Path(d) / "pass1.jsonl", Path(d) / "pass2.jsonl"
+    return goldkey.collect_export(export, units, manifest, p1, p2, "robson", **kw), p1, p2
+
+
+def test_an_export_from_a_different_build_is_refused_with_answers_in_it():
+    """The draft's version passed an EMPTY export, so it proved only that nothing
+    was written when there was nothing to write."""
+    units, manifest = _one_unit_env()
+    export = _export({"u1|explains_why|p1": _answer()}, build="someone-elses-build")
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert any("build" in r for r in out["rejected"])
+        assert not p1.exists()
+
+
+def test_an_answer_against_a_changed_response_is_refused():
+    units, manifest = _one_unit_env()
+    export = _export({"u1|explains_why|p1": _answer(response_sha256="deadbeef")})
+    with tempfile.TemporaryDirectory() as d:
+        out, _p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert any("response_sha256" in r for r in out["rejected"])
+
+
+def test_a_question_the_unit_never_asked_is_refused():
+    units, manifest = _one_unit_env()
+    export = _export({"u1|invented|p1": _answer(qid="invented")})
+    with tempfile.TemporaryDirectory() as d:
+        out, _, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert any("invented" in r for r in out["rejected"])
+
+
+def test_a_label_that_is_not_a_bool_is_refused_never_coerced():
+    """bool('false') is True. The judge parser has the same latent bug on record."""
+    units, manifest = _one_unit_env()
+    for bad in ("false", 0, 1, None):
+        export = _export({"u1|explains_why|p1": _answer(label=bad)})
+        with tempfile.TemporaryDirectory() as d:
+            out, _, _ = _collect(export, units, manifest, d)
+            assert out["written"] == 0, bad
+            assert any("label" in r for r in out["rejected"]), bad
+
+
+def test_an_answer_whose_pass_does_not_match_the_collection_is_refused():
+    units, manifest = _one_unit_env()
+    export = _export({"u1|explains_why|p1": _answer(**{"pass": 3})})
+    with tempfile.TemporaryDirectory() as d:
+        out, _, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert any("pass" in r for r in out["rejected"])
+
+
+def test_one_export_cannot_smuggle_two_answers_for_the_same_cell():
+    units, manifest = _one_unit_env()
+    export = _export({
+        "first-hand-edited-key": _answer(),
+        "second-hand-edited-key": _answer(label=False, quote=""),
+    })
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert out["rejected"] or out["conflicts"]
+        assert not p1.exists()
+
+
+def test_an_io_failure_cannot_leave_half_an_export_on_disk():
+    units, manifest = _one_unit_env()
+    units[0]["questions"].append({"qid": "warns", "text": "Does it warn?"})
+    manifest["u1"]["decoy"] = ["warns"]
+    export = _export({
+        "u1|explains_why|p1": _answer(),
+        "u1|warns|p1": _answer(qid="warns", label=False, quote="")},
+        build=goldkey.build_id(units))
+    with tempfile.TemporaryDirectory() as d:
+        with patch.object(Path, "replace", side_effect=OSError(
+                "simulated replace failure")) as replace:
+            try:
+                _collect(export, units, manifest, d)
+            except OSError:
+                pass
+        assert replace.call_count == 1
+        assert not (Path(d) / "pass1.jsonl").exists()
+
+
+def test_nothing_is_written_when_any_answer_in_the_export_is_invalid():
+    """A half-ingested export is worse than a refused one."""
+    units, manifest = _one_unit_env()
+    export = _export({"u1|explains_why|p1": _answer(),
+                      "u1|invented|p1": _answer(qid="invented")})
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert not p1.exists()
+
+
+def test_collecting_the_same_export_twice_writes_nothing_the_second_time():
+    units, manifest = _one_unit_env()
+    export = _export({"u1|explains_why|p1": _answer()})
+    with tempfile.TemporaryDirectory() as d:
+        _collect(export, units, manifest, d)
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0 and out["skipped"] == 1 and out["amended"] == 0
+        assert goldkey.verify_chain(p1) == 1
+
+
+def test_a_changed_label_is_a_conflict_and_the_file_keeps_the_first_answer():
+    units, manifest = _one_unit_env()
+    first = _export({"u1|explains_why|p1": _answer()})
+    second = _export({"u1|explains_why|p1": _answer(
+        label=False, quote="", labeled_at="2026-08-06T11:00:00Z")})
+    with tempfile.TemporaryDirectory() as d:
+        _collect(first, units, manifest, d)
+        out, p1, _ = _collect(second, units, manifest, d)
+        assert out["written"] == 0 and len(out["conflicts"]) == 1
+        assert goldkey.resolve_entries(goldkey.read_entries(p1))[0]["label"] is True
+
+
+def test_a_corrected_quote_is_appended_as_an_amendment_not_an_overwrite():
+    units, manifest = _one_unit_env()
+    first = _export({"u1|explains_why|p1": _answer()})
+    second = _export({"u1|explains_why|p1": _answer(
+        quote="which is weak", note="tighter span",
+        labeled_at="2026-08-06T11:00:00Z")})
+    with tempfile.TemporaryDirectory() as d:
+        _collect(first, units, manifest, d)
+        out, p1, _ = _collect(second, units, manifest, d)
+        assert out["amended"] == 1 and out["written"] == 0
+        raw = goldkey.read_entries(p1)
+        assert len(raw) == 2
+        assert raw[1]["supersedes"] == raw[0]["digest"]
+        resolved = goldkey.resolve_entries(raw)
+        assert len(resolved) == 1
+        assert resolved[0]["quote"] == "which is weak"
+        assert resolved[0]["label"] is True
+
+
+def test_an_older_export_cannot_revert_newer_evidence():
+    units, manifest = _one_unit_env()
+    older = _export({"u1|explains_why|p1": _answer(note="old note")})
+    newer = _export({"u1|explains_why|p1": _answer(
+        note="better note", labeled_at="2026-08-06T11:00:00Z")})
+    with tempfile.TemporaryDirectory() as d:
+        _collect(older, units, manifest, d)
+        amended, p1, _ = _collect(newer, units, manifest, d)
+        assert amended["amended"] == 1
+
+        stale, _, _ = _collect(older, units, manifest, d)
+        assert stale["amended"] == 0
+        assert stale["rejected"]
+        resolved = goldkey.resolve_entries(goldkey.read_entries(p1))
+        assert resolved[0]["note"] == "better note"
+
+
+def test_an_amended_quote_is_revalidated_against_the_response():
+    units, manifest = _one_unit_env()
+    first = _export({"u1|explains_why|p1": _answer()})
+    second = _export({"u1|explains_why|p1": _answer(
+        quote="a sentence that is not there", labeled_at="2026-08-06T11:00:00Z")})
+    with tempfile.TemporaryDirectory() as d:
+        _collect(first, units, manifest, d)
+        out, p1, _ = _collect(second, units, manifest, d)
+        assert out["amended"] == 0
+        assert any("substring" in r for r in out["rejected"])
+        assert goldkey.verify_chain(p1) == 1
+
+
+def test_entries_are_chained_in_the_order_they_were_labelled():
+    units, manifest = _one_unit_env()
+    units[0]["questions"].append({"qid": "warns", "text": "Does it warn?"})
+    manifest["u1"]["decoy"] = ["warns"]
+    # The build id must come from THESE units: adding a question changes the build,
+    # and an export stamped with the old id is correctly refused.
+    export = _export({
+        "u1|warns|p1": _answer(qid="warns", label=False, quote="",
+                               labeled_at="2026-08-05T10:00:00Z"),
+        "u1|explains_why|p1": _answer(label=False, quote="",
+                                      labeled_at="2026-08-05T09:00:00Z")},
+        build=goldkey.build_id(units))
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 2, out
+        assert [e["qid"] for e in goldkey.read_entries(p1)] == \
+               ["explains_why", "warns"]
+
+
+def test_clicking_a_question_card_does_not_rebuild_its_textareas():
+    template = goldkey.TEMPLATE_PATH.read_text()
+    assert "div.onclick = () => { focus = n; render(); };" not in template
+    assert 'card.classList.toggle("focus"' in template
+
+
+def test_the_built_page_has_no_network_capable_construct():
+    """Not a URL grep: one real stored response contains https://cloud.r-project.org,
+    and rendering it through textContent issues no request. What matters is whether
+    the TEMPLATE can reach the network."""
+    html = goldkey.build_labeller(_units_for_build())
+    template = goldkey.TEMPLATE_PATH.read_text()
+    for construct in ("<script src", "<link ", "<img ", "<iframe", "@import",
+                      "fetch(", "XMLHttpRequest", "WebSocket", "sendBeacon",
+                      "EventSource", "importScripts"):
+        assert construct not in template, construct
+    assert "__GOLDKEY_DATA__" not in html
+
+
+def test_a_response_containing_a_closing_script_tag_cannot_break_out():
+    unit = _units_for_build()[0]
+    unit["response"] = "Use </script><script>alert(1)</script> carefully."
+    unit["response_sha256"] = goldkey.sha256_text(unit["response"])
+    html = goldkey.build_labeller([unit])
+    assert "</script><script>alert" not in html
+    assert "\\u003c/script" in html
+
+
+def test_template_markers_inside_response_text_are_not_rewritten():
+    unit = _units_for_build()[0]
+    unit["response"] = "Literal __GOLDKEY_BUILD_ID__ evidence."
+    unit["response_sha256"] = goldkey.sha256_text(unit["response"])
+    html = goldkey.build_labeller([unit])
+    blob = html.split("const UNITS = ")[1].split("\n")[0].rstrip(";")
+    embedded = json.loads(blob.replace("\\u003c", "<"))[0]
+    assert embedded["response"] == unit["response"]
+    assert embedded["response_sha256"] == goldkey.sha256_text(embedded["response"])
+
+
+def test_the_embedded_unit_keeps_only_what_the_page_needs():
+    html = goldkey.build_labeller(_units_for_build())
+    blob = html.split("const UNITS = ")[1].split("\n")[0].rstrip(";")
+    embedded = json.loads(blob.replace("\\u003c", "<"))
+    assert set(embedded[0]) == {"unit_id", "response", "response_sha256",
+                                "questions", "scenario"}
+    assert "alpha" not in html
+
+
+def test_a_unit_shape_the_builder_does_not_recognise_is_refused():
+    unit = _units_for_build()[0]
+    unit["judge_said"] = True
+    try:
+        goldkey.build_labeller([unit])
+    except ValueError as e:
+        assert "judge_said" in str(e)
+    else:
+        raise AssertionError("an unrecognised unit field reached the page")
+
+
+def test_the_two_passes_get_different_storage_keys():
+    """Pass 2 must not inherit pass 1's answers out of the same browser slot."""
+    units = _units_for_build()
+    one = goldkey.build_labeller(units, pass_no=1)
+    two = goldkey.build_labeller(units, pass_no=2)
+    key = lambda h: h.split('STORAGE_KEY = "')[1].split('"')[0]
+    assert key(one) != key(two)
+    assert key(one).endswith(":p1") and key(two).endswith(":p2")
+
+
+def test_pass_two_units_come_only_from_chained_pass_one_yes_cells():
+    units, manifest = _one_unit_env()
+    units[0]["questions"].append({"qid": "warns", "text": "Does it warn?"})
+    manifest["u1"]["decoy"] = ["warns"]
+    export = _export({
+        "u1|explains_why|p1": _answer(),                               # yes
+        "u1|warns|p1": _answer(qid="warns", label=False, quote="")},   # no
+        build=goldkey.build_id(units))
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 2, out
+        got = goldkey.pass2_units(units, p1)
+        assert len(got) == 1
+        assert [q["qid"] for q in got[0]["questions"]] == ["explains_why"]
+
+
+def test_pass_two_refuses_to_build_before_pass_one_is_collected():
+    units, _ = _one_unit_env()
+    with tempfile.TemporaryDirectory() as d:
+        try:
+            goldkey.pass2_units(units, Path(d) / "pass1.jsonl")
+        except ValueError as e:
+            assert "pass 1" in str(e).lower()
+        else:
+            raise AssertionError("pass 2 built with no chained pass 1")
+
+
+def test_pass_two_carries_no_pass_one_label_into_the_page():
+    units, manifest = _one_unit_env()
+    export = _export({"u1|explains_why|p1": _answer()})
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 1
+        html = goldkey.build_labeller(goldkey.pass2_units(units, p1), pass_no=2)
+        # Assert on the embedded data, not the whole page: `"label"` appears in the
+        # template as document.createElement("label"), a DOM tag name. A substring
+        # grep over the page tests the wrong thing.
+        blob = html.split("const UNITS = ")[1].split("\n")[0].rstrip(";")
+        embedded = json.loads(blob.replace("\\u003c", "<"))
+        assert all("label" not in u for u in embedded)
+        assert all(set(u) == {"unit_id", "response", "response_sha256",
+                              "questions", "scenario"} for u in embedded)
+        assert "The first stage F is 8.4" in html
+
+
+def test_the_cli_exposes_build_and_collect():
+    for cmd in ("build", "collect"):
+        try:
+            goldkey.main([cmd, "--help"])
+        except SystemExit as e:
+            assert e.code == 0, cmd
+        else:
+            raise AssertionError(f"{cmd} --help did not exit")
+
+
+def test_the_cli_rejects_a_pass_outside_one_and_two():
+    try:
+        goldkey.main(["build", "--pass", "3"])
+    except SystemExit as e:
+        assert e.code != 0
+    else:
+        raise AssertionError("expected SystemExit on an out-of-range pass")

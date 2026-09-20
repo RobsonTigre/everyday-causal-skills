@@ -28,8 +28,11 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import random
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -38,6 +41,11 @@ import runner  # noqa: E402
 
 SLOTS = regrade.SLOTS_PER_CASE
 _DIMENSIONS = ("pedagogy", "safety", "actionable")
+
+# The exact shape of a unit. Asserted by the page builder, so a field added here
+# without a decision about blinding cannot reach the labeller by accident.
+_UNIT_FIELDS = {"unit_id", "case", "slot", "response", "response_sha256",
+                "questions", "scenario"}
 
 
 def question_position(case: dict, qid: str) -> tuple[str, int]:
@@ -145,6 +153,15 @@ def worksheet_units(sweep_dir, thresholds: dict | None = None, decoy_cases: int 
                  for dim in _DIMENSIONS
                  for e in ((case.get("rubric") or {}).get(dim) or [])
                  if isinstance(e, dict) and e.get("id")}
+        # The text the model was actually given. `inject_schema` pastes a df.head()
+        # sample and column dtypes into user_message and is called unconditionally at
+        # runner.py:1180, above the layer branch, so every L4 run saw it. Showing the
+        # bare user_message would show the labeller less context than the model read.
+        # The raw `dataset` path is deliberately NOT carried: a real value is
+        # `evals/data/iv_weak.csv`, whose filename states the method and the
+        # condition — the same thing hiding `description` protects — and the schema it
+        # points at is already inside `scenario`.
+        scenario = runner.inject_schema(case).get("user_message") or ""
         for slot in range(slots):
             response = regrade.stored_response(sweep_dir, name, slot)
             shown = disputed + decoys
@@ -155,6 +172,7 @@ def worksheet_units(sweep_dir, thresholds: dict | None = None, decoy_cases: int 
                 "response": response,
                 "response_sha256": hashlib.sha256(response.encode()).hexdigest(),
                 "questions": [{"qid": q, "text": texts[q]} for q in shown],
+                "scenario": scenario,
             })
             manifest[unit_id] = {"case": name, "slot": slot,
                                  "disputed": disputed, "decoy": decoys}
@@ -188,7 +206,8 @@ def render_worksheet(unit: dict) -> str:
 
 ENTRY_FIELDS = {"unit_id", "case", "slot", "qid", "response_sha256", "label",
                 "quote", "note", "suspect_case_defect", "labeler", "pass_name",
-                "failure_reason", "prev", "digest"}
+                "failure_reason", "labeled_at", "supersedes", "amendments", "prev",
+                "digest"}
 _REQUIRED_FIELDS = {"unit_id", "case", "slot", "qid", "response_sha256", "label",
                     "labeler", "pass_name"}
 
@@ -291,6 +310,51 @@ def read_entries(path) -> list[dict]:
 _NO_REASON = {"", "none", "no reason", "n/a", "na", "-", "nothing"}
 
 
+def resolve_entries(entries: list[dict]) -> list[dict]:
+    """Collapse each cell's amendment chain into one current entry.
+
+    The label is decided by the FIRST entry for a cell and is immutable; later
+    entries may only correct supporting evidence — quote, note, case-defect flag.
+    That split is the whole amendment policy: the fact being recorded is locked once
+    chained, the evidence for it can be improved, and every prior value stays in the
+    file because the store is append-only.
+
+    A later entry carrying a different label is refused here as well as at collect
+    time. Collect guards the writer; this guards every reader, including one pointed
+    at a hand-edited file.
+
+    `amendments` counts corrections, so a report can say a cell was revised without
+    anyone having to diff the chain.
+    """
+    order: list[tuple] = []
+    base: dict[tuple, dict] = {}
+    for entry in entries:
+        cell = (entry["case"], entry["slot"], entry["qid"],
+                entry.get("pass_name", "pass1"))
+        if cell not in base:
+            base[cell] = {**entry, "amendments": 0}
+            order.append(cell)
+            continue
+        current = base[cell]
+        if entry.get("label") != current.get("label"):
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]}: an amendment carries label "
+                f"{entry.get('label')!r} against a locked {current.get('label')!r} — "
+                "a decision is not amendable, only its evidence")
+        if (entry.get("failure_reason") or "") != (current.get("failure_reason") or ""):
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]}: an amendment changes the "
+                "failure reason, which is decision-bearing and locked")
+        base[cell] = {**current,
+                      "quote": entry.get("quote", current.get("quote")),
+                      "note": entry.get("note", current.get("note")),
+                      "suspect_case_defect": entry.get(
+                          "suspect_case_defect", current.get("suspect_case_defect")),
+                      "labeled_at": entry.get("labeled_at", current.get("labeled_at")),
+                      "amendments": current["amendments"] + 1}
+    return [base[c] for c in order]
+
+
 def inversion_targets(pass1: list[dict]) -> list[dict]:
     """The cells the second pass revisits: the ones labelled yes.
 
@@ -325,6 +389,7 @@ def join_passes(pass1: list[dict], pass2: list[dict]) -> tuple[list[dict], list[
     than a plea for self-discipline. Contested cells are reported as unresolved and
     never used to score the judge.
     """
+    pass1, pass2 = resolve_entries(pass1), resolve_entries(pass2)
     reasons = {(e["case"], e["slot"], e["qid"]): (e.get("failure_reason") or "").strip()
                for e in pass2}
     gold, contested = [], []
@@ -361,6 +426,7 @@ def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | Non
     diagnostic only: this function is never called by `case_gate`, and a gold
     label may not be substituted for a judge answer in a verdict.
     """
+    gold = resolve_entries(gold)
     floor = runner._threshold(thresholds, 4, "question_rate")
     ledger = json.loads((Path(sweep_dir) / "ledger.json").read_text())
 
@@ -443,11 +509,301 @@ def render_gold_md(summary: dict) -> str:
             f"| {'yes' if r['gate_disagrees'] else 'no'} | {r['distance_to_flip']} |")
     if summary["suspected_case_defects"]:
         lines += ["", "## Criteria a labeller flagged as possibly unsatisfiable", "",
-                  "Recorded with evidence, acting on nothing. No question is "
-                  "reworded, reordered or demoted by this file.", ""]
+                  ("Recorded with evidence, acting on nothing. No question is "
+                   "reworded, reordered or demoted by this file."), ""]
         for d in summary["suspected_case_defects"]:
             lines.append(f"- `{d['qid']}` on {d['case']} slot {d['slot']} — {d['note']}")
     return "\n".join(lines) + "\n"
+
+
+# Only these reach the browser. `case` and `slot` are dropped: the page joins back
+# on `unit_id`, so it never needs to know which case it is showing. Defined here
+# rather than beside the builder because `build_id` hashes exactly this projection,
+# and the page and the collector must agree on what a build IS.
+_PAGE_FIELDS = ("unit_id", "response", "response_sha256", "questions", "scenario")
+
+_EVIDENCE_FIELDS = ("quote", "note", "suspect_case_defect")
+
+
+def build_id(units: list[dict]) -> str:
+    """Identity of a built page: the exact units it carries.
+
+    Rebuilding the same corpus reproduces it, so a progress file survives a rebuild.
+    Different units produce a different id, so answers cannot silently attach to
+    questions they were never given against.
+    """
+    page = [{k: u[k] for k in _PAGE_FIELDS} for u in units]
+    return hashlib.sha256(json.dumps(page, sort_keys=True).encode()).hexdigest()[:16]
+
+
+def _plan_entry(answer: dict, unit: dict, meta: dict, labeler: str,
+                pass_no: int) -> dict:
+    cell_common = {"unit_id": answer["unit_id"], "case": meta["case"],
+                   "slot": meta["slot"], "qid": answer["qid"],
+                   "response_sha256": unit["response_sha256"],
+                   "labeler": labeler, "pass_name": f"pass{pass_no}",
+                   "labeled_at": answer["labeled_at"], "supersedes": None}
+    if pass_no == 1:
+        return {**cell_common, "label": answer["label"],
+                "quote": answer.get("quote") or "", "note": answer.get("note") or "",
+                "suspect_case_defect": answer.get("suspect_case_defect", False)}
+    # A pass-2 entry is not a label. It carries label False and an empty quote so
+    # the yes-needs-a-quote rule cannot fire on a cell that records a reason.
+    return {**cell_common, "label": False, "quote": "",
+            "failure_reason": answer["failure_reason"].strip()}
+
+
+def collect_export(export: dict, units: list[dict], manifest: dict,
+                   pass1_path, pass2_path, labeler: str, pass_no: int = 1) -> dict:
+    """Ingest a browser export. Validates the whole export before writing anything.
+
+    Two-phase deliberately: a half-ingested export leaves a chain that is valid and
+    incomplete, which is indistinguishable from a finished one and worse than a
+    refusal. Every rejection names the cell.
+
+    Idempotent across days, because every export carries everything answered so far
+    and the second ingest necessarily re-presents the first one's cells. What
+    happens on a repeat depends on what changed:
+
+    - identical                       -> skipped
+    - label / failure reason changed  -> CONFLICT, nothing written. The decision is
+      locked once chained; overwriting it is the edit-after-seeing-the-tally the
+      chain exists to prevent.
+    - quote / note / defect changed   -> an amendment appended, `supersedes` pointing
+      at the entry it corrects. Nothing is overwritten, the prior value stays in the
+      file, and an amended quote is revalidated against the response.
+    """
+    by_unit = {u["unit_id"]: u for u in units}
+    expected = build_id(units)
+    if export.get("build") != expected:
+        return {"written": 0, "skipped": 0, "amended": 0, "conflicts": [],
+                "rejected": [f"export build {export.get('build')!r} is not this build "
+                             f"{expected!r} — it was made from a different set of "
+                             "units"]}
+
+    path = pass1_path if pass_no == 1 else pass2_path
+    on_file, head = {}, {}
+    if Path(path).exists() and Path(path).read_text().strip():
+        raw = read_entries(path)
+        for e in raw:
+            head[(e["case"], e["slot"], e["qid"])] = e["digest"]
+        for e in resolve_entries(raw):
+            on_file[(e["case"], e["slot"], e["qid"])] = e
+
+    rejected, conflicts, actions = [], [], []
+    rows = sorted((export.get("answers") or {}).items(),
+                  key=lambda item: (item[1].get("labeled_at") or "",
+                                    item[1].get("qid") or ""))
+
+    for answer_key, answer in rows:
+        unit = by_unit.get(answer.get("unit_id"))
+        meta = manifest.get(answer.get("unit_id"))
+        who = f"{answer.get('unit_id')}/{answer.get('qid')}"
+        expected_key = f"{answer.get('unit_id')}|{answer.get('qid')}|p{pass_no}"
+        if answer_key != expected_key:
+            rejected.append(f"{who}: answer key {answer_key!r} is not {expected_key!r}")
+            continue
+        if unit is None or meta is None:
+            rejected.append(f"{who}: not a unit of this build")
+            continue
+        if answer.get("response_sha256") != unit["response_sha256"]:
+            rejected.append(f"{who}: response_sha256 does not match the unit")
+            continue
+        if answer.get("qid") not in {q["qid"] for q in unit["questions"]}:
+            rejected.append(f"{who}: this unit never asked {answer.get('qid')!r}")
+            continue
+        if answer.get("pass") != pass_no:
+            rejected.append(f"{who}: pass {answer.get('pass')!r} in a pass {pass_no} "
+                            "collection")
+            continue
+        labeled_at = answer.get("labeled_at")
+        if not isinstance(labeled_at, str) or not labeled_at.strip():
+            rejected.append(f"{who}: labeled_at must be a non-empty ISO timestamp")
+            continue
+        try:
+            labeled_time = datetime.fromisoformat(
+                labeled_at[:-1] + "+00:00" if labeled_at.endswith("Z") else labeled_at)
+        except ValueError:
+            rejected.append(f"{who}: labeled_at is not a valid ISO timestamp")
+            continue
+        if labeled_time.tzinfo is None:
+            rejected.append(f"{who}: labeled_at must include a timezone")
+            continue
+
+        if pass_no == 1:
+            if "label" not in answer:
+                continue                                   # opened, not answered
+            if type(answer["label"]) is not bool:
+                rejected.append(f"{who}: label must be a bool, got "
+                                f"{answer['label']!r} — never coerced")
+                continue
+            if not isinstance(answer.get("quote", ""), str):
+                rejected.append(f"{who}: quote must be a string")
+                continue
+            if not isinstance(answer.get("note", ""), str):
+                rejected.append(f"{who}: note must be a string")
+                continue
+            if type(answer.get("suspect_case_defect", False)) is not bool:
+                rejected.append(f"{who}: suspect_case_defect must be a bool")
+                continue
+        else:
+            if not isinstance(answer.get("failure_reason", ""), str):
+                rejected.append(f"{who}: failure_reason must be a string")
+                continue
+            if not (answer.get("failure_reason") or "").strip():
+                continue                                   # opened, not answered
+
+        entry = _plan_entry(answer, unit, meta, labeler, pass_no)
+        cell = (entry["case"], entry["slot"], entry["qid"])
+        prior = on_file.get(cell)
+
+        if prior is None:
+            try:
+                validate_entry({**entry, "prev": ""}, unit["response"])
+            except ValueError as e:
+                rejected.append(f"{cell[0]} slot {cell[1]} {cell[2]}: {e}")
+                continue
+            actions.append(("write", entry, unit))
+            continue
+
+        if pass_no == 1 and prior["label"] != entry["label"]:
+            conflicts.append(f"{cell[0]} slot {cell[1]} {cell[2]}: label on file is "
+                             f"{prior['label']}, export says {entry['label']}")
+            continue
+        if pass_no == 2 and (prior.get("failure_reason") or "") != \
+                entry["failure_reason"]:
+            conflicts.append(f"{cell[0]} slot {cell[1]} {cell[2]}: the failure reason "
+                             "on file differs from the export")
+            continue
+
+        changed = [f for f in _EVIDENCE_FIELDS if prior.get(f, "") != entry.get(f, "")]
+        if not changed:
+            actions.append(("skip", entry, unit))
+            continue
+        prior_labeled_at = prior.get("labeled_at")
+        if prior_labeled_at:
+            prior_time = datetime.fromisoformat(
+                prior_labeled_at[:-1] + "+00:00"
+                if prior_labeled_at.endswith("Z") else prior_labeled_at)
+            if labeled_time <= prior_time:
+                rejected.append(
+                    f"{cell[0]} slot {cell[1]} {cell[2]}: evidence timestamp "
+                    f"{labeled_at!r} is not newer than {prior_labeled_at!r}")
+                continue
+        amendment = {**entry, "supersedes": head.get(cell)}
+        try:
+            validate_entry({**amendment, "prev": ""}, unit["response"])
+        except ValueError as e:
+            rejected.append(f"{cell[0]} slot {cell[1]} {cell[2]}: {e}")
+            continue
+        actions.append(("amend", amendment, unit))
+
+    if rejected or conflicts:
+        return {"written": 0, "skipped": 0, "amended": 0,
+                "conflicts": conflicts, "rejected": rejected}
+
+    written = skipped = amended = 0
+    path = Path(path)
+    existing = path.read_text() if path.exists() else ""
+    prev = json.loads(existing.splitlines()[-1])["digest"] if existing.strip() else ""
+    records = []
+    for kind, entry, unit in actions:
+        if kind == "skip":
+            skipped += 1
+            continue
+        record = {**entry, "prev": prev}
+        validate_entry(record, unit["response"])
+        record["digest"] = entry_digest(record)
+        records.append(json.dumps(record, sort_keys=True) + "\n")
+        prev = record["digest"]
+        written += kind == "write"
+        amended += kind == "amend"
+
+    # One export is one transaction. Build the complete next chain beside the target,
+    # then atomically replace it; an interrupted write or failed replace leaves the
+    # prior chain byte-for-byte intact rather than committing a valid-looking prefix.
+    if records:
+        temp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                    "w", dir=path.parent, prefix=f".{path.name}.", delete=False) as fh:
+                temp_path = Path(fh.name)
+                fh.write(existing)
+                if existing and not existing.endswith("\n"):
+                    fh.write("\n")
+                fh.writelines(records)
+                fh.flush()
+                os.fsync(fh.fileno())
+            if path.exists():
+                temp_path.chmod(path.stat().st_mode)
+            temp_path.replace(path)
+        finally:
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+    return {"written": written, "skipped": skipped, "amended": amended,
+            "conflicts": [], "rejected": []}
+
+
+def pass2_units(units: list[dict], pass1_path) -> list[dict]:
+    """Units for the inversion pass: only the cells labelled yes in a CHAINED pass 1.
+
+    This is the pass boundary, and it is why the two passes are separate builds. A
+    single page with a mode toggle lets a pass-1 label be revised after the inversion
+    prompt has been read — the exact anchoring the second pass exists to detect, and
+    `join_passes` cannot see it because it only merges by cell key. Requiring pass 1
+    to be on file and hash-chained before this page can exist makes the boundary a
+    fact about the filesystem rather than a matter of discipline.
+    """
+    path = Path(pass1_path)
+    if not path.exists() or not path.read_text().strip():
+        raise ValueError(
+            f"{path} is empty or absent — collect pass 1 before building pass 2; "
+            "the inversion page is generated from the yes-cells already on file")
+    yes = {(e["case"], e["slot"], e["qid"])
+           for e in resolve_entries(read_entries(path)) if e["label"] is True}
+    out = []
+    for unit in units:
+        keep = [q for q in unit["questions"]
+                if (unit["case"], unit["slot"], q["qid"]) in yes]
+        if keep:
+            out.append({**unit, "questions": keep})
+    return out
+
+
+TEMPLATE_PATH = Path(__file__).resolve().parent / "gold" / "labeller.template.html"
+
+
+def build_labeller(units: list[dict], pass_no: int = 1,
+                   template: str | None = None) -> str:
+    """One self-contained page carrying every unit for one pass.
+
+    The page is a data-entry surface, not an evidence store: it exports plain JSON
+    and `collect_export` does the validating and chaining in Python. A second chain
+    implementation in JS would drift from this one, and `crypto.subtle` is not
+    reliably available on `file://` anyway.
+
+    A unit whose shape this function does not recognise is refused rather than
+    passed through. Adding a field to a unit has to be a decision about what the
+    labeller may see, not a diff that quietly widens it.
+    """
+    for unit in units:
+        unknown = set(unit) - _UNIT_FIELDS
+        if unknown:
+            raise ValueError(
+                f"unit {unit.get('unit_id')} carries field(s) the page does not know "
+                f"how to blind: {sorted(unknown)}")
+    page_units = [{k: unit[k] for k in _PAGE_FIELDS} for unit in units]
+    # `<` is escaped so a response containing `</script>` cannot terminate the script
+    # element. Zero of the 185 stored responses do today; the cost of being wrong
+    # later is a page that silently stops working.
+    data = json.dumps(page_units).replace("<", "\\u003c")
+    html = template if template is not None else TEMPLATE_PATH.read_text()
+    bid = build_id(units)
+    return (html
+            .replace("__GOLDKEY_STORAGE_KEY__", f"goldkey:{bid}:p{pass_no}")
+            .replace("__GOLDKEY_BUILD_ID__", bid)
+            .replace("__GOLDKEY_PASS__", str(int(pass_no)))
+            .replace("__GOLDKEY_DATA__", data))
 
 
 _DEFAULT_SWEEP = "evals/results/sweep-2026-08-04_102745_pid96394"
@@ -466,6 +822,23 @@ def main(argv=None) -> int:
     p_extract.add_argument("--decoy-cases", type=int, default=2)
     p_extract.add_argument("--max-units", type=int, default=0,
                            help="0 means every unit; units are leverage-ordered")
+
+    p_build = sub.add_parser("build", help="write a self-contained labelling page")
+    p_build.add_argument("--sweep", default=_DEFAULT_SWEEP)
+    p_build.add_argument("--pass", dest="pass_no", type=int, choices=(1, 2), default=1)
+    p_build.add_argument("--out", default=None)
+    p_build.add_argument("--pass1", default="evals/gold/pass1.jsonl")
+    p_build.add_argument("--decoy-cases", type=int, default=2)
+
+    p_collect = sub.add_parser("collect", help="ingest a browser export")
+    p_collect.add_argument("--export", required=True)
+    p_collect.add_argument("--sweep", default=_DEFAULT_SWEEP)
+    p_collect.add_argument("--pass", dest="pass_no", type=int, choices=(1, 2),
+                           default=1)
+    p_collect.add_argument("--pass1", default="evals/gold/pass1.jsonl")
+    p_collect.add_argument("--pass2", default="evals/gold/pass2.jsonl")
+    p_collect.add_argument("--decoy-cases", type=int, default=2)
+    p_collect.add_argument("--labeler", default="robson")
 
     p_verify = sub.add_parser("verify", help="check a chain")
     p_verify.add_argument("--key", required=True)
@@ -495,6 +868,37 @@ def main(argv=None) -> int:
                                                       sort_keys=True))
         print(f"{len(units)} worksheet(s) written to {out}")
         return 0
+
+    if args.command == "build":
+        units, manifest = worksheet_units(args.sweep, decoy_cases=args.decoy_cases)
+        if args.pass_no == 2:
+            units = pass2_units(units, args.pass1)
+        out = Path(args.out or ("evals/gold/labeller"
+                                + ("" if args.pass_no == 1 else "-pass2") + ".html"))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(build_labeller(units, pass_no=args.pass_no))
+        (out.parent / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True))
+        cells = sum(len(u["questions"]) for u in units)
+        print(f"pass {args.pass_no}: {len(units)} pages, {cells} cells -> {out} "
+              f"({out.stat().st_size // 1024} KB)")
+        print(f"open it with: open {out}")
+        return 0
+
+    if args.command == "collect":
+        units, manifest = worksheet_units(args.sweep, decoy_cases=args.decoy_cases)
+        if args.pass_no == 2:
+            units = pass2_units(units, args.pass1)
+        result = collect_export(json.loads(Path(args.export).read_text()),
+                                units, manifest, args.pass1, args.pass2,
+                                args.labeler, pass_no=args.pass_no)
+        print(f"{result['written']} written, {result['amended']} amended, "
+              f"{result['skipped']} already on file")
+        for line in result["conflicts"]:
+            print(f"CONFLICT (nothing written): {line}", file=sys.stderr)
+        for line in result["rejected"]:
+            print(f"REJECTED (nothing written): {line}", file=sys.stderr)
+        return 1 if (result["conflicts"] or result["rejected"]) else 0
 
     if args.command == "verify":
         try:

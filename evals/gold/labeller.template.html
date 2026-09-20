@@ -1,0 +1,337 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Gold key labelling</title>
+<style>
+  :root { --bg:#fff; --fg:#111; --mut:#666; --line:#d8d8d8; --acc:#1a56c4;
+          --yes:#0a7a3d; --no:#a3211a; --warn:#8a5a00; --card:#f7f7f7; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161a; --fg:#e9e9ea; --mut:#9aa0a6; --line:#31353b; --acc:#7aa2f7;
+            --yes:#4ec97e; --no:#f07a72; --warn:#e0b355; --card:#1c1f24; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { position:sticky; top:0; z-index:5; background:var(--bg);
+           border-bottom:1px solid var(--line); padding:10px 16px; }
+  .bar { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  .grow { flex:1; }
+  .prog { height:6px; background:var(--line); border-radius:3px;
+          overflow:hidden; margin-top:8px; }
+  .prog > i { display:block; height:100%; background:var(--acc); width:0; }
+  button { font:inherit; padding:6px 12px; border:1px solid var(--line);
+           background:var(--card); color:var(--fg); border-radius:6px; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  button.yes.on { background:var(--yes); color:#fff; border-color:var(--yes); }
+  button.no.on { background:var(--no); color:#fff; border-color:var(--no); }
+  #nag { display:none; color:var(--warn); font-weight:600; }
+  #nag.show { display:inline; }
+  main { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  @media (max-width:900px) { main { grid-template-columns:1fr; } }
+  section { padding:16px; min-width:0; }
+  #left { border-right:1px solid var(--line); position:sticky; top:74px;
+          max-height:calc(100vh - 74px); overflow:auto; }
+  @media (max-width:900px) { #left { position:static; max-height:none;
+          border-right:0; border-bottom:1px solid var(--line); } }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.08em;
+       color:var(--mut); margin:0 0 6px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px;
+          padding:12px; margin-bottom:14px; white-space:pre-wrap;
+          overflow-wrap:anywhere; }
+  #response { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; }
+  .q { border:1px solid var(--line); border-radius:8px; padding:12px; margin-bottom:14px; }
+  .q.complete { border-color:var(--yes); }
+  .q.focus { outline:2px solid var(--acc); }
+  .qtext { font-weight:600; margin-bottom:10px; }
+  .row { display:flex; gap:8px; align-items:center; margin-bottom:8px; flex-wrap:wrap; }
+  textarea { width:100%; font:inherit; padding:8px; border:1px solid var(--line);
+             border-radius:6px; background:var(--bg); color:var(--fg); resize:vertical;
+             margin-bottom:6px; }
+  textarea.bad { border-color:var(--no); }
+  label.chk { color:var(--mut); font-size:13px; display:flex; gap:6px;
+              align-items:flex-start; }
+  .hint { color:var(--mut); font-size:13px; }
+  .err { color:var(--no); font-size:13px; min-height:1.2em; }
+  footer { padding:16px; border-top:1px solid var(--line); display:flex;
+           gap:10px; align-items:center; }
+</style>
+
+<header>
+  <div class="bar">
+    <strong id="pos"></strong>
+    <span class="hint" id="left-count"></span>
+    <span class="grow"></span>
+    <span id="nag"></span>
+    <strong id="passlabel"></strong>
+    <button id="export">Download progress</button>
+    <button id="import">Load progress…</button>
+    <input id="file" type="file" accept="application/json" hidden>
+  </div>
+  <div class="prog"><i id="progbar"></i></div>
+</header>
+
+<main>
+  <section id="left">
+    <h2>What the user asked, and the data they showed</h2>
+    <div class="card" id="scenario"></div>
+    <h2>The response</h2>
+    <div class="card" id="response"></div>
+  </section>
+  <section id="right">
+    <p class="hint" id="instructions"></p>
+    <div id="questions"></div>
+    <p class="hint">Keys: <b>1</b>-<b>9</b> pick a question &middot; <b>y</b>/<b>n</b>
+      answer &middot; <b>q</b> use your selection as the quote &middot;
+      <b>&larr;</b>/<b>&rarr;</b> change page.</p>
+  </section>
+</main>
+
+<footer>
+  <button id="prev">&larr; Previous</button>
+  <button id="next">Next &rarr;</button>
+  <span class="grow"></span>
+  <span class="hint" id="saved"></span>
+</footer>
+
+<script>
+const UNITS = __GOLDKEY_DATA__;
+const STORAGE_KEY = "__GOLDKEY_STORAGE_KEY__";
+const BUILD_ID = "__GOLDKEY_BUILD_ID__";
+const PASS = __GOLDKEY_PASS__;
+
+let state = load();
+let idx = Math.min(state.lastIndex || 0, UNITS.length - 1);
+let focus = 0;
+
+function fresh() {
+  // `revision` counts every edit, so correcting an already-exported answer marks
+  // progress dirty. Counting answer KEYS missed that entirely.
+  return { build: BUILD_ID, pass: PASS, answers: {}, lastIndex: 0,
+           revision: 0, exportedRevision: 0 };
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return (s && s.build === BUILD_ID && s.pass === PASS) ? s : fresh();
+  } catch (e) { return fresh(); }
+}
+function save() {
+  state.lastIndex = idx;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  document.getElementById("saved").textContent =
+    "saved " + new Date().toLocaleTimeString();
+  renderNag();
+}
+function key(unitId, qid) { return unitId + "|" + qid + "|p" + PASS; }
+function get(unit, qid) { return state.answers[key(unit.unit_id, qid)] || {}; }
+
+// A yes is complete only once its quote is a real span of the response. Counting a
+// quoteless yes as done is how six hours of work ends in cells the collector refuses.
+function isComplete(unit, qid) {
+  const a = get(unit, qid);
+  if (PASS === 2) return !!(a.failure_reason || "").trim();
+  if (a.label === false) return true;
+  if (a.label !== true) return false;
+  const q = (a.quote || "").trim();
+  return !!q && unit.response.indexOf(q) !== -1;
+}
+function unitDone(unit) { return unit.questions.every(q => isComplete(unit, q.qid)); }
+
+function renderNag() {
+  const dirty = state.revision - state.exportedRevision;
+  const nag = document.getElementById("nag");
+  nag.textContent = dirty >= 15
+    ? "⚠ " + dirty + " edits not downloaded — browser storage is not a backup"
+    : "";
+  nag.className = dirty >= 15 ? "show" : "";
+}
+
+function render() {
+  const unit = UNITS[idx];
+  const done = UNITS.filter(unitDone).length;
+  document.getElementById("pos").textContent =
+    "Page " + (idx + 1) + " of " + UNITS.length;
+  document.getElementById("left-count").textContent =
+    done + " complete · " + (UNITS.length - done) + " to go";
+  document.getElementById("progbar").style.width = (100 * done / UNITS.length) + "%";
+  document.getElementById("passlabel").textContent =
+    PASS === 1 ? "Pass 1 — labelling" : "Pass 2 — find the failure";
+  document.getElementById("scenario").textContent = unit.scenario;
+  document.getElementById("response").textContent = unit.response;
+  document.getElementById("instructions").textContent = PASS === 1
+    ? "Answer each question about the response on the left. A yes needs a verbatim quote — select the sentence and press q."
+    : "For each question, write the strongest concrete reason this response FAILS the criterion. If there genuinely is none, write: none";
+
+  const wrap = document.getElementById("questions");
+  wrap.innerHTML = "";
+  unit.questions.forEach((q, n) => {
+    const a = get(unit, q.qid);
+    const div = document.createElement("div");
+    const paint = () => {
+      div.className = "q" + (isComplete(unit, q.qid) ? " complete" : "")
+                         + (n === focus ? " focus" : "");
+    };
+    paint();
+
+    const t = document.createElement("div");
+    t.className = "qtext";
+    t.textContent = (n + 1) + ". " + q.text;
+    div.appendChild(t);
+
+    if (PASS === 1) {
+      const row = document.createElement("div");
+      row.className = "row";
+      [["yes", true], ["no", false]].forEach(function (pair) {
+        const b = document.createElement("button");
+        b.className = pair[0] + (a.label === pair[1] ? " on" : "");
+        b.textContent = pair[0] === "yes" ? "Yes" : "No";
+        b.onclick = () => setAnswer(unit, q.qid, { label: pair[1] });
+        row.appendChild(b);
+      });
+      const use = document.createElement("button");
+      use.textContent = "Use selection as quote";
+      use.onclick = () => {
+        const sel = String(window.getSelection()).trim();
+        if (sel) setAnswer(unit, q.qid, { quote: sel });
+      };
+      row.appendChild(use);
+      div.appendChild(row);
+
+      const quote = document.createElement("textarea");
+      quote.rows = 2;
+      quote.placeholder = "verbatim quote from the response (required for a yes)";
+      quote.value = a.quote || "";
+      const err = document.createElement("div");
+      err.className = "err";
+      // Validate as you type. Saving "quietly" without re-rendering meant the red
+      // border never appeared until something else redrew the page.
+      const check = () => {
+        const v = quote.value.trim();
+        const bad = v && unit.response.indexOf(v) === -1;
+        quote.className = bad ? "bad" : "";
+        err.textContent = bad
+          ? "That text is not in the response — select it instead of typing it."
+          : "";
+        paint();
+      };
+      quote.oninput = () => {
+        setAnswer(unit, q.qid, { quote: quote.value }, true);
+        check();
+      };
+      check();
+      div.appendChild(quote);
+      div.appendChild(err);
+
+      const note = document.createElement("textarea");
+      note.rows = 2;
+      note.placeholder = "note (optional) — e.g. why this question may be unfair";
+      note.value = a.note || "";
+      note.oninput = () => setAnswer(unit, q.qid, { note: note.value }, true);
+      div.appendChild(note);
+
+      const lab = document.createElement("label");
+      lab.className = "chk";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !!a.suspect_case_defect;
+      cb.onchange = () => setAnswer(unit, q.qid,
+                                    { suspect_case_defect: cb.checked });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(
+        "This criterion may be unfair to the skill (recorded separately; does not change my answer)"));
+      div.appendChild(lab);
+    } else {
+      const fr = document.createElement("textarea");
+      fr.rows = 3;
+      fr.placeholder = "strongest concrete reason this FAILS, or: none";
+      fr.value = a.failure_reason || "";
+      fr.oninput = () => {
+        setAnswer(unit, q.qid, { failure_reason: fr.value }, true);
+        paint();
+      };
+      div.appendChild(fr);
+    }
+    div.onclick = () => {
+      focus = n;
+      Array.from(wrap.children).forEach((card, i) =>
+        card.classList.toggle("focus", i === focus));
+    };
+    wrap.appendChild(div);
+  });
+}
+
+function setAnswer(unit, qid, patch, quiet) {
+  const k = key(unit.unit_id, qid);
+  state.answers[k] = Object.assign({}, state.answers[k] || {}, patch, {
+    unit_id: unit.unit_id, qid: qid, pass: PASS,
+    response_sha256: unit.response_sha256,
+    labeled_at: new Date().toISOString(),
+  });
+  state.revision += 1;
+  save();
+  if (!quiet) render();
+}
+
+function step(d) {
+  idx = Math.min(Math.max(idx + d, 0), UNITS.length - 1);
+  focus = 0; save(); render(); window.scrollTo(0, 0);
+}
+document.getElementById("next").onclick = () => step(1);
+document.getElementById("prev").onclick = () => step(-1);
+
+document.getElementById("export").onclick = () => {
+  const blob = new Blob([JSON.stringify(
+    { build: BUILD_ID, pass: PASS, exported: new Date().toISOString(),
+      answers: state.answers }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "goldkey-progress-p" + PASS + ".json";
+  a.click();
+  state.exportedRevision = state.revision;
+  save();
+};
+
+document.getElementById("import").onclick = () =>
+  document.getElementById("file").click();
+document.getElementById("file").onchange = (ev) => {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let data;
+    try { data = JSON.parse(r.result); }
+    catch (e) { alert("That file is not valid JSON."); return; }
+    // Refused, not confirmed: a different build means different units, so the
+    // answers would attach to questions they were never given against.
+    if (data.build !== BUILD_ID || data.pass !== PASS) {
+      alert("That progress file belongs to a different build or pass. Not loaded.");
+      return;
+    }
+    Object.keys(data.answers || {}).forEach(k => {
+      const inc = data.answers[k], have = state.answers[k];
+      if (!have || (inc.labeled_at || "") > (have.labeled_at || ""))
+        state.answers[k] = inc;
+    });
+    state.revision += 1;
+    save(); render();
+    alert("Loaded. " + Object.keys(state.answers).length + " answers on file.");
+  };
+  r.readAsText(f);
+};
+
+document.addEventListener("keydown", (e) => {
+  if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  const unit = UNITS[idx], qs = unit.questions;
+  if (e.key === "ArrowRight") return step(1);
+  if (e.key === "ArrowLeft") return step(-1);
+  if (/^[1-9]$/.test(e.key)) { focus = Math.min(+e.key - 1, qs.length - 1); render(); }
+  if (PASS === 1 && (e.key === "y" || e.key === "n"))
+    setAnswer(unit, qs[focus].qid, { label: e.key === "y" });
+  if (PASS === 1 && e.key === "q") {
+    const sel = String(window.getSelection()).trim();
+    if (sel) setAnswer(unit, qs[focus].qid, { quote: sel });
+  }
+});
+
+render();
+renderNag();
+</script>
