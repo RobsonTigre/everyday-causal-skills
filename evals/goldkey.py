@@ -336,6 +336,12 @@ def resolve_entries(entries: list[dict]) -> list[dict]:
             order.append(cell)
             continue
         current = base[cell]
+        if entry.get("response_sha256") != current.get("response_sha256"):
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]}: an amendment carries "
+                f"response_sha256 {entry.get('response_sha256')!r} against locked "
+                f"{current.get('response_sha256')!r} — evidence cannot move between "
+                "responses")
         if entry.get("label") != current.get("label"):
             raise ValueError(
                 f"{cell[2]} on {cell[0]} slot {cell[1]}: an amendment carries label "
@@ -390,25 +396,61 @@ def join_passes(pass1: list[dict], pass2: list[dict]) -> tuple[list[dict], list[
     never used to score the judge.
     """
     pass1, pass2 = resolve_entries(pass1), resolve_entries(pass2)
-    reasons = {(e["case"], e["slot"], e["qid"]): (e.get("failure_reason") or "").strip()
-               for e in pass2}
+    second_pass = {(e["case"], e["slot"], e["qid"]): e for e in pass2}
     gold, contested = [], []
     for entry in pass1:
         key = (entry["case"], entry["slot"], entry["qid"])
         if entry["label"] is False:
             gold.append(entry)
             continue
-        if key not in reasons:
+        if key not in second_pass:
             raise ValueError(
                 f"{entry['qid']} on {entry['case']} slot {entry['slot']} was labelled "
                 "yes but has no inversion-pass entry — a half-labelled cell must not "
                 "enter the key")
-        reason = reasons[key]
+        inversion = second_pass[key]
+        if inversion.get("response_sha256") != entry.get("response_sha256"):
+            raise ValueError(
+                f"{entry['qid']} on {entry['case']} slot {entry['slot']}: pass 2 "
+                f"response_sha256 is {inversion.get('response_sha256')!r} against "
+                f"pass 1 {entry.get('response_sha256')!r} — different responses "
+                "cannot be joined")
+        reason = (inversion.get("failure_reason") or "").strip()
         if reason.lower() in _NO_REASON:
             gold.append(entry)
         else:
             contested.append({**entry, "failure_reason": reason})
     return gold, contested
+
+
+def _require_distinct_join_paths(**paths) -> None:
+    """Refuse any input/output aliases before join can overwrite a source chain."""
+    seen: list[tuple[str, Path, Path]] = []
+    for name, raw in paths.items():
+        path = Path(raw)
+        resolved = path.resolve()
+        for other_name, other_path, other_resolved in seen:
+            same_file = resolved == other_resolved
+            if not same_file and path.exists() and other_path.exists():
+                same_file = path.samefile(other_path)
+            if same_file:
+                raise ValueError(
+                    "join paths must be distinct: "
+                    f"--{other_name} and --{name} both identify {resolved}")
+        seen.append((name, path, resolved))
+
+
+def write_chain(path, entries: list[dict]) -> None:
+    """Write entries as a fresh derived chain, without mutating their source chains."""
+    prev = ""
+    lines = []
+    for entry in entries:
+        record = {k: v for k, v in entry.items() if k not in {"prev", "digest"}}
+        record["prev"] = prev
+        record["digest"] = entry_digest(record)
+        lines.append(json.dumps(record, sort_keys=True) + "\n")
+        prev = record["digest"]
+    Path(path).write_text("".join(lines))
 
 
 def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | None = None,
@@ -427,6 +469,18 @@ def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | Non
     label may not be substituted for a judge answer in a verdict.
     """
     gold = resolve_entries(gold)
+    response_hashes: dict[tuple[str, int], str] = {}
+    for entry in gold:
+        response_key = (entry["case"], entry["slot"])
+        if response_key not in response_hashes:
+            response_hashes[response_key] = sha256_text(
+                regrade.stored_response(sweep_dir, *response_key))
+        expected = response_hashes[response_key]
+        if entry["response_sha256"] != expected:
+            raise ValueError(
+                f"{entry['qid']} on {entry['case']} slot {entry['slot']}: gold "
+                f"response_sha256 is {entry['response_sha256']}, selected sweep is "
+                f"{expected} — labels from another response cannot be scored")
     floor = runner._threshold(thresholds, 4, "question_rate")
     ledger = json.loads((Path(sweep_dir) / "ledger.json").read_text())
 
@@ -591,6 +645,7 @@ def collect_export(export: dict, units: list[dict], manifest: dict,
             on_file[(e["case"], e["slot"], e["qid"])] = e
 
     rejected, conflicts, actions = [], [], []
+    planned_cells: dict[tuple, dict] = {}
     rows = sorted((export.get("answers") or {}).items(),
                   key=lambda item: (item[1].get("labeled_at") or "",
                                     item[1].get("qid") or ""))
@@ -655,6 +710,18 @@ def collect_export(export: dict, units: list[dict], manifest: dict,
 
         entry = _plan_entry(answer, unit, meta, labeler, pass_no)
         cell = (entry["case"], entry["slot"], entry["qid"])
+        planned = planned_cells.get(cell)
+        if planned is not None:
+            if planned["response_sha256"] != entry["response_sha256"]:
+                rejected.append(
+                    f"{cell[0]} slot {cell[1]} {cell[2]}: one export carries "
+                    "different response_sha256 values for the same stored cell")
+            else:
+                rejected.append(
+                    f"{cell[0]} slot {cell[1]} {cell[2]}: one export carries the "
+                    "same stored cell more than once")
+            continue
+        planned_cells[cell] = entry
         prior = on_file.get(cell)
 
         if prior is None:
@@ -666,6 +733,12 @@ def collect_export(export: dict, units: list[dict], manifest: dict,
             actions.append(("write", entry, unit))
             continue
 
+        if prior["response_sha256"] != entry["response_sha256"]:
+            rejected.append(
+                f"{cell[0]} slot {cell[1]} {cell[2]}: response_sha256 on file is "
+                f"{prior['response_sha256']}, current unit is {entry['response_sha256']} — "
+                "different responses require separate label stores")
+            continue
         if pass_no == 1 and prior["label"] != entry["label"]:
             conflicts.append(f"{cell[0]} slot {cell[1]} {cell[2]}: label on file is "
                              f"{prior['label']}, export says {entry['label']}")
@@ -759,12 +832,24 @@ def pass2_units(units: list[dict], pass1_path) -> list[dict]:
         raise ValueError(
             f"{path} is empty or absent — collect pass 1 before building pass 2; "
             "the inversion page is generated from the yes-cells already on file")
-    yes = {(e["case"], e["slot"], e["qid"])
-           for e in resolve_entries(read_entries(path)) if e["label"] is True}
+    stored = {(e["case"], e["slot"], e["qid"]): e
+              for e in resolve_entries(read_entries(path))}
     out = []
     for unit in units:
-        keep = [q for q in unit["questions"]
-                if (unit["case"], unit["slot"], q["qid"]) in yes]
+        keep = []
+        for question in unit["questions"]:
+            cell = (unit["case"], unit["slot"], question["qid"])
+            entry = stored.get(cell)
+            if entry is None:
+                continue
+            if entry["response_sha256"] != unit["response_sha256"]:
+                raise ValueError(
+                    f"{question['qid']} on {unit['case']} slot {unit['slot']}: pass 1 "
+                    f"response_sha256 is {entry['response_sha256']}, current unit is "
+                    f"{unit['response_sha256']} — different responses require separate "
+                    "label stores")
+            if entry["label"] is True:
+                keep.append(question)
         if keep:
             out.append({**unit, "questions": keep})
     return out
@@ -909,12 +994,13 @@ def main(argv=None) -> int:
             return 1
 
     if args.command == "join":
+        _require_distinct_join_paths(
+            pass1=args.pass1, pass2=args.pass2,
+            out=args.out, contested=args.contested)
         gold, contested = join_passes(read_entries(args.pass1),
                                       read_entries(args.pass2))
-        Path(args.out).write_text(
-            "".join(json.dumps(e, sort_keys=True) + "\n" for e in gold))
-        Path(args.contested).write_text(
-            "".join(json.dumps(e, sort_keys=True) + "\n" for e in contested))
+        write_chain(args.out, gold)
+        write_chain(args.contested, contested)
         print(f"{len(gold)} gold, {len(contested)} contested")
         return 0
 

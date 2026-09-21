@@ -331,9 +331,185 @@ def test_only_yes_cells_go_to_the_inversion_pass():
     assert sorted(t["qid"] for t in targets) == ["explains_why", "warns"]
 
 
+def test_join_cli_rechains_the_derived_gold_file_without_touching_pass_one():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        pass1, pass2 = d / "pass1.jsonl", d / "pass2.jsonl"
+        key, contested = d / "key.jsonl", d / "contested.jsonl"
+        goldkey.append_entry(pass1, _entry(label=False, quote=""), _RESPONSE)
+        pass2.write_text("")
+        original_pass1 = pass1.read_bytes()
+
+        assert goldkey.main([
+            "join", "--pass1", str(pass1), "--pass2", str(pass2),
+            "--out", str(key), "--contested", str(contested)]) == 0
+
+        joined = goldkey.read_entries(key)
+        assert len(joined) == 1 and joined[0]["label"] is False
+        assert joined[0]["amendments"] == 0
+        assert goldkey.verify_chain(contested) == 0
+        assert pass1.read_bytes() == original_pass1
+
+
+def test_join_refuses_every_path_alias_before_writing():
+    def assert_refused(configure):
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            paths = {"pass1": d / "pass1.jsonl", "pass2": d / "pass2.jsonl",
+                     "out": d / "key.jsonl", "contested": d / "contested.jsonl"}
+            goldkey.append_entry(
+                paths["pass1"], _entry(label=False, quote=""), _RESPONSE)
+            paths["pass2"].write_text("")
+            configure(paths, d)
+            tracked = set(paths.values())
+            before = {path: (path.exists(), path.read_bytes() if path.exists() else None)
+                      for path in tracked}
+            try:
+                goldkey.main([
+                    "join", "--pass1", str(paths["pass1"]),
+                    "--pass2", str(paths["pass2"]), "--out", str(paths["out"]),
+                    "--contested", str(paths["contested"])])
+            except ValueError as e:
+                assert "distinct" in str(e).lower()
+            else:
+                raise AssertionError("join accepted aliased source/output paths")
+            after = {path: (path.exists(), path.read_bytes() if path.exists() else None)
+                     for path in tracked}
+            assert after == before
+
+    roles = ("pass1", "pass2", "out", "contested")
+    for i, first in enumerate(roles):
+        for second in roles[i + 1:]:
+            assert_refused(
+                lambda paths, _d, first=first, second=second:
+                paths.__setitem__(second, paths[first]))
+
+    def normalized(paths, d):
+        (d / "nested").mkdir()
+        paths["out"] = d / "nested" / ".." / "pass1.jsonl"
+
+    def symlinked(paths, d):
+        link = d / "key-link.jsonl"
+        link.symlink_to(paths["pass1"])
+        paths["out"] = link
+
+    def hardlinked(paths, d):
+        link = d / "key-hardlink.jsonl"
+        link.hardlink_to(paths["pass1"])
+        paths["out"] = link
+
+    for configure in (normalized, symlinked, hardlinked):
+        assert_refused(configure)
+
+
+def test_join_refuses_a_second_pass_entry_from_a_different_response():
+    pass1 = [_entry(qid="explains_why", label=True)]
+    pass2 = [_entry(
+        qid="explains_why", label=False, quote="", pass_name="pass2",
+        response_sha256=goldkey.sha256_text("Different response."),
+        failure_reason="none")]
+    try:
+        goldkey.join_passes(pass1, pass2)
+    except ValueError as e:
+        assert "response_sha256" in str(e) and "explains_why" in str(e)
+    else:
+        raise AssertionError("join combined labels from different responses")
+
+
+def test_the_gold_key_pipeline_produces_readable_scored_derived_chains():
+    with tempfile.TemporaryDirectory() as raw:
+        d = Path(raw)
+        pass1, pass2 = d / "pass1.jsonl", d / "pass2.jsonl"
+        key, contested = d / "key.jsonl", d / "contested.jsonl"
+        units, manifest = [], {}
+        for slot in range(5):
+            response = f"response body for alpha slot {slot}"
+            unit_id = f"u{slot}"
+            units.append({
+                "unit_id": unit_id, "case": "alpha", "slot": slot,
+                "response": response,
+                "response_sha256": goldkey.sha256_text(response),
+                "questions": [{"qid": "explains_why",
+                               "text": "Does it explain why?"}],
+                "scenario": "Effect of education on earnings.",
+            })
+            manifest[unit_id] = {"case": "alpha", "slot": slot,
+                                 "disputed": ["explains_why"], "decoy": []}
+
+        labels = [False, True, True, False, False]
+        answers = {}
+        for unit, label in zip(units, labels):
+            answers[f"{unit['unit_id']}|explains_why|p1"] = {
+                "unit_id": unit["unit_id"], "qid": "explains_why", "pass": 1,
+                "label": label, "quote": "response body" if label else "",
+                "note": "", "suspect_case_defect": False,
+                "response_sha256": unit["response_sha256"],
+                "labeled_at": "2026-09-21T10:00:00Z",
+            }
+        first = {"build": goldkey.build_id(units),
+                 "exported": "2026-09-21T10:01:00Z", "answers": answers}
+        result = goldkey.collect_export(
+            first, units, manifest, pass1, pass2, "robson")
+        assert result["written"] == 5 and not result["rejected"]
+
+        amended_answer = {**answers["u1|explains_why|p1"],
+                          "quote": "alpha slot 1",
+                          "labeled_at": "2026-09-21T10:05:00Z"}
+        amendment = {"build": goldkey.build_id(units),
+                     "exported": "2026-09-21T10:06:00Z",
+                     "answers": {"u1|explains_why|p1": amended_answer}}
+        result = goldkey.collect_export(
+            amendment, units, manifest, pass1, pass2, "robson")
+        assert result["amended"] == 1 and not result["rejected"]
+
+        pass2_units = goldkey.pass2_units(units, pass1)
+        reasons = {1: "none", 2: "It states evidence but never explains the mechanism."}
+        pass2_answers = {}
+        for unit in pass2_units:
+            pass2_answers[f"{unit['unit_id']}|explains_why|p2"] = {
+                "unit_id": unit["unit_id"], "qid": "explains_why", "pass": 2,
+                "failure_reason": reasons[unit["slot"]],
+                "response_sha256": unit["response_sha256"],
+                "labeled_at": "2026-09-21T10:10:00Z",
+            }
+        second = {"build": goldkey.build_id(pass2_units),
+                  "exported": "2026-09-21T10:11:00Z",
+                  "answers": pass2_answers}
+        result = goldkey.collect_export(
+            second, pass2_units, manifest, pass1, pass2, "robson", pass_no=2)
+        assert result["written"] == 2 and not result["rejected"]
+
+        original_pass1, original_pass2 = pass1.read_bytes(), pass2.read_bytes()
+        assert goldkey.main([
+            "join", "--pass1", str(pass1), "--pass2", str(pass2),
+            "--out", str(key), "--contested", str(contested)]) == 0
+        assert goldkey.verify_chain(key) == 4
+        assert goldkey.verify_chain(contested) == 1
+        joined = goldkey.read_entries(key)
+        disputed = goldkey.read_entries(contested)
+        amended = next(entry for entry in joined if entry["slot"] == 1)
+        assert amended["quote"] == "alpha slot 1" and amended["amendments"] == 1
+        assert disputed[0]["slot"] == 2 and "mechanism" in disputed[0]["failure_reason"]
+        assert pass1.read_bytes() == original_pass1
+        assert pass2.read_bytes() == original_pass2
+
+        judge = [{"pedagogy": [label, True], "safety": [True]}
+                 for label in (False, True, True, False, False)]
+        cases = {"alpha": (dict(_CASE, name="alpha"), judge)}
+        sweep = _sweep_with_ledger(d / "sweep", cases)
+        score_out = d / "gold-judge-accuracy"
+        assert goldkey.main([
+            "score", "--key", str(key), "--sweep", str(sweep),
+            "--out", str(score_out)]) == 0
+        summary = json.loads(score_out.with_suffix(".json").read_text())
+        assert summary["totals"]["cells"] == 4
+        assert summary["totals"]["incomplete"] == 1
+
+
 def test_a_yes_with_a_concrete_failure_reason_is_contested_not_gold():
     pass1 = [_entry(qid="explains_why", label=True)]
     pass2 = [{"unit_id": "abc123", "case": "alpha", "slot": 0, "qid": "explains_why",
+              "response_sha256": goldkey.sha256_text(_RESPONSE),
               "failure_reason": "it names the F statistic but never says what weak means"}]
     gold, contested = goldkey.join_passes(pass1, pass2)
     assert gold == []
@@ -344,6 +520,7 @@ def test_a_yes_with_a_concrete_failure_reason_is_contested_not_gold():
 def test_a_yes_that_survives_the_inversion_pass_becomes_gold():
     pass1 = [_entry(qid="explains_why", label=True)]
     pass2 = [{"unit_id": "abc123", "case": "alpha", "slot": 0, "qid": "explains_why",
+              "response_sha256": goldkey.sha256_text(_RESPONSE),
               "failure_reason": "none"}]
     gold, contested = goldkey.join_passes(pass1, pass2)
     assert len(gold) == 1 and contested == []
@@ -368,8 +545,26 @@ def test_a_yes_with_no_second_pass_entry_is_refused_not_promoted():
 
 def _gold_for(case, qid, labels):
     return [_entry(case=case, qid=qid, slot=s, label=v,
-                   quote="The F statistic is 8.4" if v else "")
+                   response_sha256=goldkey.sha256_text(
+                       f"response body for {case} slot {s}"),
+                   quote="response body" if v else "")
             for s, v in enumerate(labels)]
+
+
+def test_scoring_refuses_gold_from_a_different_sweep_response():
+    judge = [{"pedagogy": [True, True], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), judge)}
+    gold = _gold_for("alpha", "is_tailored", [True] * 5)
+    for entry in gold:
+        entry["response_sha256"] = goldkey.sha256_text("a different response")
+    with tempfile.TemporaryDirectory() as d:
+        sweep = _sweep_with_ledger(Path(d), cases)
+        try:
+            goldkey.score_judge_against_gold(gold, sweep)
+        except ValueError as e:
+            assert "response_sha256" in str(e) and "alpha" in str(e)
+        else:
+            raise AssertionError("scoring reused gold labels from another response")
 
 
 def test_a_criterion_labelled_in_every_slot_is_scored_against_the_judge():
@@ -583,6 +778,18 @@ def test_an_amendment_carrying_a_different_label_is_refused_on_read():
         raise AssertionError("a label change survived resolution")
 
 
+def test_an_amendment_for_a_different_response_is_refused_on_read():
+    entries = [_base(),
+               _base(response_sha256=goldkey.sha256_text("Different response."),
+                     quote="Different", supersedes="d0")]
+    try:
+        goldkey.resolve_entries(entries)
+    except ValueError as e:
+        assert "response_sha256" in str(e) and "explains_why" in str(e)
+    else:
+        raise AssertionError("a cross-response amendment survived resolution")
+
+
 def test_unamended_entries_pass_through_unchanged():
     a = _base(qid="explains_why")
     b = _base(qid="warns", label=False, quote="")
@@ -707,6 +914,62 @@ def test_one_export_cannot_smuggle_two_answers_for_the_same_cell():
         assert not p1.exists()
 
 
+def test_one_export_cannot_plan_the_same_cell_for_two_responses():
+    units, manifest = _one_unit_env()
+    other_response = "A different response with other evidence."
+    units.append({**units[0], "unit_id": "u2", "response": other_response,
+                  "response_sha256": goldkey.sha256_text(other_response)})
+    manifest["u2"] = {**manifest["u1"]}
+    export = _export({
+        "u1|explains_why|p1": _answer(),
+        "u2|explains_why|p1": _answer(
+            unit_id="u2", quote="other evidence",
+            response_sha256=units[1]["response_sha256"],
+            labeled_at="2026-09-21T11:01:00Z"),
+    }, build=goldkey.build_id(units))
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert any("response_sha256" in reason for reason in out["rejected"])
+        assert not p1.exists()
+
+
+def test_one_export_cannot_plan_the_same_cell_twice_for_one_response():
+    units, manifest = _one_unit_env()
+    units.append({**units[0], "unit_id": "u2"})
+    manifest["u2"] = {**manifest["u1"]}
+    export = _export({
+        "u1|explains_why|p1": _answer(),
+        "u2|explains_why|p1": _answer(
+            unit_id="u2", labeled_at="2026-09-21T11:01:00Z"),
+    }, build=goldkey.build_id(units))
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(export, units, manifest, d)
+        assert out["written"] == 0
+        assert any("same stored cell" in reason for reason in out["rejected"])
+        assert not p1.exists()
+
+
+def test_duplicate_plans_cannot_modify_an_existing_cell():
+    units, manifest = _one_unit_env()
+    first = _export({"u1|explains_why|p1": _answer()})
+    with tempfile.TemporaryDirectory() as d:
+        _out, p1, _ = _collect(first, units, manifest, d)
+        before = p1.read_bytes()
+        units.append({**units[0], "unit_id": "u2"})
+        manifest["u2"] = {**manifest["u1"]}
+        duplicate = _export({
+            "u1|explains_why|p1": _answer(
+                labeled_at="2026-09-21T12:00:00Z"),
+            "u2|explains_why|p1": _answer(
+                unit_id="u2", labeled_at="2026-09-21T12:01:00Z"),
+        }, build=goldkey.build_id(units))
+        out, _, _ = _collect(duplicate, units, manifest, d)
+        assert out["written"] == 0 and out["amended"] == 0
+        assert any("same stored cell" in reason for reason in out["rejected"])
+        assert p1.read_bytes() == before
+
+
 def test_an_io_failure_cannot_leave_half_an_export_on_disk():
     units, manifest = _one_unit_env()
     units[0]["questions"].append({"qid": "warns", "text": "Does it warn?"})
@@ -757,6 +1020,27 @@ def test_a_changed_label_is_a_conflict_and_the_file_keeps_the_first_answer():
         out, p1, _ = _collect(second, units, manifest, d)
         assert out["written"] == 0 and len(out["conflicts"]) == 1
         assert goldkey.resolve_entries(goldkey.read_entries(p1))[0]["label"] is True
+
+
+def test_collect_refuses_a_stored_cell_from_a_different_response():
+    units_a, manifest = _one_unit_env()
+    units_b = [{**units_a[0],
+                "response": "A different response with Beta evidence.",
+                "response_sha256": goldkey.sha256_text(
+                    "A different response with Beta evidence.")}]
+    first = _export({"u1|explains_why|p1": _answer()})
+    second = _export({"u1|explains_why|p1": _answer(
+        quote="Beta evidence", response_sha256=units_b[0]["response_sha256"],
+        labeled_at="2026-09-21T13:00:00Z")}, build=goldkey.build_id(units_b))
+    with tempfile.TemporaryDirectory() as d:
+        _collect(first, units_a, manifest, d)
+        out, p1, _ = _collect(second, units_b, manifest, d)
+        assert out["amended"] == 0
+        assert any("response_sha256" in r for r in out["rejected"])
+        resolved = goldkey.resolve_entries(goldkey.read_entries(p1))
+        assert len(resolved) == 1
+        assert resolved[0]["response_sha256"] == units_a[0]["response_sha256"]
+        assert resolved[0]["quote"] == "The first stage F is 8.4"
 
 
 def test_a_corrected_quote_is_appended_as_an_amendment_not_an_overwrite():
@@ -910,6 +1194,23 @@ def test_pass_two_units_come_only_from_chained_pass_one_yes_cells():
         got = goldkey.pass2_units(units, p1)
         assert len(got) == 1
         assert [q["qid"] for q in got[0]["questions"]] == ["explains_why"]
+
+
+def test_pass_two_refuses_a_first_pass_decision_from_a_different_response():
+    units_a, manifest = _one_unit_env()
+    units_b = [{**units_a[0],
+                "response": "A different response.",
+                "response_sha256": goldkey.sha256_text("A different response.")}]
+    with tempfile.TemporaryDirectory() as d:
+        out, p1, _ = _collect(
+            _export({"u1|explains_why|p1": _answer()}), units_a, manifest, d)
+        assert out["written"] == 1
+        try:
+            goldkey.pass2_units(units_b, p1)
+        except ValueError as e:
+            assert "response_sha256" in str(e) and "explains_why" in str(e)
+        else:
+            raise AssertionError("pass 2 reused a decision from another response")
 
 
 def test_pass_two_refuses_to_build_before_pass_one_is_collected():
