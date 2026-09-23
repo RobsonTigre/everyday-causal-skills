@@ -29,12 +29,16 @@ Run: python3 evals/regrade.py --help   (from repo root)
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
+
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import runner  # noqa: E402
@@ -177,6 +181,146 @@ def regrade_once(response: str, case: dict, config: dict) -> dict:
     return {qid: bool(block["passed"]) for qid, block in stats.items()}
 
 
+def sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def _case_question_ids(case: dict) -> list[str]:
+    ids = []
+    for dimension in ("pedagogy", "safety", "actionable"):
+        for entry in (case.get("rubric") or {}).get(dimension) or []:
+            if isinstance(entry, dict) and entry.get("id"):
+                ids.append(entry["id"])
+    return ids
+
+
+def case_inputs_sha256(cases: dict[str, dict]) -> str:
+    """Hash the actual loaded case inputs that shape the L4 judge prompt."""
+    h = hashlib.sha256()
+    for name, case in sorted(cases.items()):
+        h.update(name.encode())
+        h.update(json.dumps(case, sort_keys=True, separators=(",", ":")).encode())
+    return h.hexdigest()
+
+
+def answer_map_identity(sweep_dir, config: dict, cases: dict[str, dict]) -> dict:
+    config_bytes = json.dumps(config, sort_keys=True, separators=(",", ":")).encode()
+    return {
+        "schema_version": 1,
+        "sweep": str(Path(sweep_dir).resolve()),
+        "case_inputs_sha256": case_inputs_sha256(cases),
+        "config_sha256": hashlib.sha256(config_bytes).hexdigest(),
+        "scorer_sha256": hashlib.sha256(Path(scorer.__file__).read_bytes()).hexdigest(),
+    }
+
+
+def _existing_answer_rows(payload: dict, sweep_dir, cases: dict[str, dict]) -> dict:
+    rows = payload.get("answers")
+    if not isinstance(rows, list):
+        raise TypeError("existing answer map must contain an answers list")
+    out = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise TypeError("existing answer-map entries must be objects")
+        cell = (row.get("case"), row.get("slot"), row.get("qid"))
+        case_name, slot, qid = cell
+        if type(slot) is not int:
+            raise TypeError(f"existing answer map has a non-integer slot: {cell}")
+        if not 0 <= slot < SLOTS_PER_CASE:
+            raise ValueError(
+                f"existing answer map slot must be between 0 and {SLOTS_PER_CASE - 1}: {cell}")
+        if case_name not in cases:
+            raise ValueError(f"existing answer map has an invalid case: {cell}")
+        if qid not in _case_question_ids(cases[case_name]):
+            raise ValueError(f"existing answer map has an unknown criterion: {cell}")
+        if type(row.get("answer")) is not bool:
+            raise ValueError(f"existing answer map has a non-bool answer: {cell}")
+        if cell in out:
+            raise ValueError(f"existing answer map repeats cell: {cell}")
+        expected = sha256_text(stored_response(sweep_dir, case_name, slot))
+        if row.get("response_sha256") != expected:
+            raise ValueError(f"existing answer map response_sha256 mismatch: {cell}")
+        out[cell] = row
+    return out
+
+
+def load_l4_cases(sweep_dir, selected_cases: set[str] | None = None) -> dict[str, dict]:
+    """Load the L4 cases selected by a sweep ledger from their actual paths."""
+    sweep_dir = Path(sweep_dir)
+    ledger = json.loads((sweep_dir / "ledger.json").read_text())
+    cases = {}
+    for name, entry in sorted(ledger.get("cases", {}).items()):
+        case = runner.load_case(entry["path"])
+        if case.get("layer") == 4 and (selected_cases is None or name in selected_cases):
+            cases[name] = case
+    if selected_cases:
+        unknown = selected_cases - set(cases)
+        if unknown:
+            raise ValueError(f"selected L4 case(s) not found in sweep: {sorted(unknown)}")
+    if not cases:
+        raise ValueError("sweep contains no selected L4 cases")
+    return cases
+
+
+def regrade_sweep(sweep_dir, config: dict, output_path,
+                   selected_cases: set[str] | None = None) -> dict:
+    """Regrade every stored L4 response once into a resumable answer map."""
+    sweep_dir = Path(sweep_dir)
+    output_path = Path(output_path)
+    cases = load_l4_cases(sweep_dir, selected_cases)
+    validate_corpus(sweep_dir, set(cases))
+
+    identity = answer_map_identity(sweep_dir, config, cases)
+    if output_path.exists():
+        payload = json.loads(output_path.read_text())
+        for field, expected in identity.items():
+            if payload.get(field) != expected:
+                raise ValueError(
+                    f"existing answer map {field} is {payload.get(field)!r}, "
+                    f"expected {expected!r}")
+        existing = _existing_answer_rows(payload, sweep_dir, cases)
+    else:
+        now = datetime.now().astimezone().isoformat()
+        payload = {**identity, "started_at": now, "updated_at": now, "answers": []}
+        existing = {}
+
+    changed = False
+    for case_name, case in sorted(cases.items()):
+        qids = _case_question_ids(case)
+        if not qids:
+            raise ValueError(f"{case_name}: L4 case has no id-bearing rubric questions")
+        for slot in range(SLOTS_PER_CASE):
+            expected_cells = {(case_name, slot, qid) for qid in qids}
+            if expected_cells <= set(existing):
+                continue
+            response = stored_response(sweep_dir, case_name, slot)
+            response_sha256 = sha256_text(response)
+            answers = regrade_once(response, case, config)
+            if set(answers) != set(qids):
+                raise ValueError(
+                    f"{case_name} slot {slot}: regrade returned ids "
+                    f"{sorted(answers)}, expected {sorted(qids)}")
+            for cell in expected_cells:
+                existing.pop(cell, None)
+            for qid in qids:
+                cell = (case_name, slot, qid)
+                existing[cell] = {
+                    "case": case_name,
+                    "slot": slot,
+                    "qid": qid,
+                    "response_sha256": response_sha256,
+                    "answer": answers[qid],
+                }
+            payload["answers"] = [existing[cell] for cell in sorted(existing)]
+            payload["updated_at"] = datetime.now().astimezone().isoformat()
+            save_atomically(payload, output_path)
+            changed = True
+
+    if not changed and not output_path.exists():
+        save_atomically(payload, output_path)
+    return payload
+
+
 def round_gate_result(answers: dict, floor: float,
                       slots: int = SLOTS_PER_CASE) -> bool | None:
     """Reconstruct one criterion's 4-of-5 gate result from one round's answers.
@@ -221,6 +365,32 @@ def save_atomically(payload: dict, path: Path) -> None:
     reproducible from its own artifact anyway.
     """
     path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, indent=2, sort_keys=True))
     os.replace(tmp, path)
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Regrade frozen L4 responses into a response-bound answer map.")
+    parser.add_argument(
+        "--sweep", default="evals/results/sweep-2026-08-04_102745_pid96394")
+    parser.add_argument("--config", default="evals/config.release.yaml")
+    parser.add_argument("--out", default="evals/results/l4-regrade-answer-map.json")
+    parser.add_argument(
+        "--case", action="append", default=None,
+        help="optional L4 case name; repeat to regrade a subset")
+    args = parser.parse_args(argv)
+
+    config = yaml.safe_load(Path(args.config).read_text()) or {}
+    payload = regrade_sweep(
+        args.sweep, config, args.out,
+        selected_cases=set(args.case) if args.case else None)
+    responses = {(row["case"], row["slot"]) for row in payload["answers"]}
+    print(f"{len(responses)} responses, {len(payload['answers'])} answers in {args.out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
