@@ -1516,9 +1516,17 @@ def test_content_digest_notices_an_edited_skill():
         assert before != after, "editing a SKILL.md must move content_sha256"
 
 
+def test_eval_framework_version_is_0_4_0():
+    text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
+    project = re.search(r"(?ms)^\[project\]\s*(.*?)(?=^\[|\Z)", text)
+    assert project, "pyproject.toml is missing [project]"
+    version = re.search(r'^version\s*=\s*"([^"]+)"', project.group(1), re.M)
+    assert version, "pyproject.toml [project] is missing version"
+    assert version.group(1) == "0.4.0"
+
+
 def test_declared_packages_excludes_the_project_version_string():
-    """A loose regex over pyproject picks up `version = "0.3.2"` and records it as a
-    package named 0.3.2 — which is what the first implementation did."""
+    """A loose whole-file regex must not record the project version as a package."""
     names = sweep._declared_python_packages()
     assert names, "expected some declared packages"
     assert not any(n[0].isdigit() for n in names), names

@@ -7,7 +7,7 @@ name = "everyday-causal-skills-evals"
 # Versions the eval framework, NOT the plugin. The plugin's version lives in the six
 # manifests (currently 0.6.0) and is enforced by evals/test_manifests.py. These two
 # numbers are independent by design — do not "sync" them.
-version = "0.3.2"
+version = "0.4.0"
 description = "Eval framework for everyday-causal-skills plugin"
 # The eval ENVIRONMENT needs 3.10+ (pycausalarima), enforced by sweep._MIN_EVAL_PYTHON.
 # This is not the plugin's own floor: skills/*/SKILL.md compatibility describes what a

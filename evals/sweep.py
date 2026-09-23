@@ -284,7 +284,7 @@ def _declared_python_packages() -> list[str]:
     """Distribution names from pyproject's dependency arrays only.
 
     Scoped deliberately: a loose regex over the whole file picks up the project's own
-    `version = "0.3.2"` string and records it as a package.
+    `version = "..."` field and records it as a package.
     """
     path = REPO_ROOT / "pyproject.toml"
     if not path.exists():
