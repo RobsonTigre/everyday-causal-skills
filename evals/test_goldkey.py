@@ -841,6 +841,27 @@ def test_a_partly_labelled_criterion_is_incomplete_not_scored_over_what_exists()
         assert summary["totals"]["gate_disagreements"] == 0
 
 
+def test_markdown_distinguishes_incomplete_gate_from_labelled_cell_errors():
+    judge = [{"pedagogy": [True, True], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), judge)}
+    gold = _gold_for("alpha", "is_tailored", [False, False, False])
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        summary = _with_loaded_cases(
+            cases, lambda: goldkey.score_judge_against_gold(gold, d))
+    row = summary["criteria"][0]
+    assert row["status"] == "incomplete"
+    assert row["gate_gold"] is None
+    assert row["false_positive"] == 3
+    assert summary["totals"]["false_positive"] == 3
+    markdown = goldkey.render_gold_md(summary)
+    assert (
+        "A criterion labelled in fewer than every slot is reported incomplete "
+        "and has no gold gate result. Its labelled cells still contribute to "
+        "cell-level false-positive and false-negative totals."
+    ) in markdown
+
+
 def test_a_judge_yes_against_a_gold_no_is_counted_as_a_false_positive():
     judge = [{"pedagogy": [True, True], "safety": [True]} for _ in range(5)]
     cases = {"alpha": (dict(_CASE, name="alpha"), judge)}

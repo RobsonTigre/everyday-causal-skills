@@ -707,11 +707,10 @@ def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | Non
                              answer_config: dict | None = None) -> dict:
     """How often the judge's recorded answer matches a blind human read.
 
-    Scored per criterion, and only when every slot carries a gold label. A
-    criterion labelled in 3 of 5 slots reports `incomplete` and contributes
-    nothing — scoring it over the slots that happen to be done is the
-    never-shrink-the-denominator failure, and it would let a labeller stop the
-    moment the numbers looked right.
+    Gate agreement is scored per criterion, and only when every slot carries a
+    gold label. A criterion labelled in 3 of 5 slots reports `incomplete` and
+    has no gold gate result. Its labelled cells still contribute to cell-level
+    false-positive and false-negative totals.
 
     `gate_gold` is the criterion's gate result computed from the human labels
     through `runner._meets` and the SAME floor the release gate uses. It is
@@ -840,7 +839,8 @@ def render_gold_md(summary: dict) -> str:
              f"- criteria where the judge and the gold labels disagree about the "
              f"gate result: {t['gate_disagreements']}", "",
              "A criterion labelled in fewer than every slot is reported incomplete "
-             "and scored on nothing.", "",
+             "and has no gold gate result. Its labelled cells still contribute to "
+             "cell-level false-positive and false-negative totals.", "",
              "| case | criterion | judge | gold | FP | FN | disagree | to flip |",
              "|---|---|---|---|---|---|---|---|"]
     for r in summary["criteria"]:
