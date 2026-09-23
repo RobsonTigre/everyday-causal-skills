@@ -1520,7 +1520,7 @@ def test_eval_framework_version_is_0_4_0():
     text = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
     project = re.search(r"(?ms)^\[project\]\s*(.*?)(?=^\[|\Z)", text)
     assert project, "pyproject.toml is missing [project]"
-    version = re.search(r'^version\s*=\s*"([^"]+)"', project.group(1), re.M)
+    version = re.search(r'^version\s*=\s*"([^"]+)"', project.group(1), re.MULTILINE)
     assert version, "pyproject.toml [project] is missing version"
     assert version.group(1) == "0.4.0"
 
