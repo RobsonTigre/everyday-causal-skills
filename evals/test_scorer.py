@@ -319,6 +319,63 @@ def test_judge_l4_prompt_uses_the_question_text_of_an_object_entry():
     assert "explains_parallel_trends" not in seen["prompt"], seen["prompt"]
 
 
+def _single_question_l4_prompt(question, qid="target"):
+    case = {"layer": 4, "rubric": {"pedagogy": [
+        {"id": qid, "question": question, "required": True}]}}
+    _, seen = _with_fake_judge([False], lambda: _judge_l4("a response", case))
+    return seen["prompt"]
+
+
+def test_l4_assumption_clarification_is_attached_only_to_its_criterion():
+    prompt = _single_question_l4_prompt(
+        "Does the exercise clearly state the assumptions the student must verify?",
+        "clear_assumptions_student_verify")
+    assert "Generic instructions to check an unnamed identifying assumption are insufficient" \
+        in prompt
+    assert "Explicitly naming parallel trends and a pre-trends diagnostic does satisfy it" \
+        in prompt
+
+
+def test_l4_estimator_clarification_requires_correct_tradeoffs():
+    prompt = _single_question_l4_prompt(
+        "Does it explain why the chosen matching estimator is appropriate here?",
+        "explain_estimator_choice_matching")
+    assert "Require a correct reason for the primary estimator and correct conditions" in prompt
+    assert "A method list, mislabeled method, or false robustness claim does not count" in prompt
+    assert "IPW is not a remedy for poor overlap" in prompt
+    assert "Rosenbaum bounds are not a doubly robust estimator" in prompt
+    assert "attaches the either-model-consistent claim to Rosenbaum bounds" in prompt
+
+
+def test_l4_alternatives_clarification_accepts_viable_design_pivots():
+    prompt = _single_question_l4_prompt(
+        "Does it suggest alternatives if matching is unsuitable or infeasible?",
+        "suggest_alternatives_if_matching_unviable")
+    assert "Accept viable design pivots such as DiD with pre-treatment outcomes" in prompt
+    assert "Do not require a specific named alternative from the question's examples" in prompt
+
+
+def test_l4_control_warning_clarification_requires_the_contamination_consequence():
+    prompt = _single_question_l4_prompt(
+        "Does it warn that controls must be unaffected by the intervention?",
+        "warn_controls_unaffected_by_intervention")
+    assert "Require both that controls be unaffected and that treatment-affected controls" \
+        in prompt
+    assert "contaminate the counterfactual" in prompt
+
+
+def test_l4_targeted_clarifications_do_not_change_an_unrelated_question():
+    prompt = _single_question_l4_prompt(
+        "Does the response explain why overlap matters?", "explain_overlap")
+    assert "Evidence standard:" not in prompt
+    for targeted_phrase in (
+            "unnamed identifying assumption",
+            "correct reason for the primary estimator",
+            "Accept viable design pivots",
+            "contaminate the counterfactual"):
+        assert targeted_phrase not in prompt
+
+
 def test_l2_no_rubric_is_unchanged():
     exp = {"must_flag": ["overlap"], "severity": "fatal"}
     out, seen = _with_fake_judge([True, True],

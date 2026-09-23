@@ -177,3 +177,128 @@ def test_the_judge_receives_the_release_config_not_its_own_defaults():
     finally:
         scorer._judge_l4 = real
     assert seen["config"] == cfg, seen
+
+
+def _with_loaded_case(case, fn):
+    real = regrade.runner.load_case
+    regrade.runner.load_case = lambda path: case
+    try:
+        return fn()
+    finally:
+        regrade.runner.load_case = real
+
+
+def test_regrade_sweep_writes_a_response_bound_answer_map_without_mutating_slots():
+    with tempfile.TemporaryDirectory() as t:
+        d = _corpus(Path(t))
+        (d / "ledger.json").write_text(json.dumps({
+            "cases": {"alpha": {"path": "alpha.yaml"}}}))
+        out = d / "answers.json"
+        before = {path.name: path.read_bytes() for path in d.glob("case-*.json")}
+        case = {**_CASE, "name": "alpha"}
+        payload, calls = _with_fake_judge(
+            [[True, False, True]],
+            lambda: _with_loaded_case(
+                case, lambda: regrade.regrade_sweep(d, {}, out)))
+        assert calls["n"] == 5
+        assert len(payload["answers"]) == 15
+        assert json.loads(out.read_text()) == payload
+        for row in payload["answers"]:
+            response = regrade.stored_response(d, row["case"], row["slot"])
+            assert row["response_sha256"] == regrade.sha256_text(response)
+            assert type(row["answer"]) is bool
+        after = {path.name: path.read_bytes() for path in d.glob("case-*.json")}
+        assert after == before
+
+
+def test_regrade_sweep_resumes_a_complete_answer_map_without_new_judge_calls():
+    with tempfile.TemporaryDirectory() as t:
+        d = _corpus(Path(t))
+        (d / "ledger.json").write_text(json.dumps({
+            "cases": {"alpha": {"path": "alpha.yaml"}}}))
+        out = d / "answers.json"
+        case = {**_CASE, "name": "alpha"}
+        _with_fake_judge(
+            [[True, False, True]],
+            lambda: _with_loaded_case(
+                case, lambda: regrade.regrade_sweep(d, {}, out)))
+        payload, calls = _with_fake_judge(
+            [[False, False, False]],
+            lambda: _with_loaded_case(
+                case, lambda: regrade.regrade_sweep(d, {}, out)))
+        assert calls["n"] == 0
+        assert len(payload["answers"]) == 15
+
+
+def test_regrade_resume_rejects_a_slot_outside_the_five_slot_protocol():
+    with tempfile.TemporaryDirectory() as t:
+        d = _corpus(Path(t), slots=6)
+        (d / "ledger.json").write_text(json.dumps({
+            "cases": {"alpha": {"path": "alpha.yaml"}}}))
+        out = d / "answers.json"
+        case = {**_CASE, "name": "alpha"}
+        _with_fake_judge(
+            [[True, False, True]],
+            lambda: _with_loaded_case(
+                case, lambda: regrade.regrade_sweep(d, {}, out)))
+        payload = json.loads(out.read_text())
+        response = "a response alpha 5"
+        payload["answers"].append({
+            "case": "alpha", "slot": 5, "qid": "explains_why", "answer": True,
+            "response_sha256": regrade.sha256_text(response),
+        })
+        out.write_text(json.dumps(payload))
+
+        try:
+            _with_fake_judge(
+                [[False, False, False]],
+                lambda: _with_loaded_case(
+                    case, lambda: regrade.regrade_sweep(d, {}, out)))
+        except ValueError as exc:
+            assert "slot" in str(exc).lower() and "0" in str(exc) and "4" in str(exc)
+        else:
+            raise AssertionError("resume accepted slot 5 in a five-slot protocol")
+
+
+def test_regrade_resume_refuses_changed_question_text_with_the_same_id():
+    with tempfile.TemporaryDirectory() as t:
+        d = _corpus(Path(t))
+        case_path = d / "alpha.yaml"
+        case = {**_CASE, "name": "alpha"}
+        case_path.write_text(json.dumps(case))
+        (d / "ledger.json").write_text(json.dumps({
+            "cases": {"alpha": {"path": str(case_path)}}}))
+        out = d / "answers.json"
+        _with_fake_judge(
+            [[True, False, True]],
+            lambda: regrade.regrade_sweep(d, {}, out))
+
+        changed = json.loads(json.dumps(case))
+        changed["rubric"]["pedagogy"][0]["question"] = "Does it explain the mechanism?"
+        case_path.write_text(json.dumps(changed))
+        try:
+            _with_fake_judge(
+                [[False, False, False]],
+                lambda: regrade.regrade_sweep(d, {}, out))
+        except ValueError as exc:
+            assert "case_inputs_sha256" in str(exc)
+        else:
+            raise AssertionError("resume reused answers after the rubric text changed")
+
+
+def test_regrade_cli_writes_the_answer_map():
+    with tempfile.TemporaryDirectory() as t:
+        d = _corpus(Path(t))
+        (d / "ledger.json").write_text(json.dumps({
+            "cases": {"alpha": {"path": "alpha.yaml"}}}))
+        config = d / "config.yaml"
+        config.write_text("judge:\n  model: test-judge\n")
+        out = d / "answers.json"
+        case = {**_CASE, "name": "alpha"}
+        rc, calls = _with_fake_judge(
+            [[True, False, True]],
+            lambda: _with_loaded_case(case, lambda: regrade.main([
+                "--sweep", str(d), "--config", str(config),
+                "--out", str(out)])))
+        assert rc == 0 and calls["n"] == 5
+        assert len(json.loads(out.read_text())["answers"]) == 15

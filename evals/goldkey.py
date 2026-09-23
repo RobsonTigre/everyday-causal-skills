@@ -25,6 +25,7 @@ Run: python3 evals/goldkey.py --help   (from repo root)
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import math
@@ -34,6 +35,8 @@ import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import regrade  # noqa: E402
@@ -82,6 +85,87 @@ def judge_answers(sweep_dir, case_name: str, case: dict, qid: str,
         if idx < len(answers):
             out[slot] = bool(answers[idx])
     return out
+
+
+def answer_map_index(answer_map: dict, sweep_dir, config: dict
+                     ) -> tuple[dict[tuple[str, int, str], bool], dict]:
+    """Validate and index a response-, rubric-, config-, and scorer-bound answer map."""
+    if not isinstance(answer_map, dict):
+        raise TypeError("answer map must be an object")
+    if answer_map.get("schema_version") != 1:
+        raise ValueError(
+            f"answer map schema_version is {answer_map.get('schema_version')!r}, expected 1")
+    if not isinstance(config, dict):
+        raise TypeError("answer-map config must be an object")
+    rows = answer_map.get("answers")
+    if not isinstance(rows, list):
+        raise TypeError("answer map must contain an answers list")
+    if not rows:
+        raise ValueError("answer map contains no answers")
+
+    selected_cases = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            raise TypeError("answer map entries must be objects")
+        case = row.get("case")
+        if not isinstance(case, str) or not case.strip():
+            raise ValueError("answer map case must be a non-empty string")
+        selected_cases.add(case)
+    cases = regrade.load_l4_cases(sweep_dir, selected_cases)
+    expected_identity = regrade.answer_map_identity(sweep_dir, config, cases)
+    for field, expected in expected_identity.items():
+        if answer_map.get(field) != expected:
+            raise ValueError(
+                f"answer map {field} is {answer_map.get(field)!r}, expected {expected!r}")
+
+    question_ids = {
+        name: {entry["id"]
+               for dimension in _DIMENSIONS
+               for entry in ((case.get("rubric") or {}).get(dimension) or [])
+               if isinstance(entry, dict) and isinstance(entry.get("id"), str)}
+        for name, case in cases.items()
+    }
+    out: dict[tuple[str, int, str], bool] = {}
+    for row in rows:
+        case = row["case"]
+        slot = row.get("slot")
+        qid = row.get("qid")
+        answer = row.get("answer")
+        if type(slot) is not int:
+            raise TypeError("answer map slot must be an integer")
+        if not 0 <= slot < SLOTS:
+            raise ValueError(f"answer map slot must be between 0 and {SLOTS - 1}")
+        if not isinstance(qid, str) or not qid.strip():
+            raise ValueError("answer map qid must be a non-empty string")
+        if qid not in question_ids[case]:
+            raise ValueError(f"answer map has unknown criterion {qid!r} for case {case!r}")
+        if type(answer) is not bool:
+            raise ValueError("answer map answer must be a bool")
+        cell = (case, slot, qid)
+        if cell in out:
+            raise ValueError(
+                f"answer map repeats {qid} on {case} slot {slot}")
+        expected = sha256_text(regrade.stored_response(sweep_dir, case, slot))
+        if row.get("response_sha256") != expected:
+            raise ValueError(
+                f"answer map response_sha256 for {qid} on {case} slot {slot} is "
+                f"{row.get('response_sha256')}, selected sweep is {expected}")
+        out[cell] = answer
+
+    canonical = json.dumps(answer_map, sort_keys=True, separators=(",", ":")).encode()
+    provenance = {
+        "source": "answer_map",
+        **expected_identity,
+        "answer_map_content_sha256": hashlib.sha256(canonical).hexdigest(),
+    }
+    return out, provenance
+
+
+def mapped_judge_answers(index: dict[tuple[str, int, str], bool], case_name: str,
+                         qid: str, slots: int = SLOTS) -> dict[int, bool]:
+    """Read one criterion from a validated regrade answer map."""
+    return {slot: index[(case_name, slot, qid)]
+            for slot in range(slots) if (case_name, slot, qid) in index}
 
 
 def distance_to_flip(judge: dict[int, bool], floor: float, slots: int) -> int:
@@ -281,6 +365,171 @@ def append_entry(path, entry: dict, response: str) -> str:
     return record["digest"]
 
 
+_CORRECTION_FIELDS = {"case", "slot", "qid", "response_sha256", "from_label",
+                      "to_label", "quote", "reason", "approved_by", "approved_at",
+                      "prev", "digest"}
+_CORRECTION_REQUIRED = _CORRECTION_FIELDS - {"prev", "digest"}
+
+
+def validate_label_correction(correction: dict, response: str) -> None:
+    """Validate one explicit human-approved correction to a derived gold label."""
+    missing = _CORRECTION_REQUIRED - set(correction)
+    if missing:
+        raise ValueError(f"correction is missing required field(s): {sorted(missing)}")
+    unknown = set(correction) - _CORRECTION_FIELDS
+    if unknown:
+        raise ValueError(f"correction carries unknown field(s): {sorted(unknown)}")
+    if not isinstance(correction["case"], str) or not correction["case"].strip():
+        raise ValueError("correction case must be a non-empty string")
+    if type(correction["slot"]) is not int:
+        raise ValueError("correction slot must be an integer")
+    if not 0 <= correction["slot"] < SLOTS:
+        raise ValueError(f"correction slot must be between 0 and {SLOTS - 1}")
+    if not isinstance(correction["qid"], str) or not correction["qid"].strip():
+        raise ValueError("correction qid must be a non-empty string")
+    if type(correction["from_label"]) is not bool or \
+            type(correction["to_label"]) is not bool:
+        raise ValueError("correction labels must be bools")
+    if correction["from_label"] == correction["to_label"]:
+        raise ValueError("correction must change the label")
+    if correction["response_sha256"] != sha256_text(response):
+        raise ValueError("correction response_sha256 does not match the frozen response")
+    if not isinstance(correction["reason"], str) or not correction["reason"].strip():
+        raise ValueError("correction reason must be a non-empty string")
+    if not isinstance(correction["approved_by"], str) or not correction["approved_by"].strip():
+        raise ValueError("correction approved_by must be a non-empty string")
+    approved_at = correction["approved_at"]
+    if not isinstance(approved_at, str) or not approved_at.strip():
+        raise ValueError("correction approved_at must be a non-empty ISO timestamp")
+    try:
+        approved_time = datetime.fromisoformat(
+            approved_at[:-1] + "+00:00" if approved_at.endswith("Z") else approved_at)
+    except ValueError as e:
+        raise ValueError("correction approved_at is not a valid ISO timestamp") from e
+    if approved_time.tzinfo is None:
+        raise ValueError("correction approved_at must include a timezone")
+    quote = correction["quote"]
+    if not isinstance(quote, str):
+        raise TypeError("correction quote must be a string")
+    if correction["to_label"]:
+        if not quote.strip():
+            raise ValueError("a correction to yes requires a verbatim quote")
+        if quote not in response:
+            raise ValueError("correction quote is not a literal substring of the response")
+
+
+def append_label_corrections(path, corrections: list[dict], sweep_dir) -> int:
+    """Serialize one real destination; preserve symlinks and reject hard-link forks."""
+    path = Path(path).expanduser().resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    lock_fd = os.open(path.parent, flags)
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        if path.exists() and path.stat().st_nlink != 1:
+            raise ValueError(
+                f"correction chain {path} has hard links; append through one canonical "
+                "path only")
+        return _append_label_corrections_locked(path, corrections, sweep_dir)
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        os.close(lock_fd)
+
+
+def _append_label_corrections_locked(path, corrections: list[dict], sweep_dir) -> int:
+    path = Path(path)
+    existing = path.read_text() if path.exists() else ""
+    raw = read_entries(path) if existing.strip() else []
+    seen = {(e["case"], e["slot"], e["qid"]) for e in raw}
+    planned = set()
+    prev = raw[-1]["digest"] if raw else ""
+    records = []
+    for correction in corrections:
+        case = correction.get("case")
+        slot = correction.get("slot")
+        qid = correction.get("qid")
+        if not isinstance(case, str) or not case.strip():
+            raise ValueError("correction case must be a non-empty string")
+        if type(slot) is not int:
+            raise TypeError("correction slot must be an integer")
+        if not 0 <= slot < SLOTS:
+            raise ValueError(f"correction slot must be between 0 and {SLOTS - 1}")
+        if not isinstance(qid, str) or not qid.strip():
+            raise ValueError("correction qid must be a non-empty string")
+        cell = (case, slot, qid)
+        if cell in seen or cell in planned:
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]} already has a label correction")
+        response = regrade.stored_response(sweep_dir, case, slot)
+        record = {**correction, "prev": prev}
+        validate_label_correction(record, response)
+        record["digest"] = entry_digest(record)
+        records.append(json.dumps(record, sort_keys=True) + "\n")
+        prev = record["digest"]
+        planned.add(cell)
+
+    if not records:
+        return 0
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+                "w", dir=path.parent, prefix=f".{path.name}.", delete=False) as fh:
+            temp_path = Path(fh.name)
+            fh.write(existing)
+            if existing and not existing.endswith("\n"):
+                fh.write("\n")
+            fh.writelines(records)
+            fh.flush()
+            os.fsync(fh.fileno())
+        if path.exists():
+            temp_path.chmod(path.stat().st_mode)
+        temp_path.replace(path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+    return len(records)
+
+
+def apply_label_corrections(gold: list[dict], corrections: list[dict], sweep_dir) -> list[dict]:
+    """Apply an append-only correction chain while rebuilding the derived gold key."""
+    out = [dict(entry) for entry in gold]
+    positions = {(e["case"], e["slot"], e["qid"]): i for i, e in enumerate(out)}
+    applied = set()
+    for correction in corrections:
+        cell = (correction["case"], correction["slot"], correction["qid"])
+        if cell in applied:
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]} has multiple label corrections")
+        if cell not in positions:
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]} is not in the derived gold key")
+        response = regrade.stored_response(sweep_dir, cell[0], cell[1])
+        validate_label_correction(correction, response)
+        target = out[positions[cell]]
+        if target.get("response_sha256") != correction["response_sha256"]:
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]}: correction and gold refer "
+                "to different responses")
+        if target.get("label") != correction["from_label"]:
+            raise ValueError(
+                f"{cell[2]} on {cell[0]} slot {cell[1]}: correction expects label "
+                f"{correction['from_label']}, derived gold has {target.get('label')}")
+        out[positions[cell]] = {
+            **target,
+            "label": correction["to_label"],
+            "quote": correction["quote"],
+            "note": correction["reason"],
+            "labeler": correction["approved_by"],
+            "labeled_at": correction["approved_at"],
+            "supersedes": target.get("digest"),
+            "label_corrections": target.get("label_corrections", 0) + 1,
+            "correction_digest": correction["digest"],
+        }
+        applied.add(cell)
+    return out
+
+
 def verify_chain(path) -> int:
     """Walk the chain, raising on the first break. Returns the entry count."""
     prev = ""
@@ -454,7 +703,8 @@ def write_chain(path, entries: list[dict]) -> None:
 
 
 def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | None = None,
-                             slots: int = SLOTS) -> dict:
+                             slots: int = SLOTS, answer_map: dict | None = None,
+                             answer_config: dict | None = None) -> dict:
     """How often the judge's recorded answer matches a blind human read.
 
     Scored per criterion, and only when every slot carries a gold label. A
@@ -483,6 +733,15 @@ def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | Non
                 f"{expected} — labels from another response cannot be scored")
     floor = runner._threshold(thresholds, 4, "question_rate")
     ledger = json.loads((Path(sweep_dir) / "ledger.json").read_text())
+    if answer_map is not None:
+        mapped_answers, judge_provenance = answer_map_index(
+            answer_map, sweep_dir, answer_config or {})
+    else:
+        mapped_answers = None
+        judge_provenance = {
+            "source": "historical_sweep",
+            "sweep": str(Path(sweep_dir).resolve()),
+        }
 
     by_criterion: dict[tuple, list[dict]] = {}
     for entry in gold:
@@ -491,8 +750,16 @@ def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | Non
     rows, defects = [], []
     for (case_name, qid), entries in sorted(by_criterion.items()):
         case = runner.load_case(ledger["cases"][case_name]["path"])
-        judge = judge_answers(sweep_dir, case_name, case, qid, slots)
+        judge = (mapped_judge_answers(mapped_answers, case_name, qid, slots)
+                 if mapped_answers is not None
+                 else judge_answers(sweep_dir, case_name, case, qid, slots))
         human = {e["slot"]: e["label"] for e in entries}
+        expected_slot_ids = set(range(slots))
+        human_slot_ids = set(human)
+        if not human_slot_ids <= expected_slot_ids:
+            raise ValueError(
+                f"{qid} on {case_name}: expected slots {sorted(expected_slot_ids)}, "
+                f"got {sorted(human_slot_ids)}")
         defects.extend({"case": case_name, "qid": qid, "slot": e["slot"],
                         "note": e.get("note", "")}
                        for e in entries if e.get("suspect_case_defect"))
@@ -500,7 +767,8 @@ def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | Non
         shared = sorted(set(judge) & set(human))
         fp = sum(1 for s in shared if judge[s] and not human[s])
         fn = sum(1 for s in shared if not judge[s] and human[s])
-        complete = len(human) == slots and len(judge) == slots
+        complete = (human_slot_ids == expected_slot_ids
+                    and set(judge) == expected_slot_ids)
         gold_pass = sum(1 for v in human.values() if v)
         judge_pass = sum(1 for v in judge.values() if v)
         rows.append({
@@ -519,6 +787,7 @@ def score_judge_against_gold(gold: list[dict], sweep_dir, thresholds: dict | Non
                                  and row["gate_judge"] is not None
                                  and row["gate_gold"] != row["gate_judge"])
     return {
+        "judge_provenance": judge_provenance,
         "criteria": rows,
         "suspected_case_defects": defects,
         "totals": {
@@ -541,7 +810,27 @@ def render_gold_md(summary: dict) -> str:
     and where they disagree — nothing more.
     """
     t = summary["totals"]
-    lines = ["# Judge accuracy against the gold key", "",
+    provenance = summary.get("judge_provenance") or {}
+    if provenance.get("source") == "answer_map":
+        provenance_lines = [
+            "- judge source: regrade answer map",
+            f"- sweep: `{provenance.get('sweep', '')}`",
+            (
+                f"- answer-map content SHA-256: "
+                f"`{provenance.get('answer_map_content_sha256', '')}`"
+            ),
+            f"- case-input SHA-256: `{provenance.get('case_inputs_sha256', '')}`",
+            f"- config SHA-256: `{provenance.get('config_sha256', '')}`",
+            f"- scorer SHA-256: `{provenance.get('scorer_sha256', '')}`",
+        ]
+    elif provenance.get("source") == "historical_sweep":
+        provenance_lines = [
+            "- judge source: historical sweep",
+            f"- sweep: `{provenance.get('sweep', '')}`",
+        ]
+    else:
+        provenance_lines = ["- judge source: unspecified"]
+    lines = ["# Judge accuracy against the gold key", "", *provenance_lines, "",
              f"- criteria scored: {t['criteria']} ({t['incomplete']} incomplete)",
              f"- gold cells: {t['cells']}",
              f"- judge said yes where the gold label says no (false positive): "
@@ -931,12 +1220,18 @@ def main(argv=None) -> int:
     p_join = sub.add_parser("join", help="merge pass 1 and pass 2")
     p_join.add_argument("--pass1", default="evals/gold/pass1.jsonl")
     p_join.add_argument("--pass2", default="evals/gold/pass2.jsonl")
+    p_join.add_argument("--corrections", default=None)
+    p_join.add_argument("--sweep", default=_DEFAULT_SWEEP)
     p_join.add_argument("--out", default="evals/gold/key.jsonl")
     p_join.add_argument("--contested", default="evals/gold/contested.jsonl")
 
     p_score = sub.add_parser("score", help="score the judge against the key")
     p_score.add_argument("--key", default="evals/gold/key.jsonl")
     p_score.add_argument("--sweep", default=_DEFAULT_SWEEP)
+    p_score.add_argument("--answers", default=None,
+                         help="optional regrade answer-map JSON; leaves the sweep unchanged")
+    p_score.add_argument("--config", default="evals/config.release.yaml",
+                         help="judge config used to create --answers")
     p_score.add_argument("--out", default="evals/results/gold-judge-accuracy")
 
     args = parser.parse_args(argv)
@@ -994,18 +1289,30 @@ def main(argv=None) -> int:
             return 1
 
     if args.command == "join":
-        _require_distinct_join_paths(
-            pass1=args.pass1, pass2=args.pass2,
-            out=args.out, contested=args.contested)
+        join_paths = {
+            "pass1": args.pass1, "pass2": args.pass2,
+            "out": args.out, "contested": args.contested,
+        }
+        if args.corrections:
+            join_paths["corrections"] = args.corrections
+        _require_distinct_join_paths(**join_paths)
         gold, contested = join_passes(read_entries(args.pass1),
                                       read_entries(args.pass2))
+        if args.corrections:
+            gold = apply_label_corrections(
+                gold, read_entries(args.corrections), args.sweep)
         write_chain(args.out, gold)
         write_chain(args.contested, contested)
         print(f"{len(gold)} gold, {len(contested)} contested")
         return 0
 
     if args.command == "score":
-        summary = score_judge_against_gold(read_entries(args.key), args.sweep)
+        answer_map = json.loads(Path(args.answers).read_text()) if args.answers else None
+        answer_config = yaml.safe_load(Path(args.config).read_text()) or {} \
+            if answer_map is not None else None
+        summary = score_judge_against_gold(
+            read_entries(args.key), args.sweep, answer_map=answer_map,
+            answer_config=answer_config)
         Path(args.out + ".json").write_text(json.dumps(summary, indent=2,
                                                        sort_keys=True))
         Path(args.out + ".md").write_text(render_gold_md(summary))

@@ -645,6 +645,30 @@ def _score_layer2(response: str, expected: dict, config: dict | None = None, deb
     return _judge_l2(response, expected, config, debug, rubric=rubric)
 
 
+_L4_CRITERION_CLARIFICATIONS = {
+    "clear_assumptions_student_verify": (
+        "Generic instructions to check an unnamed identifying assumption are insufficient. "
+        "Explicitly naming parallel trends and a pre-trends diagnostic does satisfy it."
+    ),
+    "explain_estimator_choice_matching": (
+        "Require a correct reason for the primary estimator and correct conditions under "
+        "which alternatives are preferred. A method list, mislabeled method, or false "
+        "robustness claim does not count. IPW is not a remedy for poor overlap, and "
+        "Rosenbaum bounds are not a doubly robust estimator. Answer No if a response "
+        "attaches the either-model-consistent claim to Rosenbaum bounds."
+    ),
+    "suggest_alternatives_if_matching_unviable": (
+        "Accept viable design pivots such as DiD with pre-treatment outcomes, trimming to "
+        "common support, or abandoning causal estimation. Do not require a specific named "
+        "alternative from the question's examples."
+    ),
+    "warn_controls_unaffected_by_intervention": (
+        "Require both that controls be unaffected and that treatment-affected controls "
+        "contaminate the counterfactual."
+    ),
+}
+
+
 def _judge_l4(response: str, case: dict, config: dict | None = None, debug: bool = False) -> dict:
     """Use LLM judge with per-dimension rubric questions for L4 (experience quality) scoring."""
     rubric = case.get("rubric", {})
@@ -675,19 +699,25 @@ Grade only the rubric as written without assuming a later conversational turn.""
     else:
         deferred_section = "None."
 
-    # Collect all questions and track which dimension each belongs to
+    # Keep the raw case questions separate from prompt-only clarifications. The raw
+    # text is persisted in `questions_asked` and compared with the case file later;
+    # storing prompt guidance there would falsely report rubric drift.
     questions: list[str] = []
+    prompt_questions: list[str] = []
     dim_ranges: dict[str, tuple[int, int]] = {}
     for dim in dimensions:
         dim_questions = rubric.get(dim, [])
         if dim_questions:
             start = len(questions)
-            # Entries are `{id, question, required}` after the L4 rubric migration and
-            # bare strings before it. Extending with the raw entry would render a dict
-            # repr into the numbered prompt and have the model grade a Python object.
-            # Same shape-tolerant read as the L2 rubric below.
-            questions.extend(e["question"] if isinstance(e, dict) else e
-                             for e in dim_questions)
+            for entry in dim_questions:
+                question = entry["question"] if isinstance(entry, dict) else entry
+                qid = entry.get("id") if isinstance(entry, dict) else None
+                questions.append(question)
+                clarification = (_L4_CRITERION_CLARIFICATIONS.get(qid)
+                                 if isinstance(qid, str) else None)
+                prompt_questions.append(
+                    f"{question}\n   Scoring clarification: {clarification}"
+                    if clarification else question)
             dim_ranges[dim] = (start, len(questions))
 
     if not questions:
@@ -696,7 +726,7 @@ Grade only the rubric as written without assuming a later conversational turn.""
             "error": "No rubric questions found",
         }
 
-    numbered = "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
+    numbered = "\n".join(f"{i+1}. {q}" for i, q in enumerate(prompt_questions))
     prompt = f"""You are evaluating a causal inference assistant's response for experience quality. Read the response carefully, then answer each question.
 
 {phase_instructions}

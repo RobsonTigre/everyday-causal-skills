@@ -1,8 +1,12 @@
 """Offline tests for the gold key. No model calls, no network, no real sweep dirs."""
 import glob
 import json
+import multiprocessing
+import os
 import sys
 import tempfile
+import threading
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -351,6 +355,243 @@ def test_join_cli_rechains_the_derived_gold_file_without_touching_pass_one():
         assert pass1.read_bytes() == original_pass1
 
 
+def test_approved_label_correction_rebuilds_gold_without_rewriting_pass_chains():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        pass1, pass2 = d / "pass1.jsonl", d / "pass2.jsonl"
+        corrections = d / "corrections.jsonl"
+        key, contested = d / "key.jsonl", d / "contested.jsonl"
+        goldkey.append_entry(pass1, _entry(label=False, quote=""), _RESPONSE)
+        pass2.write_text("")
+        sweep = d / "sweep"
+        sweep.mkdir()
+        _slot_file(sweep, "alpha", 0, _RESPONSE,
+                   {"pedagogy": [True, True], "safety": [True]})
+        correction = {
+            "case": "alpha", "slot": 0, "qid": "explains_why",
+            "response_sha256": goldkey.sha256_text(_RESPONSE),
+            "from_label": False, "to_label": True,
+            "quote": "The F statistic is 8.4, which is weak.",
+            "reason": "Approved audit correction: the criterion is satisfied.",
+            "approved_by": "robson", "approved_at": "2026-09-23T12:00:00-03:00",
+        }
+        original_pass1, original_pass2 = pass1.read_bytes(), pass2.read_bytes()
+
+        goldkey.append_label_corrections(corrections, [correction], sweep)
+        assert goldkey.main([
+            "join", "--pass1", str(pass1), "--pass2", str(pass2),
+            "--corrections", str(corrections), "--sweep", str(sweep),
+            "--out", str(key), "--contested", str(contested)]) == 0
+
+        joined = goldkey.read_entries(key)
+        assert len(joined) == 1
+        assert joined[0]["label"] is True
+        assert joined[0]["quote"] == correction["quote"]
+        assert joined[0]["label_corrections"] == 1
+        assert joined[0]["correction_digest"] == goldkey.read_entries(corrections)[0]["digest"]
+        assert pass1.read_bytes() == original_pass1
+        assert pass2.read_bytes() == original_pass2
+
+
+def _approved_correction(slot, response):
+    return {
+        "case": "alpha", "slot": slot, "qid": "explains_why",
+        "response_sha256": goldkey.sha256_text(response),
+        "from_label": False, "to_label": True,
+        "quote": "response body",
+        "reason": f"Approved correction for slot {slot}.",
+        "approved_by": "robson", "approved_at": "2026-09-23T12:00:00-03:00",
+    }
+
+
+def test_concurrent_correction_appends_preserve_both_approved_records():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        sweep = d / "sweep"
+        sweep.mkdir()
+        responses = {}
+        for slot in range(3):
+            response = f"response body for alpha slot {slot}"
+            responses[slot] = response
+            _slot_file(sweep, "alpha", slot, response,
+                       {"pedagogy": [True, True], "safety": [True]})
+        corrections = d / "corrections.jsonl"
+        goldkey.append_label_corrections(
+            corrections, [_approved_correction(0, responses[0])], sweep)
+
+        real_validate = goldkey.validate_label_correction
+        slow_started = threading.Event()
+
+        def slow_first_writer(correction, response):
+            real_validate(correction, response)
+            if correction["slot"] == 1:
+                slow_started.set()
+                time.sleep(0.20)
+
+        errors = []
+
+        def append(slot):
+            try:
+                goldkey.append_label_corrections(
+                    corrections, [_approved_correction(slot, responses[slot])], sweep)
+            except (OSError, TypeError, ValueError) as exc:  # pragma: no cover - asserted below
+                errors.append(exc)
+
+        with patch.object(goldkey, "validate_label_correction", slow_first_writer):
+            first = threading.Thread(target=append, args=(1,))
+            second = threading.Thread(target=append, args=(2,))
+            first.start()
+            assert slow_started.wait(timeout=1)
+            second.start()
+            first.join(timeout=2)
+            second.join(timeout=2)
+
+        assert not errors, errors
+        assert not first.is_alive() and not second.is_alive()
+        assert goldkey.verify_chain(corrections) == 3
+        assert {entry["slot"] for entry in goldkey.read_entries(corrections)} == {0, 1, 2}
+
+
+def test_correction_slots_are_bounded_by_the_five_slot_protocol():
+    response = "response body for alpha slot 5"
+    correction = _approved_correction(5, response)
+    try:
+        goldkey.validate_label_correction(correction, response)
+    except ValueError as e:
+        assert "between 0 and 4" in str(e)
+    else:
+        raise AssertionError("slot 5 passed direct correction validation")
+
+    with tempfile.TemporaryDirectory() as d:
+        path = Path(d) / "corrections.jsonl"
+        try:
+            goldkey.append_label_corrections(path, [correction], d)
+        except ValueError as e:
+            assert "between 0 and 4" in str(e)
+        else:
+            raise AssertionError("slot 5 reached correction append")
+        assert not path.exists()
+
+
+def _append_correction_process(corrections, sweep, slot, response, temp_dir,
+                               slow_started, slow, results):
+    tempfile.tempdir = str(temp_dir)
+    real_validate = goldkey.validate_label_correction
+    if slow:
+        def slow_validate(correction, stored_response):
+            real_validate(correction, stored_response)
+            slow_started.set()
+            time.sleep(0.30)
+        goldkey.validate_label_correction = slow_validate
+    else:
+        if not slow_started.wait(timeout=2):
+            results.put("timed out waiting for the first writer")
+            return
+    try:
+        goldkey.append_label_corrections(
+            corrections, [_approved_correction(slot, response)], sweep)
+    except (OSError, TypeError, ValueError) as exc:
+        results.put(repr(exc))
+    else:
+        results.put(None)
+
+
+def test_concurrent_correction_processes_ignore_distinct_tmpdir_values():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        sweep = d / "sweep"
+        sweep.mkdir()
+        responses = {}
+        for slot in range(3):
+            response = f"response body for alpha slot {slot}"
+            responses[slot] = response
+            _slot_file(sweep, "alpha", slot, response,
+                       {"pedagogy": [True, True], "safety": [True]})
+        corrections = d / "corrections.jsonl"
+        goldkey.append_label_corrections(
+            corrections, [_approved_correction(0, responses[0])], sweep)
+        tmp_one, tmp_two = d / "tmp-one", d / "tmp-two"
+        tmp_one.mkdir()
+        tmp_two.mkdir()
+
+        ctx = multiprocessing.get_context("fork")
+        slow_started = ctx.Event()
+        results = ctx.Queue()
+        first = ctx.Process(
+            target=_append_correction_process,
+            args=(corrections, sweep, 1, responses[1], tmp_one,
+                  slow_started, True, results))
+        second = ctx.Process(
+            target=_append_correction_process,
+            args=(corrections, sweep, 2, responses[2], tmp_two,
+                  slow_started, False, results))
+        first.start()
+        second.start()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+        assert first.exitcode == 0 and second.exitcode == 0
+        assert sorted([results.get(timeout=1), results.get(timeout=1)], key=str) == [None, None]
+        assert goldkey.verify_chain(corrections) == 3
+        assert {entry["slot"] for entry in goldkey.read_entries(corrections)} == {0, 1, 2}
+
+
+def test_correction_append_through_a_symlink_updates_the_target_and_preserves_the_link():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        sweep = d / "sweep"
+        sweep.mkdir()
+        responses = {}
+        for slot in range(2):
+            response = f"response body for alpha slot {slot}"
+            responses[slot] = response
+            _slot_file(sweep, "alpha", slot, response,
+                       {"pedagogy": [True, True], "safety": [True]})
+        target = d / "corrections.jsonl"
+        alias = d / "corrections-link.jsonl"
+        goldkey.append_label_corrections(
+            target, [_approved_correction(0, responses[0])], sweep)
+        alias.symlink_to(target)
+
+        goldkey.append_label_corrections(
+            alias, [_approved_correction(1, responses[1])], sweep)
+
+        assert alias.is_symlink()
+        assert goldkey.verify_chain(target) == 2
+        assert alias.read_bytes() == target.read_bytes()
+
+
+def test_correction_append_rejects_a_hard_link_without_forking_the_chain():
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        sweep = d / "sweep"
+        sweep.mkdir()
+        responses = {}
+        for slot in range(2):
+            response = f"response body for alpha slot {slot}"
+            responses[slot] = response
+            _slot_file(sweep, "alpha", slot, response,
+                       {"pedagogy": [True, True], "safety": [True]})
+        target = d / "corrections.jsonl"
+        alias = d / "corrections-hardlink.jsonl"
+        goldkey.append_label_corrections(
+            target, [_approved_correction(0, responses[0])], sweep)
+        os.link(target, alias)
+        before = target.read_bytes()
+
+        try:
+            goldkey.append_label_corrections(
+                alias, [_approved_correction(1, responses[1])], sweep)
+        except ValueError as exc:
+            assert "hard link" in str(exc).lower()
+        else:
+            raise AssertionError("append accepted a hard-linked correction chain")
+
+        assert target.read_bytes() == before
+        assert alias.read_bytes() == before
+        assert os.path.samefile(target, alias)
+
+
 def test_join_refuses_every_path_alias_before_writing():
     def assert_refused(configure):
         with tempfile.TemporaryDirectory() as d:
@@ -611,6 +852,189 @@ def test_a_judge_yes_against_a_gold_no_is_counted_as_a_false_positive():
         row = summary["criteria"][0]
         assert row["false_positive"] == 5 and row["false_negative"] == 0
         assert row["gate_judge"] is True and row["gate_gold"] is False
+
+
+def _regrade_answer_map(cases, sweep, rows, config=None):
+    loaded = {name: case for name, (case, _answers) in cases.items()}
+    return {
+        **goldkey.regrade.answer_map_identity(sweep, config or {}, loaded),
+        "started_at": "2026-09-23T12:00:00-03:00",
+        "updated_at": "2026-09-23T12:00:00-03:00",
+        "answers": rows,
+    }
+
+
+def test_scoring_rejects_five_labels_with_the_wrong_slot_identities():
+    judge = [{"pedagogy": [True, True], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), judge)}
+    gold = _gold_for("alpha", "is_tailored", [True] * 5)
+    gold[-1] = {
+        **gold[-1],
+        "slot": 5,
+        "response_sha256": goldkey.sha256_text("response body for alpha slot 5"),
+    }
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        _slot_file(
+            d, "alpha", 5, "response body for alpha slot 5",
+            {"pedagogy": [True, True], "safety": [True]})
+        try:
+            _with_loaded_cases(cases, lambda: goldkey.score_judge_against_gold(gold, d))
+        except ValueError as e:
+            assert "expected slots [0, 1, 2, 3, 4]" in str(e)
+            assert "[0, 1, 2, 3, 5]" in str(e)
+        else:
+            raise AssertionError("a wrong five-slot set was scored as complete")
+
+
+def test_scoring_can_use_a_regrade_answer_map_without_rewriting_the_sweep():
+    historical = [{"pedagogy": [True, False], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), historical)}
+    gold = _gold_for("alpha", "is_tailored", [True] * 5)
+    rows = [
+        {"case": "alpha", "slot": slot, "qid": "is_tailored", "answer": True,
+         "response_sha256": goldkey.sha256_text(f"response body for alpha slot {slot}")}
+        for slot in range(5)]
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        answers = _regrade_answer_map(cases, d, rows)
+        summary = _with_loaded_cases(
+            cases, lambda: goldkey.score_judge_against_gold(
+                gold, d, answer_map=answers))
+        row = summary["criteria"][0]
+        assert row["judge_pass"] == 5 and row["false_negative"] == 0
+        assert row["gate_judge"] is True
+        provenance = summary["judge_provenance"]
+        assert provenance["source"] == "answer_map"
+        assert provenance["schema_version"] == 1
+        assert provenance["case_inputs_sha256"] == answers["case_inputs_sha256"]
+        assert provenance["config_sha256"] == answers["config_sha256"]
+        assert provenance["scorer_sha256"] == answers["scorer_sha256"]
+        assert len(provenance["answer_map_content_sha256"]) == 64
+        markdown = goldkey.render_gold_md(summary)
+        assert "judge source: regrade answer map" in markdown.lower()
+        assert provenance["answer_map_content_sha256"] in markdown
+
+
+def test_scoring_refuses_an_answer_map_from_a_different_response():
+    historical = [{"pedagogy": [True, False], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), historical)}
+    gold = _gold_for("alpha", "is_tailored", [True] * 5)
+    rows = [
+        {"case": "alpha", "slot": slot, "qid": "is_tailored", "answer": True,
+         "response_sha256": goldkey.sha256_text("a different response")}
+        for slot in range(5)]
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        answers = _regrade_answer_map(cases, d, rows)
+        try:
+            _with_loaded_cases(
+                cases, lambda: goldkey.score_judge_against_gold(
+                    gold, d, answer_map=answers))
+        except ValueError as e:
+            assert "answer map" in str(e).lower() and "response_sha256" in str(e)
+        else:
+            raise AssertionError("an answer map from another response was scored")
+
+
+def test_scoring_refuses_answer_map_schema_and_provenance_mismatches():
+    historical = [{"pedagogy": [True, False], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), historical)}
+    gold = _gold_for("alpha", "is_tailored", [True] * 5)
+    rows = [
+        {"case": "alpha", "slot": slot, "qid": "is_tailored", "answer": True,
+         "response_sha256": goldkey.sha256_text(f"response body for alpha slot {slot}")}
+        for slot in range(5)]
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        valid = _regrade_answer_map(cases, d, rows)
+        mutations = {
+            "schema_version": 999,
+            "sweep": str(d / "another-sweep"),
+            "case_inputs_sha256": "0" * 64,
+            "config_sha256": "1" * 64,
+            "scorer_sha256": "2" * 64,
+        }
+        for field, wrong in mutations.items():
+            answer_map = {**valid, field: wrong}
+            try:
+                _with_loaded_cases(
+                    cases, lambda answer_map=answer_map: goldkey.score_judge_against_gold(
+                        gold, d, answer_map=answer_map))
+            except ValueError as exc:
+                assert field in str(exc)
+            else:
+                raise AssertionError(f"answer map with wrong {field} was scored")
+
+
+def test_scoring_refuses_an_answer_map_criterion_not_in_the_selected_case():
+    historical = [{"pedagogy": [True, False], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), historical)}
+    gold = _gold_for("alpha", "removed_criterion", [True] * 5)
+    rows = [
+        {"case": "alpha", "slot": slot, "qid": "removed_criterion", "answer": True,
+         "response_sha256": goldkey.sha256_text(f"response body for alpha slot {slot}")}
+        for slot in range(5)]
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        answers = _regrade_answer_map(cases, d, rows)
+        try:
+            _with_loaded_cases(
+                cases, lambda: goldkey.score_judge_against_gold(
+                    gold, d, answer_map=answers))
+        except ValueError as exc:
+            assert "unknown criterion" in str(exc).lower()
+            assert "removed_criterion" in str(exc)
+        else:
+            raise AssertionError("an answer for a removed criterion was scored")
+
+
+def test_answer_map_rejects_a_slot_outside_the_five_slot_protocol():
+    historical = [{"pedagogy": [True, False], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), historical)}
+    with tempfile.TemporaryDirectory() as d:
+        d = _sweep_with_ledger(Path(d), cases)
+        response = "response body for alpha slot 5"
+        _slot_file(d, "alpha", 5, response,
+                   {"pedagogy": [True, False], "safety": [True]})
+        rows = [{
+            "case": "alpha", "slot": 5, "qid": "is_tailored", "answer": True,
+            "response_sha256": goldkey.sha256_text(response),
+        }]
+        answers = _regrade_answer_map(cases, d, rows)
+        try:
+            _with_loaded_cases(
+                cases, lambda: goldkey.answer_map_index(answers, d, {}))
+        except ValueError as exc:
+            assert "slot" in str(exc).lower() and "0" in str(exc) and "4" in str(exc)
+        else:
+            raise AssertionError("answer map accepted slot 5 in a five-slot protocol")
+
+
+def test_score_cli_accepts_a_regrade_answer_map_file():
+    historical = [{"pedagogy": [True, False], "safety": [True]} for _ in range(5)]
+    cases = {"alpha": (dict(_CASE, name="alpha"), historical)}
+    gold = _gold_for("alpha", "is_tailored", [True] * 5)
+    rows = [
+        {"case": "alpha", "slot": slot, "qid": "is_tailored", "answer": True,
+         "response_sha256": goldkey.sha256_text(f"response body for alpha slot {slot}")}
+        for slot in range(5)]
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        sweep = _sweep_with_ledger(d / "sweep", cases)
+        key = d / "key.jsonl"
+        answer_path = d / "answers.json"
+        config_path = d / "config.yaml"
+        out = d / "score"
+        goldkey.write_chain(key, gold)
+        answer_path.write_text(json.dumps(_regrade_answer_map(cases, sweep, rows)))
+        config_path.write_text("{}\n")
+        assert _with_loaded_cases(cases, lambda: goldkey.main([
+            "score", "--key", str(key), "--sweep", str(sweep),
+            "--answers", str(answer_path), "--config", str(config_path),
+            "--out", str(out)])) == 0
+        summary = json.loads(out.with_suffix(".json").read_text())
+        assert summary["criteria"][0]["judge_pass"] == 5
 
 
 def test_suspected_case_defects_are_reported_apart_from_the_scores():
